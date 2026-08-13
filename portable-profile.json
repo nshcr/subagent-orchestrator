@@ -1,0 +1,89 @@
+{
+  "format_version": 1,
+  "profile_id": "quality-first-subagent-orchestration-2026-08",
+  "objective": [
+    "authorization-safety-correctness-evidence-integrity",
+    "stable-verified-quality",
+    "end-to-end-chatgpt-credits"
+  ],
+  "time_policy": "telemetry-only",
+  "primary": {
+    "model": "unconstrained",
+    "reasoning_effort": "unconstrained",
+    "owns": [
+      "authorization",
+      "scope",
+      "single-writer-integration",
+      "conflict-handling",
+      "final-acceptance"
+    ]
+  },
+  "default_child": {
+    "model_hint": "gpt-5.6-sol",
+    "reasoning_effort_hint": "high"
+  },
+  "concurrency": {
+    "runtime_thread_cap": 16,
+    "qualified_custom_child_cap": 3,
+    "fourth_custom_child_requires_user_authorization": true,
+    "wait_timeout_is_terminal": false
+  },
+  "roles": [
+    {
+      "id": "evidence_tester",
+      "class": "evidence-owning-test-or-log-analyst",
+      "eligibility": "material structured test output or bounded runbook-driven logs with explicit acceptance fields and one requested artifact",
+      "model_hint": "gpt-5.6-luna",
+      "reasoning_effort_hint": "max",
+      "service_tier_hint": "default",
+      "write_scope": "one assigned workspace artifact only",
+      "template": "payload/agents/evidence_tester.toml"
+    },
+    {
+      "id": "boundary_mapper",
+      "class": "read-only-cross-component-boundary-analyst",
+      "eligibility": "one named unresolved execution, state, or persistence boundary after a targeted primary check",
+      "model_hint": "gpt-5.6-terra",
+      "reasoning_effort_hint": "max",
+      "service_tier_hint": "default",
+      "write_scope": "none",
+      "template": "payload/agents/boundary_mapper.toml"
+    },
+    {
+      "id": "risk_reviewer",
+      "class": "independent-high-risk-final-gate",
+      "eligibility": "required fresh independent review of named high-risk final-state or acceptance invariants",
+      "model_hint": "gpt-5.6-sol",
+      "reasoning_effort_hint": "xhigh",
+      "service_tier_hint": "default",
+      "write_scope": "none",
+      "template": "payload/agents/risk_reviewer.toml"
+    },
+    {
+      "id": "risk_reviewer_max",
+      "class": "single-escalation-variant-of-risk-reviewer",
+      "eligibility": "one fresh escalation only after sufficient evidence leaves competing causal explanations that can change an irreversible P0/P1, security, authorization, or data-integrity decision",
+      "model_hint": "gpt-5.6-sol",
+      "reasoning_effort_hint": "max",
+      "service_tier_hint": "default",
+      "write_scope": "none",
+      "template": "payload/agents/risk_reviewer_max.toml"
+    }
+  ],
+  "handoff": {
+    "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
+    "non_recursive": true,
+    "state_bound": true,
+    "user_facing_language": "user-preferred",
+    "model_facing_language": "English"
+  },
+  "unsupported_work_route": "primary-or-default",
+  "adapter_requirements": [
+    "preserve-role-eligibility",
+    "preserve-permission-boundaries",
+    "preserve-non-recursion",
+    "preserve-terminal-collection",
+    "preserve-output-language-contract",
+    "treat-model-and-effort-values-as-client-specific-hints"
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "logical_default_cap": 3,
+  "runtime_capacity": 16,
+  "owner_hashes": {
+    "SKILL.md": "5b1b53b90fff700d9bb803e87050db285b13d353eae029f6a9088253364827dc",
+    "references/routing-policy.md": "0d0855ddb0786b88ed6fa64f9c1c44fd81b28e2e154c061749b8e7241eb80449",
+    "references/delegation-contracts.md": "3e788b74d89d356823dd46374e409b7b0bb8041dd8c23c1ac9a5ec51baad7352",
+    "references/evaluation-policy.md": "38fa07a6215427bbdf6949b050c19e0d39e3bd7ed39a879505c378ca660f13b4",
+    "AGENTS.md#subagent-policy": "37d9a41d324d5fbc259baf8f893288aaef70003b0259b6de95b6ab0a76e392e2",
+    "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
+  },
+  "scenarios": [
+    {
+      "name": "delayed_parallel_collection",
+      "events": [
+        {
+          "type": "spawn",
+          "child": "slow_boundary",
+          "qualified": true,
+          "required": true,
+          "independent": true,
+          "ownership_safe": true
+        },
+        {"type": "wait_timeout", "child": "slow_boundary"},
+        {
+          "type": "spawn",
+          "child": "independent_gate",
+          "qualified": true,
+          "required": true,
+          "independent": true,
+          "ownership_safe": true
+        },
+        {"type": "wait_timeout", "child": "slow_boundary"},
+        {
+          "type": "cancel_request",
+          "child": "slow_boundary",
+          "reason": "wait_timeout",
+          "outcome": "rejected"
+        },
+        {
+          "type": "replacement_request",
+          "original": "slow_boundary",
+          "replacement": "replacement_boundary",
+          "outcome": "rejected"
+        },
+        {"type": "receipt", "child": "independent_gate"},
+        {"type": "receipt", "child": "slow_boundary"},
+        {"type": "primary_finalize"}
+      ]
+    },
+    {
+      "name": "authorized_cancellation_acknowledgement",
+      "events": [
+        {
+          "type": "spawn",
+          "child": "cancelled_child",
+          "qualified": true,
+          "required": true,
+          "independent": true,
+          "ownership_safe": true
+        },
+        {
+          "type": "cancel_request",
+          "child": "cancelled_child",
+          "reason": "user_cancel",
+          "outcome": "accepted"
+        },
+        {"type": "cancel_ack", "child": "cancelled_child"},
+        {"type": "primary_finalize"}
+      ]
+    },
+    {
+      "name": "terminal_runtime_failure_collection",
+      "events": [
+        {
+          "type": "spawn",
+          "child": "failed_child",
+          "qualified": true,
+          "required": true,
+          "independent": true,
+          "ownership_safe": true
+        },
+        {"type": "runtime_failure", "child": "failed_child"},
+        {"type": "primary_finalize"}
+      ]
+    }
+  ]
+}
