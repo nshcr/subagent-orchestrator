@@ -1,0 +1,232 @@
+{
+  "allowed_baseline_roles": [
+    "explorer"
+  ],
+  "campaign_id": "public-smoke",
+  "completion": {
+    "all_contamination_audits_clean": true,
+    "all_records_valid": true,
+    "all_tested_threads_terminal_before_archive": true,
+    "archive_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "receipt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "results_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "execution_order": [
+    {
+      "arm": "baseline",
+      "instance_id": "sealed-smoke"
+    },
+    {
+      "arm": "custom",
+      "instance_id": "sealed-smoke"
+    }
+  ],
+  "instances": [
+    {
+      "arm_order": [
+        "baseline",
+        "custom"
+      ],
+      "expected_roles": [
+        "evidence_tester"
+      ],
+      "fixture_family": "public-sealed",
+      "holdout": true,
+      "instance_id": "sealed-smoke",
+      "runs": {
+        "baseline": {
+          "child_count": 1,
+          "completion_status": "completed",
+          "contamination_audit": {
+            "notes": "clean",
+            "passed": true
+          },
+          "execution_index": 0,
+          "expected_receiver_ids": [
+            "baseline-child"
+          ],
+          "expected_thread_ids": [
+            "baseline-primary",
+            "baseline-child"
+          ],
+          "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "process_exit_code": 0,
+          "quality_checks": [
+            {
+              "critical": true,
+              "id": "grounded-result",
+              "max_score": 10,
+              "passed": true,
+              "score": 10
+            }
+          ],
+          "retries": 0,
+          "routing_decision": "bounded specialist",
+          "routing_violations": [],
+          "scope_violations": [],
+          "threads": [
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "10",
+                "uncached_input": "10"
+              },
+              "effort": "medium",
+              "kind": "primary",
+              "model": "test-primary",
+              "parent_thread_id": null,
+              "role": "primary",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "baseline-primary",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 20,
+                "input_tokens": 100,
+                "output_tokens": 30,
+                "reasoning_output_tokens": 5,
+                "total_tokens": 130
+              }
+            },
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "0",
+                "uncached_input": "0"
+              },
+              "effort": "high",
+              "kind": "child",
+              "model": "test-child",
+              "parent_thread_id": "baseline-primary",
+              "role": "explorer",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "baseline-child",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 0
+              }
+            }
+          ],
+          "wall_time_ms": 250
+        },
+        "custom": {
+          "child_count": 1,
+          "completion_status": "completed",
+          "contamination_audit": {
+            "notes": "clean",
+            "passed": true
+          },
+          "execution_index": 1,
+          "expected_receiver_ids": [
+            "custom-child"
+          ],
+          "expected_thread_ids": [
+            "custom-primary",
+            "custom-child"
+          ],
+          "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "process_exit_code": 0,
+          "quality_checks": [
+            {
+              "critical": true,
+              "id": "grounded-result",
+              "max_score": 10,
+              "passed": true,
+              "score": 10
+            }
+          ],
+          "retries": 0,
+          "routing_decision": "bounded specialist",
+          "routing_violations": [],
+          "scope_violations": [],
+          "threads": [
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "9",
+                "uncached_input": "9"
+              },
+              "effort": "medium",
+              "kind": "primary",
+              "model": "test-primary",
+              "parent_thread_id": null,
+              "role": "primary",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "custom-primary",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 20,
+                "input_tokens": 100,
+                "output_tokens": 30,
+                "reasoning_output_tokens": 5,
+                "total_tokens": 130
+              }
+            },
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "0",
+                "uncached_input": "0"
+              },
+              "effort": "high",
+              "kind": "child",
+              "model": "test-child",
+              "parent_thread_id": "custom-primary",
+              "role": "evidence_tester",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "custom-child",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 0
+              }
+            }
+          ],
+          "wall_time_ms": 250
+        }
+      },
+      "scenario": "public sealed-boundary smoke",
+      "task_class": "test-triage"
+    }
+  ],
+  "schema_version": 1,
+  "seal": {
+    "agent_visibility_boundary_enforced": true,
+    "expected_answers_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "fixtures_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "harness_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "live_configuration_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prompts_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "receipt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "runner_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "runner_unlinked_before_agents": true,
+    "seal_id": "external-seal-1"
+  }
+}

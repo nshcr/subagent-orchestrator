@@ -1,0 +1,224 @@
+{
+  "allowed_baseline_roles": [
+    "explorer"
+  ],
+  "campaign_id": "public-smoke",
+  "class_policies": {
+    "test-triage": {
+      "custom_role": "evidence_tester",
+      "decision_mode": "elective"
+    }
+  },
+  "configuration_hashes": {
+    "graders": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "pricing": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "role_instructions": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "routing_policy": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "task_fixtures": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "execution_order": [
+    {
+      "arm": "custom",
+      "instance_id": "development-smoke"
+    },
+    {
+      "arm": "baseline",
+      "instance_id": "development-smoke"
+    }
+  ],
+  "instances": [
+    {
+      "arm_order": [
+        "custom",
+        "baseline"
+      ],
+      "expected_roles": [
+        "evidence_tester"
+      ],
+      "fixture_family": "public-development",
+      "holdout": false,
+      "instance_id": "development-smoke",
+      "runs": {
+        "baseline": {
+          "child_count": 1,
+          "completion_status": "completed",
+          "contamination_audit": {
+            "notes": "clean",
+            "passed": true
+          },
+          "execution_index": 1,
+          "expected_receiver_ids": [
+            "baseline-child"
+          ],
+          "expected_thread_ids": [
+            "baseline-primary",
+            "baseline-child"
+          ],
+          "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "process_exit_code": 0,
+          "quality_checks": [
+            {
+              "critical": true,
+              "id": "grounded-result",
+              "max_score": 10,
+              "passed": true,
+              "score": 10
+            }
+          ],
+          "retries": 0,
+          "routing_decision": "bounded specialist",
+          "routing_violations": [],
+          "scope_violations": [],
+          "threads": [
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "10",
+                "uncached_input": "10"
+              },
+              "effort": "medium",
+              "kind": "primary",
+              "model": "test-primary",
+              "parent_thread_id": null,
+              "role": "primary",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "baseline-primary",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 20,
+                "input_tokens": 100,
+                "output_tokens": 30,
+                "reasoning_output_tokens": 5,
+                "total_tokens": 130
+              }
+            },
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "0",
+                "uncached_input": "0"
+              },
+              "effort": "high",
+              "kind": "child",
+              "model": "test-child",
+              "parent_thread_id": "baseline-primary",
+              "role": "explorer",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "baseline-child",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 0
+              }
+            }
+          ],
+          "wall_time_ms": 250
+        },
+        "custom": {
+          "child_count": 1,
+          "completion_status": "completed",
+          "contamination_audit": {
+            "notes": "clean",
+            "passed": true
+          },
+          "execution_index": 0,
+          "expected_receiver_ids": [
+            "custom-child"
+          ],
+          "expected_thread_ids": [
+            "custom-primary",
+            "custom-child"
+          ],
+          "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "process_exit_code": 0,
+          "quality_checks": [
+            {
+              "critical": true,
+              "id": "grounded-result",
+              "max_score": 10,
+              "passed": true,
+              "score": 10
+            }
+          ],
+          "retries": 0,
+          "routing_decision": "bounded specialist",
+          "routing_violations": [],
+          "scope_violations": [],
+          "threads": [
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "9",
+                "uncached_input": "9"
+              },
+              "effort": "medium",
+              "kind": "primary",
+              "model": "test-primary",
+              "parent_thread_id": null,
+              "role": "primary",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "custom-primary",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 20,
+                "input_tokens": 100,
+                "output_tokens": 30,
+                "reasoning_output_tokens": 5,
+                "total_tokens": 130
+              }
+            },
+            {
+              "attempt": 1,
+              "cost_complete": true,
+              "credits": {
+                "cached_input": "0",
+                "output": "0",
+                "total": "0",
+                "uncached_input": "0"
+              },
+              "effort": "high",
+              "kind": "child",
+              "model": "test-child",
+              "parent_thread_id": "custom-primary",
+              "role": "evidence_tester",
+              "service_tier": "default",
+              "status": "completed",
+              "terminal": true,
+              "thread_id": "custom-child",
+              "tokens": {
+                "cache_write_input_tokens": 0,
+                "cached_input_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 0
+              }
+            }
+          ],
+          "wall_time_ms": 250
+        }
+      },
+      "scenario": "public paired-evidence smoke",
+      "task_class": "test-triage"
+    }
+  ],
+  "schema_version": 1
+}

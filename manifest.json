@@ -39,6 +39,46 @@
       "size": 1862
     },
     {
+      "path": "evaluation/README.md",
+      "sha256": "eb6c944b7b001842a10e56adf5e69c0c0d42f7e125d2740526db6a75c169556d",
+      "size": 5247
+    },
+    {
+      "path": "evaluation/__init__.py",
+      "sha256": "60f9390b8062a0ab6e7b06bb4b8974f6bd9a33b825a7255943d57e9b79005597",
+      "size": 243
+    },
+    {
+      "path": "evaluation/__main__.py",
+      "sha256": "4afa49603e55f5c9ab08f76bec0f7ceba53507196a21256700453af3baefe56e",
+      "size": 85
+    },
+    {
+      "path": "evaluation/campaign.py",
+      "sha256": "8784ad02fa06934b3458c04b9aaefd5fd30c0893c14d8252d3ad7195b3e55cb9",
+      "size": 42846
+    },
+    {
+      "path": "evaluation/campaign.schema.json",
+      "sha256": "63015e4f788a94ab38302d0bed8ee4da397a8f0a8cf0792ab609e00aabd38c90",
+      "size": 8082
+    },
+    {
+      "path": "evaluation/examples/campaign.json",
+      "sha256": "46c05eb13ea43d9a4abdd3f46db7b63df24d495029ef9ddda2028b580b81d9d7",
+      "size": 6859
+    },
+    {
+      "path": "evaluation/examples/sealed-holdout.json",
+      "sha256": "4846f149b8f0aa204aa592cd7558f968920235e2429342f929f799544c2fe113",
+      "size": 7543
+    },
+    {
+      "path": "evaluation/sealed-holdout.schema.json",
+      "sha256": "00370a1c085f6ebeb55acabbf94968b99b2f94d44cac833e123ebdad948ba615",
+      "size": 2779
+    },
+    {
       "path": "install-migrations.json",
       "sha256": "86018133208e80fee4d5d844a9f29e366987bff488629cccce07b75e52251ff7",
       "size": 126
@@ -137,6 +177,11 @@
       "path": "portable-profile.json",
       "sha256": "90b9b136d5ef2217af24ace53029136eef18191541421b2e47a367f182dea020",
       "size": 3643
+    },
+    {
+      "path": "tests/test_evaluation.py",
+      "sha256": "e6c6e746c992158802c424f087562c22caa7460a46a8bc7784808218e8c59197",
+      "size": 20347
     },
     {
       "path": "tests/test_install.py",

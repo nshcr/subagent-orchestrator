@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/subagent-orchestrator/evaluation/sealed-holdout.schema.json",
+  "title": "External Sealed Holdout Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "campaign_id", "seal", "completion", "allowed_baseline_roles", "execution_order", "instances"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "campaign_id": {"$ref": "campaign.schema.json#/$defs/string"},
+    "allowed_baseline_roles": {"$ref": "campaign.schema.json#/$defs/stringList"},
+    "seal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seal_id", "receipt_sha256", "runner_sha256", "harness_sha256", "grader_sha256", "expected_answers_sha256", "fixtures_sha256", "prompts_sha256", "live_configuration_sha256", "agent_visibility_boundary_enforced", "runner_unlinked_before_agents"],
+      "properties": {
+        "seal_id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "receipt_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "runner_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "harness_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "grader_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "expected_answers_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "fixtures_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "prompts_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "live_configuration_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "agent_visibility_boundary_enforced": {"const": true},
+        "runner_unlinked_before_agents": {"const": true}
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_sha256", "results_sha256", "archive_sha256", "all_tested_threads_terminal_before_archive", "all_records_valid", "all_contamination_audits_clean"],
+      "properties": {
+        "receipt_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "results_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "archive_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "all_tested_threads_terminal_before_archive": {"const": true},
+        "all_records_valid": {"const": true},
+        "all_contamination_audits_clean": {"const": true}
+      }
+    },
+    "execution_order": {"$ref": "campaign.schema.json#/$defs/executionOrder"},
+    "instances": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "allOf": [
+          {"$ref": "campaign.schema.json#/$defs/instance"},
+          {"properties": {"holdout": {"const": true}}}
+        ]
+      }
+    }
+  }
+}
