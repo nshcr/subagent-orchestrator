@@ -39,9 +39,14 @@
       "size": 1862
     },
     {
+      "path": "install-migrations.json",
+      "sha256": "86018133208e80fee4d5d844a9f29e366987bff488629cccce07b75e52251ff7",
+      "size": 126
+    },
+    {
       "path": "install.py",
-      "sha256": "3574330792840d9e7e548725121f0b8bf9cc9ad8e107779abacfc67ca62f73a7",
-      "size": 23901
+      "sha256": "dae86cbb7e049d5cc6e88302dfa138f62372aa0e11220eb83df563a92db46dcb",
+      "size": 59154
     },
     {
       "path": "payload/AGENTS.section.en.md",
@@ -135,8 +140,8 @@
     },
     {
       "path": "tests/test_install.py",
-      "sha256": "916b032fde19e6287e433f3079cb4f0f3540caeb2fba00c0f3dc532dbdff9ecc",
-      "size": 17712
+      "sha256": "15373dd9561f11eee4898fac5a2d1ebb30a154a4d9e5d1b31ec8336e7bb3740b",
+      "size": 41899
     },
     {
       "path": "tests/test_manifest.py",

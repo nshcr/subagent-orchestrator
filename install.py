@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import ctypes
 from dataclasses import dataclass
+import errno
 import hashlib
 import json
 import os
@@ -13,11 +16,13 @@ import re
 import sys
 import tempfile
 import tomllib
+from typing import Callable, Iterator
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 PAYLOAD_ROOT = PACKAGE_ROOT / "payload"
 MANIFEST_PATH = PACKAGE_ROOT / "manifest.json"
+MIGRATION_CATALOG_PATH = PACKAGE_ROOT / "install-migrations.json"
 SKILL_NAME = "subagent-orchestrator"
 ROLES = (
     "evidence_tester",
@@ -33,6 +38,9 @@ CONFIG_KEYS = (
     "default_subagent_reasoning_effort",
 )
 STATE_RELATIVE = Path("skills") / SKILL_NAME / ".managed-package-state.json"
+JOURNAL_RELATIVE = Path("skills") / SKILL_NAME / ".install-transaction.json"
+QUARANTINE_RELATIVE = Path("skills") / SKILL_NAME / ".retired"
+STAGING_RELATIVE = Path("skills") / SKILL_NAME / ".retirement-receipts"
 AGENTS_HEADING = "## Subagents and parallelism"
 LEGACY_AGENTS_HEADING = "## 子代理与并行"
 AGENTS_SECTION_FILES = {
@@ -45,6 +53,7 @@ ACCEPTED_GLOBAL_POLICY_SHA256 = {
 }
 ACCEPTED_STATE_MANIFESTS = {
     # Package states written by accepted predecessor bundles.
+    "20bef171c9a9e6390c9fdbdde90094497c76e8291090f736fe3ea206935bdbe2",
     "9eec02b6314206067d07b18596e9b3f9d454706652b235c827a32135bd99bce5",
     "481ad7ab43f2e4229489cd99052a2af50a30ac8b172ccc459c4c1f5efd6f2661",
     "498be7e574c86c9ab6c56c1f4ab09ffbcc237ad3a44d9b09975ead935f392742",
@@ -77,14 +86,70 @@ class InstallError(RuntimeError):
 class PlannedWrite:
     relative: str
     path: Path
-    content: bytes
-    managed_hash: str
+    content: bytes | None
+    managed_hash: str | None
     expected_prior_exists: bool
     expected_prior_sha256: str | None
+    managed_key: str | None = None
+    quarantine_path: Path | None = None
+    staging_path: Path | None = None
+
+    @property
+    def operation(self) -> str:
+        if self.content is not None:
+            return "write"
+        return "quarantine" if self.quarantine_path is not None else "invalid"
+
+    @property
+    def desired_sha256(self) -> str | None:
+        return sha256_bytes(self.content) if self.content is not None else None
 
 
 def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def same_physical_file(left: Path, right: Path) -> bool:
+    try:
+        return left.samefile(right)
+    except OSError:
+        return False
+
+
+def rename_noreplace(source: Path, destination: Path) -> None:
+    """Atomically move a path without replacing an existing destination."""
+    library = ctypes.CDLL(None, use_errno=True)
+    encoded_source = os.fsencode(source)
+    encoded_destination = os.fsencode(destination)
+    if sys.platform == "darwin":
+        rename = library.renamex_np
+        rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        result = rename(encoded_source, encoded_destination, 0x00000004)
+    elif sys.platform.startswith("linux") and hasattr(library, "renameat2"):
+        rename = library.renameat2
+        rename.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        rename.restype = ctypes.c_int
+        result = rename(-100, encoded_source, -100, encoded_destination, 1)
+    else:
+        raise InstallError("atomic no-replace rename is unsupported on this platform")
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number == errno.EEXIST:
+        raise InstallError(f"staging destination already exists: {destination}")
+    raise OSError(
+        error_number,
+        os.strerror(error_number),
+        str(source),
+        str(destination),
+    )
 
 
 def canonical_json_hash(value: object) -> str:
@@ -101,6 +166,7 @@ def load_manifest() -> dict:
     declared = manifest.get("files")
     if not isinstance(declared, list):
         raise InstallError("package manifest has no files list")
+    declared_paths = set()
     for item in declared:
         relative = item.get("path", "")
         path = PACKAGE_ROOT / relative
@@ -111,7 +177,99 @@ def load_manifest() -> dict:
         actual = sha256_bytes(path.read_bytes())
         if actual != item.get("sha256"):
             raise InstallError(f"manifest hash mismatch: {relative}")
+        declared_paths.add(relative)
+    migration_relative = "install-migrations.json"
+    if migration_relative not in declared_paths:
+        raise InstallError("package manifest does not declare install-migrations.json")
     return manifest
+
+
+def load_migration_catalog() -> dict:
+    try:
+        document = json.loads(MIGRATION_CATALOG_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise InstallError(f"install migration catalog is unreadable: {error}") from error
+    expected_keys = {
+        "format_version",
+        "package_id",
+        "accepted_install_contracts",
+        "retired_paths",
+    }
+    if not isinstance(document, dict) or set(document) != expected_keys:
+        raise InstallError("install migration catalog has an unknown schema")
+    if document.get("format_version") != 1:
+        raise InstallError("install migration catalog format_version must be 1")
+    if document.get("package_id") != SKILL_NAME:
+        raise InstallError("install migration catalog package identity mismatch")
+    accepted = document.get("accepted_install_contracts")
+    if not isinstance(accepted, list) or not all(
+        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+        for value in accepted
+    ) or len(set(accepted)) != len(accepted):
+        raise InstallError("install migration catalog has invalid contract lineage")
+    retired = document.get("retired_paths")
+    if not isinstance(retired, list):
+        raise InstallError("install migration catalog retired_paths must be a list")
+    seen = set()
+    current_domain = expected_managed_domain()
+    for entry in retired:
+        if not isinstance(entry, dict) or set(entry) != {"path", "accepted_sha256"}:
+            raise InstallError("install migration catalog has an invalid retirement entry")
+        relative = entry.get("path")
+        hashes = entry.get("accepted_sha256")
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+            or relative in current_domain
+            or relative in {str(STATE_RELATIVE), str(JOURNAL_RELATIVE)}
+            or Path(relative).is_relative_to(QUARANTINE_RELATIVE)
+            or Path(relative).is_relative_to(STAGING_RELATIVE)
+            or relative in seen
+        ):
+            raise InstallError(f"unsafe or duplicate retired path: {relative!r}")
+        if not isinstance(hashes, list) or not hashes or not all(
+            isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+            for value in hashes
+        ) or len(set(hashes)) != len(hashes):
+            raise InstallError(f"invalid accepted hashes for retired path: {relative}")
+        seen.add(relative)
+    return document
+
+
+def retired_path_hashes(catalog: dict) -> dict[str, set[str]]:
+    return {
+        entry["path"]: set(entry["accepted_sha256"])
+        for entry in catalog["retired_paths"]
+    }
+
+
+def install_contract_sha256(catalog: dict | None = None) -> str:
+    """Hash only install-relevant inputs, not release docs/tests/CI metadata."""
+    catalog = catalog or load_migration_catalog()
+    sources = {}
+    for relative in [
+        *(f"payload/{name}" for name in AGENTS_SECTION_FILES.values()),
+        "payload/config.agents.toml",
+        *(f"payload/agents/{role}.toml" for role in ROLES),
+    ]:
+        sources[relative] = sha256_bytes((PACKAGE_ROOT / relative).read_bytes())
+    skill_source = PAYLOAD_ROOT / "skills" / SKILL_NAME
+    for source in sorted(skill_source.rglob("*")):
+        if not source.is_file() or source.name == ".DS_Store" or source.suffix == ".pyc":
+            continue
+        relative = str(source.relative_to(PACKAGE_ROOT))
+        sources[relative] = sha256_bytes(source.read_bytes())
+    contract = {
+        "format_version": 2,
+        "package_id": SKILL_NAME,
+        "config_keys": list(CONFIG_KEYS),
+        "roles": list(ROLES),
+        "managed_sources": sources,
+        "retired_paths": catalog["retired_paths"],
+    }
+    return canonical_json_hash(contract)
 
 
 def validate_codex_home(raw: Path) -> Path:
@@ -123,7 +281,10 @@ def validate_codex_home(raw: Path) -> Path:
     return resolved
 
 
-def read_state(codex_home: Path) -> dict[str, str]:
+def read_state(
+    codex_home: Path,
+    recovery_journal: dict | None = None,
+) -> dict[str, str]:
     path = codex_home / STATE_RELATIVE
     content = safe_existing_bytes(path, codex_home)
     if content is None:
@@ -132,25 +293,46 @@ def read_state(codex_home: Path) -> dict[str, str]:
         document = json.loads(content.decode())
     except (UnicodeError, ValueError) as error:
         raise InstallError(f"managed state is unreadable: {error}") from error
-    expected_document_keys = {
-        "format_version",
-        "package_id",
-        "package_manifest_sha256",
-        "managed_hashes",
-    }
-    if not isinstance(document, dict) or set(document) != expected_document_keys:
+    if not isinstance(document, dict):
         raise InstallError("managed state has an unknown document schema")
     if document.get("package_id") != SKILL_NAME:
         raise InstallError("managed state package identity mismatch")
-    if document.get("format_version") != 1:
-        raise InstallError("managed state format_version must be 1")
-    lineage = document.get("package_manifest_sha256")
-    accepted_lineage = {
-        sha256_bytes(MANIFEST_PATH.read_bytes()),
-        *ACCEPTED_STATE_MANIFESTS,
-    }
-    if lineage not in accepted_lineage:
-        raise InstallError("managed state manifest lineage is not accepted")
+    format_version = document.get("format_version")
+    if format_version == 1:
+        expected_document_keys = {
+            "format_version",
+            "package_id",
+            "package_manifest_sha256",
+            "managed_hashes",
+        }
+        if set(document) != expected_document_keys:
+            raise InstallError("managed state has an unknown v1 document schema")
+        lineage = document.get("package_manifest_sha256")
+        accepted_lineage = {
+            sha256_bytes(MANIFEST_PATH.read_bytes()),
+            *ACCEPTED_STATE_MANIFESTS,
+        }
+        if lineage not in accepted_lineage:
+            raise InstallError("managed state manifest lineage is not accepted")
+    elif format_version == 2:
+        expected_document_keys = {
+            "format_version",
+            "package_id",
+            "install_contract_sha256",
+            "managed_hashes",
+        }
+        if set(document) != expected_document_keys:
+            raise InstallError("managed state has an unknown v2 document schema")
+        catalog = load_migration_catalog()
+        lineage = document.get("install_contract_sha256")
+        accepted_lineage = {
+            install_contract_sha256(catalog),
+            *catalog["accepted_install_contracts"],
+        }
+        if lineage not in accepted_lineage:
+            raise InstallError("managed state install-contract lineage is not accepted")
+    else:
+        raise InstallError("managed state format_version must be 1 or 2")
     managed = document.get("managed_hashes")
     if not isinstance(managed, dict) or not all(
         isinstance(key, str)
@@ -160,14 +342,21 @@ def read_state(codex_home: Path) -> dict[str, str]:
     ):
         raise InstallError("managed state has an invalid managed_hashes map")
     expected_domain = expected_managed_domain()
-    if set(managed) != expected_domain:
-        unexpected = sorted(set(managed) - expected_domain)
-        missing = sorted(expected_domain - set(managed))
+    catalog = load_migration_catalog()
+    retirement_hashes = retired_path_hashes(catalog)
+    unexpected = sorted(set(managed) - expected_domain - set(retirement_hashes))
+    missing = sorted(expected_domain - set(managed))
+    if unexpected or missing:
         raise InstallError(
             "managed state owned-key domain mismatch; "
             f"missing={missing}; unexpected={unexpected}"
         )
-    verify_recorded_state(codex_home, managed)
+    for relative in sorted(set(managed) - expected_domain):
+        if managed[relative] not in retirement_hashes[relative]:
+            raise InstallError(
+                f"managed state retired-path hash is not authorized: {relative}"
+            )
+    verify_recorded_state(codex_home, managed, recovery_journal)
     return managed
 
 
@@ -187,41 +376,56 @@ def expected_managed_domain() -> set[str]:
     return domain
 
 
-def verify_recorded_state(codex_home: Path, managed: dict[str, str]) -> None:
-    agents_content = safe_existing_bytes(codex_home / "AGENTS.md", codex_home)
-    if agents_content is None:
-        raise InstallError("managed state target is missing: AGENTS.md")
-    try:
-        agents_text = agents_content.decode()
-    except UnicodeError as error:
-        raise InstallError(f"managed AGENTS.md is unreadable: {error}") from error
-    agents_policy = agents_policy_section(agents_text)
-    if agents_policy is None:
-        raise InstallError("managed state target section is missing: AGENTS.md")
-    _, _, agents_body = agents_policy
-    current_hashes = {
-        "AGENTS.md#subagent-policy": sha256_bytes(agents_body.encode()),
+def current_managed_hash(codex_home: Path, key: str) -> str | None:
+    if key == "AGENTS.md#subagent-policy":
+        agents_content = safe_existing_bytes(codex_home / "AGENTS.md", codex_home)
+        if agents_content is None:
+            return None
+        try:
+            agents_text = agents_content.decode()
+        except UnicodeError as error:
+            raise InstallError(f"managed AGENTS.md is unreadable: {error}") from error
+        agents_policy = agents_policy_section(agents_text)
+        if agents_policy is None:
+            return None
+        return sha256_bytes(agents_policy[2].encode())
+    if key == "config.toml#agents":
+        config_content = safe_existing_bytes(codex_home / "config.toml", codex_home)
+        if config_content is None:
+            return None
+        try:
+            config_document = tomllib.loads(config_content.decode())
+        except (UnicodeError, tomllib.TOMLDecodeError) as error:
+            raise InstallError(f"managed config.toml is unreadable: {error}") from error
+        return canonical_json_hash(config_projection(config_document))
+    content = safe_existing_bytes(codex_home / key, codex_home)
+    return sha256_bytes(content) if content is not None else None
+
+
+def journal_recovery_hashes(journal: dict | None) -> dict[str, str | None]:
+    if journal is None:
+        return {}
+    return {
+        target["managed_key"]: target["desired_managed_sha256"]
+        for target in journal["targets"]
+        if target["managed_key"] is not None
     }
 
-    config_content = safe_existing_bytes(codex_home / "config.toml", codex_home)
-    if config_content is None:
-        raise InstallError("managed state target is missing: config.toml")
-    try:
-        config_document = tomllib.loads(config_content.decode())
-    except (UnicodeError, tomllib.TOMLDecodeError) as error:
-        raise InstallError(f"managed config.toml is unreadable: {error}") from error
-    current_hashes["config.toml#agents"] = canonical_json_hash(
-        config_projection(config_document)
-    )
 
-    for relative in sorted(expected_managed_domain() - set(current_hashes)):
-        content = safe_existing_bytes(codex_home / relative, codex_home)
-        if content is None:
-            raise InstallError(f"managed state target is missing: {relative}")
-        current_hashes[relative] = sha256_bytes(content)
-    mismatches = sorted(
-        key for key, expected in managed.items() if current_hashes.get(key) != expected
-    )
+def verify_recorded_state(
+    codex_home: Path,
+    managed: dict[str, str],
+    recovery_journal: dict | None = None,
+) -> None:
+    recovery = journal_recovery_hashes(recovery_journal)
+    mismatches = []
+    for key, expected in managed.items():
+        actual = current_managed_hash(codex_home, key)
+        if actual == expected:
+            continue
+        if key in recovery and actual == recovery[key]:
+            continue
+        mismatches.append(key)
     if mismatches:
         raise InstallError(
             "managed state does not match current targets: " + ", ".join(mismatches)
@@ -411,9 +615,12 @@ def allow_owned_replacement(
 def planned_write(
     relative: str,
     path: Path,
-    content: bytes,
-    managed_hash: str,
+    content: bytes | None,
+    managed_hash: str | None,
     prior: bytes | None,
+    managed_key: str | None = None,
+    quarantine_path: Path | None = None,
+    staging_path: Path | None = None,
 ) -> PlannedWrite:
     return PlannedWrite(
         relative=relative,
@@ -422,7 +629,18 @@ def planned_write(
         managed_hash=managed_hash,
         expected_prior_exists=prior is not None,
         expected_prior_sha256=sha256_bytes(prior) if prior is not None else None,
+        managed_key=managed_key,
+        quarantine_path=quarantine_path,
+        staging_path=staging_path,
     )
+
+
+def quarantine_relative(relative: str, content_hash: str) -> Path:
+    return QUARANTINE_RELATIVE / content_hash / Path(relative)
+
+
+def staging_relative(relative: str, content_hash: str) -> Path:
+    return STAGING_RELATIVE / content_hash / Path(relative)
 
 
 def verify_precondition(plan: PlannedWrite, codex_home: Path) -> None:
@@ -453,11 +671,17 @@ def verify_all_preconditions(
 def plan_install(
     codex_home: Path,
     agents_language: str,
+    recovery_journal: dict | None = None,
 ) -> tuple[list[PlannedWrite], dict[str, str]]:
     load_manifest()
+    catalog = load_migration_catalog()
     if agents_language not in AGENTS_SECTION_FILES:
         raise InstallError(f"unsupported AGENTS policy language: {agents_language}")
-    state = read_state(codex_home)
+    if recovery_journal is None and safe_existing_bytes(
+        codex_home / JOURNAL_RELATIVE, codex_home
+    ) is not None:
+        raise InstallError("unfinished install transaction; run --doctor or --apply")
+    state = read_state(codex_home, recovery_journal)
     plans: list[PlannedWrite] = []
     managed_hashes: dict[str, str] = {}
 
@@ -481,6 +705,7 @@ def plan_install(
                 agents_desired,
                 agents_hash,
                 agents_existing,
+                "AGENTS.md#subagent-policy",
             )
         )
 
@@ -502,6 +727,7 @@ def plan_install(
                 config_desired,
                 config_hash,
                 config_existing,
+                "config.toml#agents",
             )
         )
 
@@ -517,7 +743,9 @@ def plan_install(
         managed_hashes[relative] = managed_hash
         if current != desired:
             plans.append(
-                planned_write(relative, target, desired, managed_hash, current)
+                planned_write(
+                    relative, target, desired, managed_hash, current, relative
+                )
             )
     skill_source = PAYLOAD_ROOT / "skills" / SKILL_NAME
     for source in sorted(skill_source.rglob("*")):
@@ -533,13 +761,52 @@ def plan_install(
         managed_hashes[relative] = managed_hash
         if current != desired:
             plans.append(
-                planned_write(relative, target, desired, managed_hash, current)
+                planned_write(
+                    relative, target, desired, managed_hash, current, relative
+                )
             )
 
+    for relative in sorted(set(state) - expected_managed_domain()):
+        target = codex_home / relative
+        current = safe_existing_bytes(target, codex_home)
+        if current is None:
+            if recovery_journal is None:
+                raise InstallError(f"managed retired target is missing: {relative}")
+            continue
+        current_hash = sha256_bytes(current)
+        allowed = retired_path_hashes(catalog)[relative]
+        if current_hash != state[relative] or current_hash not in allowed:
+            raise InstallError(f"managed retired target changed: {relative}")
+        quarantine_path = codex_home / quarantine_relative(relative, current_hash)
+        staging_path = codex_home / staging_relative(relative, current_hash)
+        quarantined = safe_existing_bytes(quarantine_path, codex_home)
+        recoverable_link = (
+            recovery_journal is not None
+            and quarantined is not None
+            and sha256_bytes(quarantined) == current_hash
+            and same_physical_file(target, quarantine_path)
+        )
+        if quarantined is not None and not recoverable_link:
+            raise InstallError(
+                f"retired-path quarantine destination already exists: {relative}"
+            )
+        plans.append(
+            planned_write(
+                relative,
+                target,
+                None,
+                None,
+                current,
+                relative,
+                quarantine_path,
+                staging_path,
+            )
+        )
+
     state_document = {
-        "format_version": 1,
+        "format_version": 2,
         "package_id": SKILL_NAME,
-        "package_manifest_sha256": sha256_bytes(MANIFEST_PATH.read_bytes()),
+        "install_contract_sha256": install_contract_sha256(catalog),
         "managed_hashes": managed_hashes,
     }
     state_content = (json.dumps(state_document, indent=2, sort_keys=True) + "\n").encode()
@@ -551,7 +818,7 @@ def plan_install(
                 str(STATE_RELATIVE),
                 state_path,
                 state_content,
-                sha256_bytes(state_content),
+                None,
                 current_state,
             )
         )
@@ -564,6 +831,8 @@ def atomic_write(
 ) -> None:
     path = plan.path
     content = plan.content
+    if content is None:
+        raise InstallError(f"internal error: write has no content: {plan.relative}")
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     temporary = Path(temporary_name)
@@ -590,20 +859,614 @@ def atomic_write(
             temporary.unlink()
 
 
+def atomic_quarantine(plan: PlannedWrite, codex_home: Path) -> None:
+    if (
+        plan.content is not None
+        or plan.quarantine_path is None
+        or plan.staging_path is None
+    ):
+        raise InstallError(f"internal error: invalid quarantine plan: {plan.relative}")
+    destination = plan.quarantine_path
+    staging = plan.staging_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging.parent.mkdir(parents=True, exist_ok=True)
+    if safe_existing_bytes(staging, codex_home) is not None:
+        raise InstallError(f"quarantine staging already exists: {plan.relative}")
+    verify_precondition(plan, codex_home)
+    quarantined = safe_existing_bytes(destination, codex_home)
+    if quarantined is None:
+        try:
+            os.link(plan.path, destination)
+        except FileExistsError as error:
+            raise InstallError(
+                f"quarantine destination appeared: {plan.relative}"
+            ) from error
+    elif not (
+        sha256_bytes(quarantined) == plan.expected_prior_sha256
+        and same_physical_file(plan.path, destination)
+    ):
+        raise InstallError(f"quarantine destination already exists: {plan.relative}")
+
+    actual = sha256_bytes(destination.read_bytes())
+    if actual != plan.expected_prior_sha256:
+        raise InstallError(f"post-quarantine hash mismatch: {plan.relative}")
+    if not same_physical_file(plan.path, destination):
+        raise InstallError(f"quarantine source changed after linking: {plan.relative}")
+
+    destination_descriptor = os.open(destination, os.O_RDONLY)
+    try:
+        os.fsync(destination_descriptor)
+    finally:
+        os.close(destination_descriptor)
+    destination_directory_descriptor = os.open(destination.parent, os.O_RDONLY)
+    try:
+        os.fsync(destination_directory_descriptor)
+    finally:
+        os.close(destination_directory_descriptor)
+
+    verify_precondition(plan, codex_home)
+    if not same_physical_file(plan.path, destination):
+        raise InstallError(f"quarantine source changed before staging: {plan.relative}")
+    rename_noreplace(plan.path, staging)
+
+    staged = safe_existing_bytes(staging, codex_home)
+    staged_matches = (
+        staged is not None
+        and sha256_bytes(staged) == plan.expected_prior_sha256
+        and same_physical_file(staging, destination)
+    )
+    for directory in {plan.path.parent, staging.parent}:
+        directory_descriptor = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    if not staged_matches:
+        restored = False
+        if staged is not None:
+            try:
+                rename_noreplace(staging, plan.path)
+                restored = True
+            except (InstallError, OSError):
+                pass
+        preserved = plan.path if restored else staging
+        raise InstallError(
+            f"quarantine source changed during staging; preserved at {preserved}"
+        )
+
+
 def apply_plans(
     plans: list[PlannedWrite],
     codex_home: Path,
+    on_touched: Callable[[str, str], None] | None = None,
 ) -> list[tuple[str, str]]:
     """Apply a preflighted plan with an all-target gate and per-file rechecks."""
     verify_all_preconditions(plans, codex_home)
     touched = []
     for plan in plans:
-        atomic_write(plan, codex_home)
-        actual = sha256_bytes(plan.path.read_bytes())
-        if actual != sha256_bytes(plan.content):
-            raise InstallError(f"post-write hash mismatch: {plan.relative}")
+        if plan.operation == "write":
+            atomic_write(plan, codex_home)
+            actual = sha256_bytes(plan.path.read_bytes())
+            if actual != plan.desired_sha256:
+                raise InstallError(f"post-write hash mismatch: {plan.relative}")
+        elif plan.operation == "quarantine":
+            atomic_quarantine(plan, codex_home)
+            if plan.path.exists() or plan.path.is_symlink():
+                raise InstallError(f"post-quarantine target still exists: {plan.relative}")
+            actual = "<absent>"
+        else:
+            raise InstallError(f"unsupported planned operation: {plan.operation}")
         touched.append((plan.relative, actual))
+        if on_touched is not None:
+            on_touched(plan.relative, actual)
     return touched
+
+
+def lock_path(codex_home: Path) -> Path:
+    return codex_home.parent / f".{codex_home.name}.{SKILL_NAME}.install.lock"
+
+
+@contextmanager
+def apply_lock(codex_home: Path) -> Iterator[None]:
+    path = lock_path(codex_home)
+    content = (
+        json.dumps(
+            {"format_version": 1, "pid": os.getpid(), "target": str(codex_home)},
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode()
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as error:
+        raise InstallError(f"another installer holds apply lock: {path}") from error
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        yield
+    finally:
+        try:
+            if path.read_bytes() == content:
+                path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def journal_document(plans: list[PlannedWrite], agents_language: str) -> dict:
+    return {
+        "agents_language": agents_language,
+        "format_version": 1,
+        "install_contract_sha256": install_contract_sha256(),
+        "package_id": SKILL_NAME,
+        "targets": [
+            {
+                "desired_managed_sha256": plan.managed_hash,
+                "desired_sha256": plan.desired_sha256,
+                "managed_key": plan.managed_key,
+                "operation": plan.operation,
+                "prior_sha256": plan.expected_prior_sha256,
+                "quarantine_relative": (
+                    str(quarantine_relative(plan.relative, plan.expected_prior_sha256))
+                    if plan.quarantine_path is not None
+                    else None
+                ),
+                "staging_relative": (
+                    str(staging_relative(plan.relative, plan.expected_prior_sha256))
+                    if plan.staging_path is not None
+                    else None
+                ),
+                "relative": plan.relative,
+            }
+            for plan in plans
+        ],
+    }
+
+
+def validate_optional_hash(value: object) -> bool:
+    return value is None or (
+        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+    )
+
+
+def validate_journal(document: object) -> dict:
+    expected_keys = {
+        "agents_language",
+        "format_version",
+        "install_contract_sha256",
+        "package_id",
+        "targets",
+    }
+    if not isinstance(document, dict) or set(document) != expected_keys:
+        raise InstallError("install transaction has an unknown schema")
+    if document.get("format_version") != 1:
+        raise InstallError("install transaction format_version must be 1")
+    if document.get("package_id") != SKILL_NAME:
+        raise InstallError("install transaction package identity mismatch")
+    if document.get("agents_language") not in AGENTS_SECTION_FILES:
+        raise InstallError("install transaction has an invalid AGENTS language")
+    if not validate_optional_hash(document.get("install_contract_sha256")) or document.get(
+        "install_contract_sha256"
+    ) is None:
+        raise InstallError("install transaction has an invalid contract hash")
+    targets = document.get("targets")
+    if not isinstance(targets, list) or not targets:
+        raise InstallError("install transaction has no targets")
+    expected_target_keys = {
+        "desired_managed_sha256",
+        "desired_sha256",
+        "managed_key",
+        "operation",
+        "prior_sha256",
+        "quarantine_relative",
+        "relative",
+        "staging_relative",
+    }
+    seen = set()
+    catalog = load_migration_catalog()
+    allowed_physical = {
+        "AGENTS.md",
+        "config.toml",
+        str(STATE_RELATIVE),
+        *(key for key in expected_managed_domain() if "#" not in key),
+        *retired_path_hashes(catalog),
+    }
+    for target in targets:
+        if not isinstance(target, dict) or set(target) != expected_target_keys:
+            raise InstallError("install transaction has an invalid target entry")
+        relative = target.get("relative")
+        operation = target.get("operation")
+        managed_key = target.get("managed_key")
+        quarantine = target.get("quarantine_relative")
+        staging = target.get("staging_relative")
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+            or relative in seen
+            or relative == str(JOURNAL_RELATIVE)
+            or relative not in allowed_physical
+        ):
+            raise InstallError(f"install transaction has an unsafe target: {relative!r}")
+        if operation not in {"write", "quarantine"}:
+            raise InstallError(f"install transaction has an invalid operation: {relative}")
+        if not validate_optional_hash(target.get("prior_sha256")) or not validate_optional_hash(
+            target.get("desired_sha256")
+        ) or not validate_optional_hash(target.get("desired_managed_sha256")):
+            raise InstallError(f"install transaction has an invalid hash: {relative}")
+        if operation == "write" and target.get("desired_sha256") is None:
+            raise InstallError(f"install transaction write has no desired hash: {relative}")
+        if operation == "quarantine":
+            if target.get("desired_sha256") is not None or target.get("prior_sha256") is None:
+                raise InstallError(
+                    f"install transaction quarantine has invalid hashes: {relative}"
+                )
+            expected_quarantine = str(
+                quarantine_relative(relative, target["prior_sha256"])
+            )
+            expected_staging = str(staging_relative(relative, target["prior_sha256"]))
+            if quarantine != expected_quarantine or staging != expected_staging:
+                raise InstallError(
+                    f"install transaction has invalid quarantine or staging target: {relative}"
+                )
+        elif quarantine is not None or staging is not None:
+            raise InstallError(
+                f"install transaction write has a quarantine or staging target: {relative}"
+            )
+        if managed_key is not None and not isinstance(managed_key, str):
+            raise InstallError(f"install transaction has an invalid managed key: {relative}")
+        if relative == "AGENTS.md":
+            expected_managed_key = "AGENTS.md#subagent-policy"
+        elif relative == "config.toml":
+            expected_managed_key = "config.toml#agents"
+        elif relative == str(STATE_RELATIVE):
+            expected_managed_key = None
+        else:
+            expected_managed_key = relative
+        if managed_key != expected_managed_key:
+            raise InstallError(f"install transaction managed-key mismatch: {relative}")
+        if managed_key is None and target["desired_managed_sha256"] is not None:
+            raise InstallError(f"install transaction has an ownerless managed hash: {relative}")
+        if operation == "quarantine" and target["desired_managed_sha256"] is not None:
+            raise InstallError(
+                f"install transaction quarantine retained a managed hash: {relative}"
+            )
+        if (
+            operation == "write"
+            and managed_key not in {None, "AGENTS.md#subagent-policy", "config.toml#agents"}
+            and target["desired_managed_sha256"] != target["desired_sha256"]
+        ):
+            raise InstallError(f"install transaction managed hash mismatch: {relative}")
+        seen.add(relative)
+    return document
+
+
+def read_journal(codex_home: Path) -> dict | None:
+    content = safe_existing_bytes(codex_home / JOURNAL_RELATIVE, codex_home)
+    if content is None:
+        return None
+    try:
+        document = json.loads(content.decode())
+    except (UnicodeError, ValueError) as error:
+        raise InstallError(f"install transaction is unreadable: {error}") from error
+    return validate_journal(document)
+
+
+def create_journal(codex_home: Path, document: dict) -> None:
+    path = codex_home / JOURNAL_RELATIVE
+    if safe_existing_bytes(path, codex_home) is not None:
+        raise InstallError("refusing to replace an existing install transaction")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode()
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, 0o644)
+        try:
+            os.link(temporary, path)
+        except FileExistsError as error:
+            raise InstallError("install transaction appeared concurrently") from error
+        directory_descriptor = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def classify_journal(codex_home: Path, journal: dict) -> tuple[str, list[tuple[str, str]]]:
+    classifications = []
+    for target in journal["targets"]:
+        content = safe_existing_bytes(codex_home / target["relative"], codex_home)
+        actual = sha256_bytes(content) if content is not None else None
+        if target["operation"] == "quarantine":
+            quarantined = safe_existing_bytes(
+                codex_home / target["quarantine_relative"], codex_home
+            )
+            quarantined_hash = (
+                sha256_bytes(quarantined) if quarantined is not None else None
+            )
+            staged = safe_existing_bytes(
+                codex_home / target["staging_relative"], codex_home
+            )
+            staged_hash = sha256_bytes(staged) if staged is not None else None
+            linked = (
+                actual == target["prior_sha256"]
+                and quarantined_hash == target["prior_sha256"]
+                and same_physical_file(
+                    codex_home / target["relative"],
+                    codex_home / target["quarantine_relative"],
+                )
+            )
+            if linked:
+                classification = "linked"
+            elif (
+                actual is None
+                and quarantined_hash == target["prior_sha256"]
+                and staged_hash == target["prior_sha256"]
+                and same_physical_file(
+                    codex_home / target["staging_relative"],
+                    codex_home / target["quarantine_relative"],
+                )
+            ):
+                classification = "staged"
+            elif actual == target["prior_sha256"] and quarantined_hash is None:
+                classification = "prior"
+            elif (
+                actual is None
+                and quarantined_hash == target["prior_sha256"]
+                and staged_hash is None
+            ):
+                classification = "desired"
+            else:
+                classification = "conflict"
+        elif actual == target["desired_sha256"]:
+            classification = "desired"
+        elif actual == target["prior_sha256"]:
+            classification = "prior"
+        else:
+            classification = "conflict"
+        classifications.append((target["relative"], classification))
+    states = {classification for _, classification in classifications}
+    if "conflict" in states:
+        status = "PARTIAL_CONFLICT"
+    elif states and states.issubset({"desired", "staged"}):
+        status = "COMPLETE_PENDING_CLEANUP"
+    elif states == {"prior"}:
+        status = "PREPARED_RECOVERABLE"
+    else:
+        status = "PARTIAL_RECOVERABLE"
+    return status, classifications
+
+
+def validate_recovery_plan(plans: list[PlannedWrite], journal: dict) -> None:
+    journal_targets = {target["relative"]: target for target in journal["targets"]}
+    for plan in plans:
+        target = journal_targets.get(plan.relative)
+        if target is None:
+            raise InstallError(f"recovery plan introduced a new target: {plan.relative}")
+        if (
+            target["operation"] != plan.operation
+            or target["desired_sha256"] != plan.desired_sha256
+            or target["desired_managed_sha256"] != plan.managed_hash
+            or target["quarantine_relative"]
+            != (
+                str(quarantine_relative(plan.relative, plan.expected_prior_sha256))
+                if plan.quarantine_path is not None
+                else None
+            )
+            or target["staging_relative"]
+            != (
+                str(staging_relative(plan.relative, plan.expected_prior_sha256))
+                if plan.staging_path is not None
+                else None
+            )
+        ):
+            raise InstallError(f"recovery plan changed target contract: {plan.relative}")
+
+
+def finish_journal(codex_home: Path, journal: dict) -> None:
+    path = codex_home / JOURNAL_RELATIVE
+    current = read_journal(codex_home)
+    if current != journal:
+        raise InstallError("install transaction changed before cleanup")
+    status, _ = classify_journal(codex_home, journal)
+    if status != "COMPLETE_PENDING_CLEANUP":
+        raise InstallError(f"install transaction did not reach completion: {status}")
+    path.unlink()
+    directory_descriptor = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+
+
+def apply_install(
+    codex_home: Path,
+    agents_language: str,
+    on_touched: Callable[[str, str], None] | None = None,
+) -> list[tuple[str, str]]:
+    codex_home = validate_codex_home(codex_home)
+    with apply_lock(codex_home):
+        journal = read_journal(codex_home)
+        if journal is not None:
+            if journal["install_contract_sha256"] != install_contract_sha256():
+                raise InstallError(
+                    "unfinished install transaction belongs to another install contract"
+                )
+            if journal["agents_language"] != agents_language:
+                raise InstallError(
+                    "unfinished install transaction uses a different AGENTS language"
+                )
+            status, _ = classify_journal(codex_home, journal)
+            if status == "PARTIAL_CONFLICT":
+                raise InstallError("unfinished install transaction has conflicting targets")
+            plans, _ = plan_install(codex_home, agents_language, journal)
+            validate_recovery_plan(plans, journal)
+        else:
+            plans, _ = plan_install(codex_home, agents_language)
+            if not plans:
+                return []
+            journal = journal_document(plans, agents_language)
+            create_journal(codex_home, journal)
+        touched = apply_plans(plans, codex_home, on_touched)
+        finish_journal(codex_home, journal)
+        return touched
+
+
+def artifact_receipts(
+    codex_home: Path,
+    root_relative: Path,
+    artifact_label: str,
+) -> list[dict[str, str]]:
+    root = codex_home / root_relative
+    if root.is_symlink():
+        raise InstallError(f"{artifact_label} root is a symlink: {root}")
+    if not root.exists():
+        return []
+    if not root.is_dir():
+        raise InstallError(f"{artifact_label} root is not a directory: {root}")
+    receipts = []
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise InstallError(f"{artifact_label} contains a symlink: {path}")
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root)
+        if len(relative.parts) < 2 or re.fullmatch(r"[0-9a-f]{64}", relative.parts[0]) is None:
+            raise InstallError(f"{artifact_label} has an unknown artifact: {relative}")
+        expected = relative.parts[0]
+        actual = sha256_bytes(path.read_bytes())
+        if actual != expected:
+            raise InstallError(f"{artifact_label} hash mismatch: {relative}")
+        original = str(Path(*relative.parts[1:]))
+        receipts.append(
+            {
+                "original_path": original,
+                "receipt_path": relative.as_posix(),
+                "sha256": actual,
+            }
+        )
+    return receipts
+
+
+def quarantine_receipts(codex_home: Path) -> list[str]:
+    return [
+        "QUARANTINED {original_path} {receipt_path} {sha256}".format(**receipt)
+        for receipt in artifact_receipts(
+            codex_home,
+            QUARANTINE_RELATIVE,
+            "retired-path quarantine",
+        )
+    ]
+
+
+def retirement_staging_receipts(codex_home: Path) -> list[str]:
+    return [
+        "RETAINED_STAGING {original_path} {receipt_path} {sha256}".format(
+            **receipt
+        )
+        for receipt in artifact_receipts(
+            codex_home,
+            STAGING_RELATIVE,
+            "retirement receipt",
+        )
+    ]
+
+
+def doctor_report(codex_home: Path, agents_language: str) -> dict:
+    """Return a stable, read-only diagnostic report for text or JSON rendering."""
+    codex_home = validate_codex_home(codex_home)
+    load_manifest()
+    locked = lock_path(codex_home).exists() or lock_path(codex_home).is_symlink()
+    report = {
+        "agents_language": agents_language,
+        "codex_home": str(codex_home),
+        "format_version": 1,
+        "healthy": False,
+        "locked": locked,
+        "package_id": SKILL_NAME,
+        "quarantined": [],
+        "retirement_receipts": [],
+        "status": "ACTIVE_APPLY" if locked else "UNKNOWN",
+        "targets": [],
+    }
+    if locked:
+        return report
+    journal = read_journal(codex_home)
+    if journal is not None:
+        status, classifications = classify_journal(codex_home, journal)
+        if journal["install_contract_sha256"] != install_contract_sha256():
+            status = "INCOMPATIBLE_TRANSACTION"
+        report["status"] = status
+        report["targets"] = [
+            {"path": relative, "state": classification.upper()}
+            for relative, classification in classifications
+        ]
+    else:
+        state_exists = (
+            safe_existing_bytes(codex_home / STATE_RELATIVE, codex_home) is not None
+        )
+        plans, _ = plan_install(codex_home, agents_language)
+        report["healthy"] = True
+        if not state_exists:
+            report["status"] = "NOT_INSTALLED"
+        elif plans:
+            report["status"] = "UPDATE_AVAILABLE"
+            report["targets"] = [
+                {"path": plan.relative, "state": "PENDING"} for plan in plans
+            ]
+        else:
+            report["status"] = "HEALTHY"
+    report["quarantined"] = artifact_receipts(
+        codex_home,
+        QUARANTINE_RELATIVE,
+        "retired-path quarantine",
+    )
+    report["retirement_receipts"] = artifact_receipts(
+        codex_home,
+        STAGING_RELATIVE,
+        "retirement receipt",
+    )
+    return report
+
+
+def render_doctor_report(report: dict) -> list[str]:
+    lines = []
+    if report["locked"]:
+        lines.append(f"LOCKED {lock_path(Path(report['codex_home']))}")
+    status = report["status"]
+    if status == "UPDATE_AVAILABLE":
+        lines.append(f"DOCTOR {status} {len(report['targets'])}")
+    else:
+        lines.append(f"DOCTOR {status}")
+    lines.extend(
+        f"TARGET {target['path']} {target['state']}" for target in report["targets"]
+    )
+    lines.extend(
+        "QUARANTINED {original_path} {receipt_path} {sha256}".format(**receipt)
+        for receipt in report["quarantined"]
+    )
+    lines.extend(
+        "RETAINED_STAGING {original_path} {receipt_path} {sha256}".format(
+            **receipt
+        )
+        for receipt in report["retirement_receipts"]
+    )
+    return lines
+
+
+def doctor(codex_home: Path, agents_language: str) -> tuple[bool, list[str]]:
+    report = doctor_report(codex_home, agents_language)
+    return report["healthy"], render_doctor_report(report)
 
 
 def main() -> int:
@@ -618,18 +1481,45 @@ def main() -> int:
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--check", action="store_true", help="preflight without writes")
     action.add_argument("--apply", action="store_true", help="apply the preflighted writes")
+    action.add_argument(
+        "--doctor",
+        action="store_true",
+        help="diagnose managed state and unfinished transactions without writes",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="doctor output format (default: text)",
+    )
     args = parser.parse_args()
+    if args.format != "text" and not args.doctor:
+        parser.error("--format is only valid with --doctor")
     try:
         codex_home = validate_codex_home(args.codex_home)
-        plans, _ = plan_install(codex_home, args.agents_language)
-        if args.check:
-            for plan in plans:
-                print(f"WOULD_TOUCH {plan.relative} {sha256_bytes(plan.content)}")
-            print(f"PASS: preflight complete; {len(plans)} path(s) would change")
+        if args.doctor:
+            report = doctor_report(codex_home, args.agents_language)
+            if args.format == "json":
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                for line in render_doctor_report(report):
+                    print(line)
+            return 0 if report["healthy"] else 1
+        if args.apply:
+            touched = apply_install(
+                codex_home,
+                args.agents_language,
+                lambda relative, actual: print(
+                    f"TOUCHED {relative} {actual}", flush=True
+                ),
+            )
+            print(f"PASS: installed {len(touched)} changed path(s)")
             return 0
-        for relative, actual in apply_plans(plans, codex_home):
-            print(f"TOUCHED {relative} {actual}")
-        print(f"PASS: installed {len(plans)} changed path(s)")
+        plans, _ = plan_install(codex_home, args.agents_language)
+        for plan in plans:
+            desired = plan.desired_sha256 or "<absent>"
+            print(f"WOULD_TOUCH {plan.relative} {desired}")
+        print(f"PASS: preflight complete; {len(plans)} path(s) would change")
         return 0
     except (InstallError, OSError, UnicodeError) as error:
         print(f"FAIL: {error}", file=sys.stderr)

@@ -1,6 +1,8 @@
 from pathlib import Path
 from importlib.util import module_from_spec, spec_from_file_location
+from contextlib import redirect_stderr, redirect_stdout
 import hashlib
+import io
 import json
 import subprocess
 import sys
@@ -22,21 +24,62 @@ class InstallerTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.codex_home = Path(self.temporary.name) / "codex-home"
+        self.original_manifest_path = INSTALL_MODULE.MANIFEST_PATH
+        manifest = json.loads((PACKAGE_ROOT / "manifest.json").read_text())
+        declared = {item["path"]: item for item in manifest["files"]}
+        for relative, item in declared.items():
+            content = (PACKAGE_ROOT / relative).read_bytes()
+            item["sha256"] = hashlib.sha256(content).hexdigest()
+            item["size"] = len(content)
+        migration_content = (PACKAGE_ROOT / "install-migrations.json").read_bytes()
+        declared.setdefault(
+            "install-migrations.json",
+            {
+                "path": "install-migrations.json",
+                "sha256": hashlib.sha256(migration_content).hexdigest(),
+                "size": len(migration_content),
+            },
+        )
+        manifest["files"] = sorted(declared.values(), key=lambda item: item["path"])
+        self.test_manifest = Path(self.temporary.name) / "test-manifest.json"
+        self.test_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        INSTALL_MODULE.MANIFEST_PATH = self.test_manifest
 
     def tearDown(self):
+        INSTALL_MODULE.MANIFEST_PATH = self.original_manifest_path
         self.temporary.cleanup()
 
-    def run_installer(self, action: str) -> subprocess.CompletedProcess[str]:
+    def run_installer(
+        self,
+        action: str,
+        agents_language: str = "en",
+        extra_args: tuple[str, ...] = (),
+    ) -> subprocess.CompletedProcess[str]:
+        runner = """
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+import sys
+spec = spec_from_file_location("installer_under_test", sys.argv.pop(1))
+module = module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+module.MANIFEST_PATH = Path(sys.argv.pop(1))
+raise SystemExit(module.main())
+"""
         return subprocess.run(
             [
                 sys.executable,
                 "-B",
+                "-c",
+                runner,
                 str(INSTALLER),
+                str(self.test_manifest),
                 "--codex-home",
                 str(self.codex_home),
                 "--agents-language",
-                "en",
+                agents_language,
                 action,
+                *extra_args,
             ],
             cwd=PACKAGE_ROOT,
             text=True,
@@ -44,10 +87,78 @@ class InstallerTest(unittest.TestCase):
             check=False,
         )
 
+    def state_path(self) -> Path:
+        return (
+            self.codex_home
+            / "skills"
+            / "subagent-orchestrator"
+            / ".managed-package-state.json"
+        )
+
+    def migration_catalog(self, relative: str, content: bytes) -> Path:
+        path = Path(self.temporary.name) / "migration-catalog.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "accepted_install_contracts": [],
+                    "format_version": 1,
+                    "package_id": "subagent-orchestrator",
+                    "retired_paths": [
+                        {
+                            "accepted_sha256": [hashlib.sha256(content).hexdigest()],
+                            "path": relative,
+                        }
+                    ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
+        return path
+
+    def rewrite_state_as_v1(self, extra: dict[str, str] | None = None) -> None:
+        state_path = self.state_path()
+        state = json.loads(state_path.read_text())
+        managed = dict(state["managed_hashes"])
+        managed.update(extra or {})
+        predecessor = {
+            "format_version": 1,
+            "managed_hashes": managed,
+            "package_id": "subagent-orchestrator",
+            "package_manifest_sha256": hashlib.sha256(
+                self.test_manifest.read_bytes()
+            ).hexdigest(),
+        }
+        state_path.write_text(json.dumps(predecessor, indent=2, sort_keys=True) + "\n")
+
     def test_check_is_read_only_and_reports_hashes(self):
         result = self.run_installer("--check")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("WOULD_TOUCH AGENTS.md ", result.stdout)
+        self.assertFalse(self.codex_home.exists())
+
+    def test_doctor_is_read_only_for_an_uninstalled_home(self):
+        result = self.run_installer("--doctor")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("DOCTOR NOT_INSTALLED", result.stdout)
+        self.assertFalse(self.codex_home.exists())
+        self.assertFalse(INSTALL_MODULE.lock_path(self.codex_home).exists())
+
+    def test_doctor_json_is_structured_and_read_only(self):
+        result = self.run_installer("--doctor", extra_args=("--format", "json"))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["format_version"], 1)
+        self.assertEqual(report["package_id"], "subagent-orchestrator")
+        self.assertEqual(report["status"], "NOT_INSTALLED")
+        self.assertTrue(report["healthy"])
+        self.assertFalse(report["locked"])
+        self.assertEqual(report["targets"], [])
+        self.assertEqual(report["quarantined"], [])
+        self.assertEqual(report["retirement_receipts"], [])
         self.assertFalse(self.codex_home.exists())
 
     def test_apply_renders_role_paths_and_is_idempotent(self):
@@ -68,22 +179,7 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("0 path(s) would change", second.stdout)
 
     def test_explicit_chinese_policy_selection_and_language_switch(self):
-        chinese = subprocess.run(
-            [
-                sys.executable,
-                "-B",
-                str(INSTALLER),
-                "--codex-home",
-                str(self.codex_home),
-                "--agents-language",
-                "zh",
-                "--apply",
-            ],
-            cwd=PACKAGE_ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        chinese = self.run_installer("--apply", "zh")
         self.assertEqual(chinese.returncode, 0, chinese.stderr)
         agents_path = self.codex_home / "AGENTS.md"
         self.assertIn("## 子代理与并行", agents_path.read_text())
@@ -199,11 +295,42 @@ class InstallerTest(unittest.TestCase):
         )
         state = json.loads(state_path.read_text())
         self.assertEqual(state["package_id"], "subagent-orchestrator")
+        self.assertEqual(state["format_version"], 2)
+        self.assertIn("install_contract_sha256", state)
+        self.assertNotIn("package_manifest_sha256", state)
         managed = state["managed_hashes"]
         self.assertIn("AGENTS.md#subagent-policy", managed)
         self.assertIn("config.toml#agents", managed)
         self.assertNotIn("AGENTS.md", managed)
         self.assertNotIn("config.toml", managed)
+
+    def test_v2_lineage_ignores_non_install_manifest_metadata(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        manifest = json.loads(self.test_manifest.read_text())
+        manifest["release_note_for_test"] = "non-install metadata changed"
+        self.test_manifest.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        )
+
+        result = self.run_installer("--check")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("0 path(s) would change", result.stdout)
+
+    def test_v2_install_contract_lineage_mismatch_fails_closed(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = json.loads(self.state_path().read_text())
+        state["install_contract_sha256"] = "f" * 64
+        self.state_path().write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n"
+        )
+
+        result = self.run_installer("--apply")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("install-contract lineage is not accepted", result.stderr)
 
     def test_all_target_recheck_rejects_drift_before_any_write(self):
         plans, _ = INSTALL_MODULE.plan_install(self.codex_home, "en")
@@ -273,7 +400,7 @@ class InstallerTest(unittest.TestCase):
             "format_version": 1,
             "package_id": "subagent-orchestrator",
             "package_manifest_sha256": hashlib.sha256(
-                (PACKAGE_ROOT / "manifest.json").read_bytes()
+                self.test_manifest.read_bytes()
             ).hexdigest(),
             "managed_hashes": {"unexpected/owner": "0" * 64},
         }
@@ -299,7 +426,12 @@ class InstallerTest(unittest.TestCase):
             / ".managed-package-state.json"
         )
         state = json.loads(state_path.read_text())
-        state["package_manifest_sha256"] = "f" * 64
+        state = {
+            "format_version": 1,
+            "package_id": "subagent-orchestrator",
+            "package_manifest_sha256": "f" * 64,
+            "managed_hashes": state["managed_hashes"],
+        }
         state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
         before = {
             str(path.relative_to(self.codex_home)): path.read_bytes()
@@ -328,9 +460,14 @@ class InstallerTest(unittest.TestCase):
             / ".managed-package-state.json"
         )
         state = json.loads(state_path.read_text())
-        state["package_manifest_sha256"] = (
-            "498be7e574c86c9ab6c56c1f4ab09ffbcc237ad3a44d9b09975ead935f392742"
-        )
+        state = {
+            "format_version": 1,
+            "package_id": "subagent-orchestrator",
+            "package_manifest_sha256": (
+                "498be7e574c86c9ab6c56c1f4ab09ffbcc237ad3a44d9b09975ead935f392742"
+            ),
+            "managed_hashes": state["managed_hashes"],
+        }
         state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
 
         result = self.run_installer("--check")
@@ -341,6 +478,29 @@ class InstallerTest(unittest.TestCase):
             result.stdout,
         )
         self.assertIn("1 path(s) would change", result.stdout)
+
+    def test_immediate_v1_manifest_lineage_is_accepted_and_upgraded(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = json.loads(self.state_path().read_text())
+        predecessor = {
+            "format_version": 1,
+            "managed_hashes": state["managed_hashes"],
+            "package_id": "subagent-orchestrator",
+            "package_manifest_sha256": (
+                "20bef171c9a9e6390c9fdbdde90094497c76e8291090f736fe3ea206935bdbe2"
+            ),
+        }
+        self.state_path().write_text(
+            json.dumps(predecessor, indent=2, sort_keys=True) + "\n"
+        )
+
+        result = self.run_installer("--apply")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        upgraded = json.loads(self.state_path().read_text())
+        self.assertEqual(upgraded["format_version"], 2)
+        self.assertIn("install_contract_sha256", upgraded)
 
     def test_state_target_hash_mismatch_fails_closed(self):
         installed = self.run_installer("--apply")
@@ -363,6 +523,395 @@ class InstallerTest(unittest.TestCase):
             if path.is_file()
         }
         self.assertEqual(after, before)
+
+    def test_governed_retired_path_is_quarantined_and_removed_from_v2_state(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        content = b'name = "retired_specialist"\n'
+        retired = self.codex_home / relative
+        retired.write_bytes(content)
+        self.rewrite_state_as_v1(
+            {relative: hashlib.sha256(content).hexdigest()}
+        )
+        catalog = self.migration_catalog(relative, content)
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            touched = INSTALL_MODULE.apply_install(self.codex_home, "en")
+            healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+
+        self.assertIn((relative, "<absent>"), touched)
+        self.assertFalse(retired.exists())
+        content_hash = hashlib.sha256(content).hexdigest()
+        quarantined = self.codex_home / INSTALL_MODULE.quarantine_relative(
+            relative, content_hash
+        )
+        self.assertEqual(quarantined.read_bytes(), content)
+        self.assertTrue(healthy)
+        self.assertTrue(
+            any(line.startswith(f"QUARANTINED {relative} ") for line in diagnosis)
+        )
+        state = json.loads(self.state_path().read_text())
+        self.assertEqual(state["format_version"], 2)
+        self.assertNotIn(relative, state["managed_hashes"])
+
+    def test_unknown_extra_owned_path_is_not_treated_as_retirement(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/unknown_extra.toml"
+        content = b'name = "unknown_extra"\n'
+        target = self.codex_home / relative
+        target.write_bytes(content)
+        self.rewrite_state_as_v1(
+            {relative: hashlib.sha256(content).hexdigest()}
+        )
+
+        result = self.run_installer("--apply")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("owned-key domain mismatch", result.stderr)
+        self.assertEqual(target.read_bytes(), content)
+
+    def test_user_modified_retired_path_is_not_quarantined(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        predecessor = b'name = "retired_specialist"\n'
+        modified = predecessor + b"# user edit\n"
+        retired = self.codex_home / relative
+        retired.write_bytes(modified)
+        self.rewrite_state_as_v1(
+            {relative: hashlib.sha256(predecessor).hexdigest()}
+        )
+        catalog = self.migration_catalog(relative, predecessor)
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError,
+                "managed state does not match current targets",
+            ):
+                INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+        self.assertEqual(retired.read_bytes(), modified)
+
+    def test_retired_path_quarantine_collision_preserves_both_files(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        content = b'name = "retired_specialist"\n'
+        content_hash = hashlib.sha256(content).hexdigest()
+        retired = self.codex_home / relative
+        retired.write_bytes(content)
+        quarantined = self.codex_home / INSTALL_MODULE.quarantine_relative(
+            relative, content_hash
+        )
+        quarantined.parent.mkdir(parents=True)
+        quarantined.write_bytes(content)
+        self.rewrite_state_as_v1({relative: content_hash})
+        catalog = self.migration_catalog(relative, content)
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError,
+                "quarantine destination already exists",
+            ):
+                INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+        self.assertEqual(retired.read_bytes(), content)
+        self.assertEqual(quarantined.read_bytes(), content)
+
+    def test_retired_path_quarantine_race_never_replaces_collision(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        content = b'name = "retired_specialist"\n'
+        collision = b"concurrent owner bytes\n"
+        content_hash = hashlib.sha256(content).hexdigest()
+        retired = self.codex_home / relative
+        retired.write_bytes(content)
+        quarantined = self.codex_home / INSTALL_MODULE.quarantine_relative(
+            relative, content_hash
+        )
+        self.rewrite_state_as_v1({relative: content_hash})
+        catalog = self.migration_catalog(relative, content)
+        original_link = INSTALL_MODULE.os.link
+
+        def inject_collision(source, destination, *args, **kwargs):
+            if Path(destination).resolve(strict=False) == quarantined.resolve(
+                strict=False
+            ):
+                quarantined.write_bytes(collision)
+            return original_link(source, destination, *args, **kwargs)
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            with mock.patch.object(
+                INSTALL_MODULE.os, "link", side_effect=inject_collision
+            ):
+                with self.assertRaisesRegex(
+                    INSTALL_MODULE.InstallError,
+                    "quarantine destination appeared",
+                ):
+                    INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+        self.assertEqual(retired.read_bytes(), content)
+        self.assertEqual(quarantined.read_bytes(), collision)
+
+    def test_dual_link_quarantine_is_forward_recoverable(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        content = b'name = "retired_specialist"\n'
+        content_hash = hashlib.sha256(content).hexdigest()
+        retired = self.codex_home / relative
+        retired.write_bytes(content)
+        quarantined = self.codex_home / INSTALL_MODULE.quarantine_relative(
+            relative, content_hash
+        )
+        self.rewrite_state_as_v1({relative: content_hash})
+        catalog = self.migration_catalog(relative, content)
+        original_rename = INSTALL_MODULE.rename_noreplace
+        injected = False
+
+        def interrupt_after_link(source, destination):
+            nonlocal injected
+            if (
+                source.resolve(strict=False) == retired.resolve(strict=False)
+                and not injected
+            ):
+                injected = True
+                raise OSError("injected pre-staging interruption")
+            return original_rename(source, destination)
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            with mock.patch.object(
+                INSTALL_MODULE,
+                "rename_noreplace",
+                side_effect=interrupt_after_link,
+            ):
+                with self.assertRaisesRegex(OSError, "injected pre-staging interruption"):
+                    INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+            self.assertTrue(retired.exists())
+            self.assertTrue(quarantined.exists())
+            self.assertTrue(INSTALL_MODULE.same_physical_file(retired, quarantined))
+            healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+            self.assertFalse(healthy)
+            self.assertIn("TARGET agents/retired_specialist.toml LINKED", diagnosis)
+
+            touched = INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+        self.assertIn((relative, "<absent>"), touched)
+        self.assertFalse(retired.exists())
+        self.assertEqual(quarantined.read_bytes(), content)
+        self.assertFalse((self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE).exists())
+
+    def test_staged_quarantine_is_forward_recoverable(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        content = b'name = "retired_specialist"\n'
+        content_hash = hashlib.sha256(content).hexdigest()
+        retired = self.codex_home / relative
+        retired.write_bytes(content)
+        quarantined = self.codex_home / INSTALL_MODULE.quarantine_relative(
+            relative, content_hash
+        )
+        staged = self.codex_home / INSTALL_MODULE.staging_relative(
+            relative, content_hash
+        )
+        self.rewrite_state_as_v1({relative: content_hash})
+        catalog = self.migration_catalog(relative, content)
+        original_rename = INSTALL_MODULE.rename_noreplace
+        injected = False
+
+        def interrupt_after_staging(source, destination):
+            nonlocal injected
+            result = original_rename(source, destination)
+            if (
+                source.resolve(strict=False) == retired.resolve(strict=False)
+                and not injected
+            ):
+                injected = True
+                raise OSError("injected post-staging interruption")
+            return result
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            with mock.patch.object(
+                INSTALL_MODULE,
+                "rename_noreplace",
+                side_effect=interrupt_after_staging,
+            ):
+                with self.assertRaisesRegex(
+                    OSError, "injected post-staging interruption"
+                ):
+                    INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+            self.assertFalse(retired.exists())
+            self.assertTrue(quarantined.exists())
+            self.assertTrue(staged.exists())
+            self.assertTrue(INSTALL_MODULE.same_physical_file(staged, quarantined))
+            healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+            self.assertFalse(healthy)
+            self.assertIn("TARGET agents/retired_specialist.toml STAGED", diagnosis)
+
+            touched = INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+        self.assertNotIn((relative, "<absent>"), touched)
+        self.assertFalse(retired.exists())
+        self.assertTrue(staged.exists())
+        self.assertTrue(INSTALL_MODULE.same_physical_file(staged, quarantined))
+        self.assertEqual(quarantined.read_bytes(), content)
+        self.assertFalse((self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE).exists())
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+        self.assertTrue(healthy)
+        self.assertTrue(
+            any(line.startswith(f"RETAINED_STAGING {relative} ") for line in diagnosis)
+        )
+
+    def test_source_replacement_at_staging_boundary_is_preserved(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        content = b'name = "retired_specialist"\n'
+        concurrent = b"concurrent user bytes\n"
+        content_hash = hashlib.sha256(content).hexdigest()
+        retired = self.codex_home / relative
+        retired.write_bytes(content)
+        quarantined = self.codex_home / INSTALL_MODULE.quarantine_relative(
+            relative, content_hash
+        )
+        self.rewrite_state_as_v1({relative: content_hash})
+        catalog = self.migration_catalog(relative, content)
+        original_rename = INSTALL_MODULE.rename_noreplace
+        injected = False
+
+        def replace_source_before_staging(source, destination):
+            nonlocal injected
+            if (
+                source.resolve(strict=False) == retired.resolve(strict=False)
+                and not injected
+            ):
+                injected = True
+                replacement = retired.with_name(".concurrent-retired-specialist")
+                replacement.write_bytes(concurrent)
+                INSTALL_MODULE.os.replace(replacement, source)
+            return original_rename(source, destination)
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            with mock.patch.object(
+                INSTALL_MODULE,
+                "rename_noreplace",
+                side_effect=replace_source_before_staging,
+            ):
+                with self.assertRaisesRegex(
+                    INSTALL_MODULE.InstallError,
+                    "source changed during staging",
+                ):
+                    INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+            self.assertEqual(retired.read_bytes(), concurrent)
+            self.assertEqual(quarantined.read_bytes(), content)
+            healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+            self.assertFalse(healthy)
+            self.assertIn("TARGET agents/retired_specialist.toml CONFLICT", diagnosis)
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "conflicting targets"
+            ):
+                INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+        self.assertEqual(retired.read_bytes(), concurrent)
+        self.assertEqual(quarantined.read_bytes(), content)
+
+    def test_retained_staging_receipt_is_never_cleaned_by_path(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        relative = "agents/retired_specialist.toml"
+        content = b'name = "retired_specialist"\n'
+        unrelated = b"unrelated replacement bytes\n"
+        content_hash = hashlib.sha256(content).hexdigest()
+        retired = self.codex_home / relative
+        retired.write_bytes(content)
+        self.rewrite_state_as_v1({relative: content_hash})
+        catalog = self.migration_catalog(relative, content)
+        staged = self.codex_home / INSTALL_MODULE.staging_relative(
+            relative, content_hash
+        )
+
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            INSTALL_MODULE.apply_install(self.codex_home, "en")
+            replacement = staged.with_name(".concurrent-retirement-receipt")
+            replacement.write_bytes(unrelated)
+            INSTALL_MODULE.os.replace(replacement, staged)
+
+            self.assertEqual(INSTALL_MODULE.apply_install(self.codex_home, "en"), [])
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "retirement receipt hash mismatch"
+            ):
+                INSTALL_MODULE.doctor(self.codex_home, "en")
+
+        self.assertEqual(staged.read_bytes(), unrelated)
+
+    def test_partial_transaction_receipt_doctor_and_idempotent_recovery(self):
+        original_atomic_write = INSTALL_MODULE.atomic_write
+        calls = 0
+
+        def fail_on_second_write(plan, codex_home):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("injected write failure")
+            original_atomic_write(plan, codex_home)
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "atomic_write",
+            side_effect=fail_on_second_write,
+        ), mock.patch.object(
+            sys,
+            "argv",
+            [
+                str(INSTALLER),
+                "--codex-home",
+                str(self.codex_home),
+                "--agents-language",
+                "en",
+                "--apply",
+            ],
+        ):
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                result = INSTALL_MODULE.main()
+
+        self.assertEqual(result, 1)
+        self.assertIn("TOUCHED AGENTS.md ", stdout.getvalue())
+        self.assertIn("injected write failure", stderr.getvalue())
+        journal_path = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+        self.assertTrue(journal_path.is_file())
+        healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+        self.assertFalse(healthy)
+        self.assertIn("DOCTOR PARTIAL_RECOVERABLE", diagnosis)
+        self.assertIn("TARGET AGENTS.md DESIRED", diagnosis)
+
+        recovered = INSTALL_MODULE.apply_install(self.codex_home, "en")
+        self.assertTrue(recovered)
+        self.assertFalse(journal_path.exists())
+        healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+        self.assertTrue(healthy)
+        self.assertEqual(diagnosis, ["DOCTOR HEALTHY"])
+        self.assertEqual(INSTALL_MODULE.apply_install(self.codex_home, "en"), [])
+
+    def test_concurrent_apply_lock_is_refused_without_target_writes(self):
+        path = INSTALL_MODULE.lock_path(self.codex_home)
+        path.write_text("held by test\n")
+
+        result = self.run_installer("--apply")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("another installer holds apply lock", result.stderr)
+        self.assertFalse(self.codex_home.exists())
+        self.assertEqual(path.read_text(), "held by test\n")
 
     def test_late_drift_stops_later_replace_after_partial_install(self):
         plans, _ = INSTALL_MODULE.plan_install(self.codex_home, "en")
