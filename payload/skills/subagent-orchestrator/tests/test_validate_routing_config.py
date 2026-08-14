@@ -124,6 +124,24 @@ class RoutingContractTest(unittest.TestCase):
                 for error in self.validate(candidate).errors
             ))
 
+    def test_rejects_max_reviewer_recursive_escalation(self):
+        temporary, candidate = clone_candidate()
+        with temporary:
+            path = candidate / "agents" / "risk_reviewer_max.toml"
+            path.write_text(path.read_text().replace(
+                "Do not recommend another review, escalation, or higher effort.",
+                "Use `Gate recommendation: INDETERMINATE / ESCALATE` and request a fresh `max` review.",
+            ))
+            errors = self.validate(candidate).errors
+            self.assertTrue(any(
+                "must not emit an escalation outcome" in error
+                for error in errors
+            ))
+            self.assertTrue(any(
+                "must not request another max review" in error
+                for error in errors
+            ))
+
     def test_rejects_non_ascii_reviewer_prompt(self):
         temporary, candidate = clone_candidate()
         with temporary:

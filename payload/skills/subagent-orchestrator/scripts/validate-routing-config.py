@@ -63,15 +63,17 @@ ROLE_RECEIPT_MARKERS = {
         "1500 words",
     ),
     "risk_reviewer_max": (
+        "single terminal `max` adjudication",
         "claims inferred only from acceptance-field wording",
         "concrete mechanism, consequence, implementation-specific required control",
         "For a pass, identify the positive implementation and test evidence",
         "Do not invent a blocker outside the named invariants",
         "Gate recommendation: PASS",
         "Gate recommendation: BLOCK / NO-GO",
-        "Gate recommendation: INDETERMINATE / ESCALATE",
-        "available evidence is sufficient",
-        "at most one fresh `max` review",
+        "positive evidence, negative evidence, and the cross-boundary causal path",
+        "invalid `max` trigger",
+        "Do not recommend another review, escalation, or higher effort",
+        "Residual ambiguity, missing required evidence",
         "Follow the handoff's `Output audience` field",
         "For `user-facing` output, use the user's preferred language",
         "For `model-facing` output, use English",
@@ -84,7 +86,7 @@ ROLE_INSTRUCTION_SHA256 = {
     "evidence_tester": "19eac606502ec8a992609a2412bfb5f605d8923741c23002252d38c9f52cceef",
     "boundary_mapper": "64b03cd483aa01e2c1a250d1d9beafc9e07dd0b7c480587305ae603090ae7aed",
     "risk_reviewer": "5041eb578a31c89e4492fc1c3f311c8db41afded23aaa9ebbb5655963d262749",
-    "risk_reviewer_max": "5041eb578a31c89e4492fc1c3f311c8db41afded23aaa9ebbb5655963d262749",
+    "risk_reviewer_max": "290ac09010349064f69f873e434b71ef78c398f851955ef8f41611304d6682f6",
 }
 REFERENCE_SHA256 = {
     "routing-policy.md": "0d0855ddb0786b88ed6fa64f9c1c44fd81b28e2e154c061749b8e7241eb80449",
@@ -254,6 +256,15 @@ def validate_role(checks: Checks, role_path: Path, expected_skill_path: str) -> 
                 leaked_checklist_term not in instructions.lower(),
                 f"{role}: fixed domain checklist leaks into generic role: {leaked_checklist_term}",
             )
+    if role == "risk_reviewer_max":
+        checks.require(
+            "Gate recommendation: INDETERMINATE / ESCALATE" not in instructions,
+            "risk_reviewer_max: terminal max role must not emit an escalation outcome",
+        )
+        checks.require(
+            "fresh `max` review" not in instructions,
+            "risk_reviewer_max: terminal max role must not request another max review",
+        )
     checks.require(
         hashlib.sha256(instructions.encode()).hexdigest() == ROLE_INSTRUCTION_SHA256[role],
         f"{role}: developer_instructions integrity mismatch",

@@ -70,8 +70,8 @@
     },
     {
       "path": "payload/agents/risk_reviewer_max.toml",
-      "sha256": "0905972e88170d151e2e67ff7d2f9a92c599519b6432647da7db1e7029bb2504",
-      "size": 2352
+      "sha256": "fe8eba504f10946af3c91a65520acddf44d58a90f3e1f509e352a05600f4815e",
+      "size": 2686
     },
     {
       "path": "payload/config.agents.toml",
@@ -110,8 +110,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "35c0131751ad5fb43297bdd18a2e1b166858a7713bdd6b028d599835004a08d0",
-      "size": 30624
+      "sha256": "dc18ea492dd3223ceff7600b669dbb0615abc28d8c1df8179080d8dc376d7e5a",
+      "size": 31189
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json",
@@ -125,8 +125,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
-      "sha256": "dc1274f5a651ae6863f257708582f088893c433a8b3171fc2c2f3ba30ca6c7cc",
-      "size": 34480
+      "sha256": "aba6cc015a7ad2fd7e5fa1dff6c1eb3d930a246a41e613861e721e8fcf40fa58",
+      "size": 35286
     },
     {
       "path": "portable-profile.json",
