@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 
 
 ROOT = Path(__file__).resolve().parent
@@ -24,6 +25,62 @@ EXCLUDED_PARTS = {
     "htmlcov",
 }
 EXCLUDED_NAMES = {".coverage", ".DS_Store"}
+ROLE_PROFILE_POLICY = {
+    "evidence_tester": {
+        "class": "evidence-owning-test-or-log-analyst",
+        "eligibility": (
+            "material structured test output or bounded runbook-driven logs with "
+            "explicit acceptance fields and one requested artifact"
+        ),
+        "routing_markers": (
+            "Material structured test-output triage",
+            "Material bounded log corpus",
+            "`evidence_tester`",
+        ),
+    },
+    "boundary_mapper": {
+        "class": "read-only-cross-component-boundary-analyst",
+        "eligibility": (
+            "one named unresolved execution, state, or persistence boundary after "
+            "a targeted primary check"
+        ),
+        "routing_markers": (
+            "Named unresolved cross-component boundary",
+            "`boundary_mapper`",
+        ),
+    },
+    "risk_reviewer": {
+        "class": "independent-high-risk-final-gate",
+        "eligibility": (
+            "required fresh independent review of named high-risk final-state or "
+            "acceptance invariants"
+        ),
+        "routing_markers": (
+            "Required independent high-risk final gate",
+            "fresh `risk_reviewer`",
+        ),
+    },
+    "risk_reviewer_max": {
+        "class": "single-escalation-variant-of-risk-reviewer",
+        "eligibility": (
+            "one fresh escalation only after sufficient evidence leaves competing "
+            "causal explanations that can change an irreversible P0/P1, security, "
+            "authorization, or data-integrity decision"
+        ),
+        "routing_markers": (
+            "Start one fresh `risk_reviewer_max` only",
+            "at most one `max` escalation",
+        ),
+    },
+}
+ADAPTER_REQUIREMENTS = [
+    "preserve-role-eligibility",
+    "preserve-permission-boundaries",
+    "preserve-non-recursion",
+    "preserve-terminal-collection",
+    "preserve-output-language-contract",
+    "treat-model-and-effort-values-as-client-specific-hints",
+]
 
 
 def fail(message: str) -> None:
@@ -78,7 +135,17 @@ def verify_portability() -> None:
             if pattern.search(content):
                 fail(f"user-specific absolute path in {relative}")
     profile = json.loads((ROOT / "portable-profile.json").read_text(encoding="utf-8"))
-    roles = {role["id"] for role in profile.get("roles", [])}
+    if not isinstance(profile, dict):
+        fail("portable profile root must be an object")
+    role_entries = profile.get("roles", [])
+    if not isinstance(role_entries, list) or not all(
+        isinstance(role, dict) for role in role_entries
+    ):
+        fail("portable profile roles must be a list of objects")
+    role_ids = [role.get("id") for role in role_entries]
+    if len(role_ids) != len(set(role_ids)):
+        fail("portable profile contains duplicate role ids")
+    roles = set(role_ids)
     expected = {
         "evidence_tester",
         "boundary_mapper",
@@ -87,6 +154,9 @@ def verify_portability() -> None:
     }
     if roles != expected:
         fail(f"portable profile role mismatch: {sorted(roles)}")
+    templates = [role.get("template") for role in role_entries]
+    if len(templates) != len(set(templates)):
+        fail("portable profile contains duplicate role templates")
     if profile.get("primary") != {
         "model": "unconstrained",
         "reasoning_effort": "unconstrained",
@@ -99,6 +169,109 @@ def verify_portability() -> None:
         ],
     }:
         fail("portable profile constrains or changes primary ownership")
+
+    config = tomllib.loads(
+        (ROOT / "payload" / "config.agents.toml").read_text(encoding="utf-8")
+    )["agents"]
+    default_child = profile.get("default_child")
+    if default_child != {
+        "model_hint": config["default_subagent_model"],
+        "reasoning_effort_hint": config["default_subagent_reasoning_effort"],
+    }:
+        fail("portable profile default child drifts from package config")
+    if profile.get("concurrency") != {
+        "runtime_thread_cap": config["max_concurrent_threads_per_session"],
+        "qualified_custom_child_cap": 3,
+        "fourth_custom_child_requires_user_authorization": True,
+        "wait_timeout_is_terminal": False,
+    }:
+        fail("portable profile concurrency drifts from routing/config ownership")
+
+    routing_policy = (
+        ROOT
+        / "payload"
+        / "skills"
+        / "subagent-orchestrator"
+        / "references"
+        / "routing-policy.md"
+    ).read_text(encoding="utf-8")
+    expected_write_scope = {
+        "read-only": "none",
+        "workspace-write": "one assigned workspace artifact only",
+    }
+    for entry in role_entries:
+        role = entry["id"]
+        expected_template = f"payload/agents/{role}.toml"
+        if entry.get("template") != expected_template:
+            fail(f"portable profile template mismatch: {role}")
+        template = ROOT / expected_template
+        if not template.is_file():
+            fail(f"portable profile template is missing: {role}")
+        document = tomllib.loads(template.read_text(encoding="utf-8"))
+        if document.get("name") != role:
+            fail(f"portable profile role name mismatch: {role}")
+        for profile_key, role_key in (
+            ("model_hint", "model"),
+            ("reasoning_effort_hint", "model_reasoning_effort"),
+            ("service_tier_hint", "service_tier"),
+        ):
+            if entry.get(profile_key) != document.get(role_key):
+                fail(f"portable profile {profile_key} mismatch: {role}")
+        sandbox = document.get("sandbox_mode")
+        if entry.get("write_scope") != expected_write_scope.get(sandbox):
+            fail(f"portable profile write scope mismatch: {role}")
+        profile_policy = ROLE_PROFILE_POLICY[role]
+        if entry.get("class") != profile_policy["class"]:
+            fail(f"portable profile role class mismatch: {role}")
+        if entry.get("eligibility") != profile_policy["eligibility"]:
+            fail(f"portable profile role eligibility mismatch: {role}")
+        for marker in profile_policy["routing_markers"]:
+            if marker not in routing_policy:
+                fail(f"routing policy no longer proves profile role {role}: {marker}")
+
+    expected_typed_fields = {
+        "acceptance_fields": "not-applicable-or-one-or-more-exact-output-heading-labels",
+        "named_invariants": "not-applicable-or-one-or-more-exact-gate-invariants",
+        "escalation_receipt": (
+            "not-applicable-or-prior-terminal-line-plus-sufficient-evidence-plus-"
+            "competing-explanations-plus-irreversible-decision"
+        ),
+        "artifact_contract": "none-or-path-or-body-plus-format-plus-writer-plus-transfer-rule",
+    }
+    handoff = profile.get("handoff")
+    expected_handoff = {
+        "contract_reference": (
+            "payload/skills/subagent-orchestrator/references/delegation-contracts.md"
+        ),
+        "non_recursive": True,
+        "state_bound": True,
+        "required_typed_fields": expected_typed_fields,
+        "user_facing_language": "user-preferred",
+        "model_facing_language": "English",
+    }
+    if handoff != expected_handoff:
+        fail("portable profile handoff contract mismatch")
+    if not (ROOT / expected_handoff["contract_reference"]).is_file():
+        fail("portable profile handoff reference is missing")
+    if profile.get("adapter_requirements") != ADAPTER_REQUIREMENTS:
+        fail("portable profile adapter requirements mismatch")
+    delegation_contract = (ROOT / expected_handoff["contract_reference"]).read_text(
+        encoding="utf-8"
+    )
+    for requirement in ADAPTER_REQUIREMENTS:
+        if f"`{requirement}`" not in delegation_contract:
+            fail(f"delegation contract is missing adapter requirement: {requirement}")
+
+
+def verify_manifest_builder() -> None:
+    run(
+        [
+            sys.executable,
+            "-B",
+            str(ROOT / "build_manifest.py"),
+            "--check",
+        ]
+    )
 
 
 def run(command: list[str]) -> str:
@@ -185,18 +358,24 @@ def verify_package_tests() -> None:
     )
 
 
+def verify_evaluation_smoke() -> None:
+    run([sys.executable, "-B", "-m", "evaluation", "smoke"])
+
+
 def main() -> int:
     try:
         verify_manifest()
+        verify_manifest_builder()
         verify_portability()
         verify_package_tests()
+        verify_evaluation_smoke()
         verify_hermetic_install()
     except (RuntimeError, OSError, UnicodeError, ValueError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
     print(
-        "PASS: manifest, portability, package tests, safe install, "
-        "routing policy, and bundled tests"
+        "PASS: manifest, portability, package tests, evaluation smoke, "
+        "safe install, routing policy, and bundled tests"
     )
     return 0
 

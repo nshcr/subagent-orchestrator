@@ -10,11 +10,14 @@ permissions:
 
 jobs:
   validate:
-    name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # The installer relies on Unix fsync/chmod semantics. Windows remains
+        # unsupported until the complete validation path has a proven branch.
+        os: [ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.14"]
 
     steps:
@@ -22,4 +25,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - run: python -B build_manifest.py --check
+      - run: python -B -m evaluation smoke
       - run: python -B validate.py

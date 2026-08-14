@@ -15,8 +15,8 @@
   "files": [
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "a2cc5924f87c62c002a4a4b973eece1863d8a67fac73f5dbac5846bb73f14f4a",
-      "size": 462
+      "sha256": "f56f7c21a9687e659eaa0e9fa5ef991f6bf1e1abc14bab8189ffcaf9f0f72953",
+      "size": 774
     },
     {
       "path": ".gitignore",
@@ -30,13 +30,13 @@
     },
     {
       "path": "README.md",
-      "sha256": "23c634cb2fe8499313299da9b31e345d768e50d115f43f338df207160d12095b",
-      "size": 7913
+      "sha256": "8840256d9914bbe20f6cdae2b50985e0a9e0d9dd0d6482d8fd6aedef21ccfa8a",
+      "size": 9144
     },
     {
       "path": "build_manifest.py",
-      "sha256": "07edb9d9cdfcfd3062a193286fc7e0f2531ba14b9619a00e89d0aeb7f0fa9b80",
-      "size": 1862
+      "sha256": "70f6a49d9fb00969ad224a2fa45c76372914199b86c255e2780348c781dd7f4e",
+      "size": 10495
     },
     {
       "path": "evaluation/README.md",
@@ -190,16 +190,21 @@
     },
     {
       "path": "tests/test_manifest.py",
-      "sha256": "05d5620f794772b0b172e4dfa81c3cecab17b23d75bc435797b7eefb91419f96",
-      "size": 2336
+      "sha256": "85a93fb7da607f2fc989ff7cb5f7eded1d2ab875ae9e8299eba7e234462e1d29",
+      "size": 8241
+    },
+    {
+      "path": "tests/test_profile.py",
+      "sha256": "0869b64a76e01bc7489fa90ef865929b0d901817549d94cd9438f0b2c14ca4b8",
+      "size": 4498
     },
     {
       "path": "validate.py",
-      "sha256": "4b3346fa63cdb78cf5e788b040d966956e686f0a2b85e0e14e4f04c2caf600fa",
-      "size": 6000
+      "sha256": "61d8be35e9fef458194db28107ce16047470bd77f0cbad1554867a640c7f0fd5",
+      "size": 13260
     }
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "package_version": "2026.08.13"
+  "package_version": "2026.08.14"
 }

@@ -25,8 +25,11 @@ do not qualify a task for delegation.
 ## Requirements
 
 - Python 3.11 or newer; no third-party Python dependencies.
+- macOS or Linux. Windows is unsupported and unverified because the installer
+  relies on Unix `fsync`, file-mode, hard-link, and atomic no-replace rename
+  semantics (`renamex_np` on macOS or `renameat2` on Linux).
 - A Codex client that supports custom subagents, skills, and `[agents]` settings.
-- A trusted local Codex home that will not be modified concurrently during install.
+- A trusted local Codex home.
 
 See the current official documentation for [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents),
 [skills](https://learn.chatgpt.com/docs/build-skills), and the
@@ -46,10 +49,15 @@ with the absolute path to your Codex home.
 ```bash
 python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --check
 python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --apply
+python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --doctor
+python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --doctor --format json
 ```
 
 `--check` does not create the target directory or write files. It reports every
 planned path and content SHA-256. `--apply` uses the same fail-closed checks.
+`--doctor` is read-only and classifies the current installation, active apply
+lock, unfinished transaction, and any quarantined retired artifacts. Add
+`--format json` for a stable machine-readable diagnostic receipt.
 Choose `--agents-language en` for English or `--agents-language zh` for Simplified
 Chinese. The installer writes exactly one policy section and can safely switch a
 managed installation between the two canonical translations.
@@ -63,17 +71,42 @@ The installer manages only:
 
 Other personal instructions, primary-agent settings, project settings, unknown
 `[agents]` keys, extra agents, and extra skills are preserved. Unknown conflicts
-are rejected. Known predecessor bundles can be upgraded only when their recorded
-managed hashes still match the target files.
+are rejected. Managed state version 2 records an install-contract hash derived
+only from managed inputs, so documentation, tests, and CI metadata do not create
+false lineage breaks. Known predecessor contracts can be upgraded only when the
+recorded hashes still match every managed target.
 
-Writes use an all-target precondition gate, same-directory temporary files,
-`fsync`, atomic replacement, and a final per-file recheck. Atomicity is per file,
-not a multi-file transaction. A late concurrent change stops later replacements
-but does not roll back files already replaced.
+`install-migrations.json` is the explicit lifecycle catalog. A removed managed
+path is accepted only when both its original path and old SHA-256 are declared.
+The installer creates the quarantine path with an exclusive hard link and
+`fsync`s it. It then atomically moves the source name without replacement into
+transaction-owned staging, verifies the staged inode and hash against the
+quarantine link, and retains that verified hard link under
+`.retirement-receipts/` as a durable, non-deleting transaction receipt. Journal
+completion removes only the journal itself.
+Quarantined bytes remain at
+`skills/subagent-orchestrator/.retired/<sha256>/<original-path>`; unknown,
+modified, colliding, or concurrently replaced content fails closed and is
+restored or left at a journal-owned recovery path.
 
-The installer creates no backup, deletes no extra files, and provides no automatic
-uninstaller. Review `skills/subagent-orchestrator/.managed-package-state.json`,
-`AGENTS.md`, and `config.toml` before removing an installation manually.
+Apply uses an exclusive target-scoped lock, an all-target precondition gate,
+same-directory temporary files, `fsync`, atomic replacement, and a durable
+transaction journal. Atomicity is per file, not across the complete plan. If a
+late change or interruption stops an apply, already completed `TOUCHED` receipts
+are flushed and the journal remains for read-only diagnosis and idempotent
+forward recovery with the same package and language. Conflicting partial state
+fails closed; the installer never silently rolls it back or overwrites it.
+A crash can leave either the source and quarantine links or the quarantine and
+staging links. `--doctor` reports both recoverable states, and the next matching
+apply finishes the journal forward without replacing any existing path. A
+verified staging link remains afterward as a read-only retirement receipt.
+
+The installer provides no automatic uninstaller. Review `--doctor`,
+`skills/subagent-orchestrator/.managed-package-state.json`, any
+`.install-transaction.json`, `.retired/`, or `.retirement-receipts/` evidence,
+plus `AGENTS.md` and `config.toml`, before removing an installation manually. A
+stale apply lock also requires manual inspection; there is intentionally no
+force-unlock flag.
 
 ## Validate
 
@@ -89,6 +122,9 @@ tests alone with:
 python3 -B -m unittest discover -s tests -p 'test_*.py'
 ```
 
+CI runs this validation matrix on Ubuntu and macOS with Python 3.11 and 3.14.
+That matrix does not establish Windows compatibility.
+
 After installation, validate a target from the installed skill directory:
 
 ```bash
@@ -101,64 +137,49 @@ model availability, account access, client reload state, or current role quality
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py
+python3 -B build_manifest.py --package-version 2026.08.14
+python3 -B build_manifest.py --check
 python3 -B validate.py
 ```
 
-## Historical benchmark snapshot
+`--check` validates the manifest schema, rejects duplicate or unsafe paths, and
+fails without rewriting when hashes, sizes, coverage, metadata, or ordering are
+stale. Manifest writes require an explicit `YYYY.MM.DD` package version. Before
+retiring a managed role or skill path, generate a conservative review artifact
+from the predecessor manifest:
 
-The bundle originated from an August 2026 paired benchmark. Twelve baseline/custom
-pairs covered four materially different fixture families for each of three roles.
-The score threshold was 85. Runs alternated arm order, accounted for primary and
-child tokens and ChatGPT credits, included benign and blocking cases, and ended
-with a sealed holdout. Labels alone earned no score without counts, source paths,
-causal evidence, or counterexamples.
+```bash
+python3 -B build_manifest.py \
+  --migration-candidate-from /path/to/predecessor-manifest.json
+```
 
-### Aggregate results
+The command never edits `install-migrations.json`. Rendered role templates are
+flagged as requiring an installed-byte hash; every candidate requires human
+review before being accepted into the lifecycle catalog.
 
-| Metric | Baseline | Custom | Difference |
-|---|---:|---:|---:|
-| Passed cases | 11/12 | 12/12 | +1 custom |
-| Mean quality score | 94.5000 | 95.5833 | +1.0833 |
-| ChatGPT credits | 198.538650 | 194.003379 | -4.535271 (-2.28%) |
-| Tokens | 4,010,378 | 5,854,137 | +1,843,759 (+45.98%) |
-| Wall time | 2,207.4 s | 3,864.2 s | +75.1% |
+## Evaluation scaffold
 
-Wall time was telemetry only and was not a routing objective. Custom used more
-tokens, while its lower-priced child-model mix reduced total credits slightly.
+The standard-library-only `evaluation` package validates paired baseline/custom
+campaign evidence and emits deterministic JSON reports. It never invokes models,
+graders, or the network. Development evidence and externally executed sealed
+holdout evidence are separate inputs:
 
-### Results by role
+```bash
+python3 -B -m evaluation validate --campaign campaign.json \
+  --sealed-holdout /outside/repository/sealed-results.json
+python3 -B -m evaluation report --campaign campaign.json \
+  --sealed-holdout /outside/repository/sealed-results.json \
+  --output report.json
+python3 -B -m evaluation smoke
+```
 
-| Role | Baseline scores | Custom scores | Passes B/C | Median credits B/C | Historical decision |
-|---|---|---|---:|---:|---|
-| `evidence_tester` | `[100, 100, 74, 100]` | `[100, 100, 87, 100]` | 3/4 → 4/4 | 11.047 / 15.239 | Retained for verified quality gain |
-| `boundary_mapper` | `[90, 100, 100, 100]` | `[90, 100, 100, 100]` | 4/4 → 4/4 | 25.750 / 18.646 | Retained at equal quality and 27.6% lower median credits |
-| `risk_reviewer` | `[90, 90, 90, 100]` | `[90, 90, 90, 100]` | 4/4 → 4/4 | 15.075 / 13.780 | Retained as a mandatory independent gate; 8.6% savings missed the 10% elective threshold |
-
-The eight elective-role pairs (`evidence_tester` and `boundary_mapper`) improved
-passes from 7/8 to 8/8 and mean quality from 95.500 to 97.125. Credits decreased
-from 141.409025 to 136.700229 (-3.33%), while tokens increased 67.64%.
-
-### Sealed holdout
-
-| Scenario | Baseline | Custom | Credits B/C | Wall time B/C |
-|---|---:|---:|---:|---:|
-| Build-fleet evidence audit | 100 | 100 | 9.680 / 15.722 | 139.9 / 405.3 s |
-| Refund/capture boundary | 100 | 100 | 26.946 / 20.502 | 306.2 / 430.2 s |
-| Password-reset replay gate | 100 BLOCK | 100 BLOCK | 14.445 / 17.689 | 271.4 / 236.1 s |
-
-The three role families tested production-log accounting, mixed test triage,
-benign negative evidence, durable-state races, cache and authorization propagation,
-default-deny authorization, effect-before-authentication, stale leases, and replay
-windows. The sealed run completed 6/6 valid terminal arms with correct role use,
-no recursive delegation, and a clean contamination audit.
-
-These are historical, verified-local results, not a current performance claim.
-The raw benchmark corpus is not shipped in this repository. The current package
-also fixes `risk_reviewer` at `xhigh` and adds the separate one-shot `max` variant;
-the historical reviewer runs used an earlier High configuration, so they do not
-validate the newer effort policy. Re-benchmark representative workloads before
-changing role eligibility, model routing, or promotion status.
+Each billed primary, child, review, repair, failed-attempt, or retry task records
+its actual model, effort, service tier, tokens, and credits. Reports use exact
+decimal arithmetic, require stable acceptance and contamination evidence, and
+keep wall time as telemetry only. Promotion remains conservative unless each
+task class covers three fixture families, both arm orders, a sealed holdout, and
+the quality-first/Pareto gate. See [`evaluation/README.md`](evaluation/README.md)
+for the evidence boundary and schemas.
 
 ## Package layout
 
@@ -167,8 +188,10 @@ changing role eligibility, model routing, or promotion status.
 ├── install.py
 ├── validate.py
 ├── build_manifest.py
+├── install-migrations.json
 ├── manifest.json
 ├── portable-profile.json
+├── evaluation/
 ├── payload/
 │   ├── AGENTS.section.en.md
 │   ├── AGENTS.section.zh.md
