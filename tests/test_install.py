@@ -502,6 +502,29 @@ raise SystemExit(module.main())
         self.assertEqual(upgraded["format_version"], 2)
         self.assertIn("install_contract_sha256", upgraded)
 
+    def test_direct_v1_predecessor_lineage_is_accepted_and_upgraded(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = json.loads(self.state_path().read_text())
+        predecessor = {
+            "format_version": 1,
+            "managed_hashes": state["managed_hashes"],
+            "package_id": "subagent-orchestrator",
+            "package_manifest_sha256": (
+                "965615dbeae99d751a6cde94544d93b36405ed79d85d4f611bc7336209b8379c"
+            ),
+        }
+        self.state_path().write_text(
+            json.dumps(predecessor, indent=2, sort_keys=True) + "\n"
+        )
+
+        result = self.run_installer("--apply")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        upgraded = json.loads(self.state_path().read_text())
+        self.assertEqual(upgraded["format_version"], 2)
+        self.assertIn("install_contract_sha256", upgraded)
+
     def test_state_target_hash_mismatch_fails_closed(self):
         installed = self.run_installer("--apply")
         self.assertEqual(installed.returncode, 0, installed.stderr)
