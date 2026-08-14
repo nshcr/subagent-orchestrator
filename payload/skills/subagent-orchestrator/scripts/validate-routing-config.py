@@ -27,8 +27,11 @@ ROLE_POLICY = {
 ROLE_RECEIPT_MARKERS = {
     "evidence_tester": (
         "structured test output or bounded runbook-driven log surface",
-        "acceptance-field label verbatim as an output heading",
+        "handoff's `Acceptance fields` to contain one or more exact labels",
+        "reject `not-applicable` for this role",
         "Account for benign and negative cases",
+        "handoff's `Artifact contract` to name the single artifact path, format, child writer, and receipt transfer rule",
+        "reject `none` for this role",
         "Follow the handoff's `Output audience` field",
         "For `user-facing` output, use the user's preferred language",
         "For `model-facing` output, use English",
@@ -38,7 +41,10 @@ ROLE_RECEIPT_MARKERS = {
         "Confirmed test gaps",
         "Preserve source-code identifiers and domain terms verbatim",
         "Derive the ordered trace from real call and state edges",
-        "do not treat a label or mentioned term as proof",
+        "Do not treat a label or mentioned term as proof",
+        "handoff's `Acceptance fields` to contain one or more exact labels",
+        "reject `not-applicable` for this role",
+        "Follow the handoff's `Artifact contract`",
         "Follow the handoff's `Output audience` field",
         "For `user-facing` output, use the user's preferred language",
         "For `model-facing` output, use English",
@@ -46,30 +52,33 @@ ROLE_RECEIPT_MARKERS = {
         "1200 words",
     ),
     "risk_reviewer": (
+        "handoff's `Named invariants` to contain one or more exact invariants",
+        "Require `Escalation receipt` to be `not-applicable`",
         "claims inferred only from acceptance-field wording",
         "concrete mechanism, consequence, implementation-specific required control",
         "For a pass, identify the positive implementation and test evidence",
         "Do not invent a blocker outside the named invariants",
-        "Gate recommendation: PASS",
-        "Gate recommendation: BLOCK / NO-GO",
-        "Gate recommendation: INDETERMINATE / ESCALATE",
         "available evidence is sufficient",
         "at most one fresh `max` review",
         "Follow the handoff's `Output audience` field",
         "For `user-facing` output, use the user's preferred language",
         "For `model-facing` output, use English",
         "Keep the terminal protocol line exactly as specified above",
+        "Follow the handoff's `Artifact contract`",
+        "final non-empty line before `ARTIFACT_BODY_END`",
+        "final non-empty line of the receipt",
         "ARTIFACT_BODY_BEGIN",
         "1500 words",
     ),
     "risk_reviewer_max": (
         "single terminal `max` adjudication",
+        "handoff's `Named invariants` to contain one or more exact invariants",
+        "handoff's `Escalation receipt` to identify the prior standalone",
+        "sufficient evidence, concrete competing explanations, and the irreversible decision",
         "claims inferred only from acceptance-field wording",
         "concrete mechanism, consequence, implementation-specific required control",
         "For a pass, identify the positive implementation and test evidence",
         "Do not invent a blocker outside the named invariants",
-        "Gate recommendation: PASS",
-        "Gate recommendation: BLOCK / NO-GO",
         "positive evidence, negative evidence, and the cross-boundary causal path",
         "invalid `max` trigger",
         "Do not recommend another review, escalation, or higher effort",
@@ -78,20 +87,34 @@ ROLE_RECEIPT_MARKERS = {
         "For `user-facing` output, use the user's preferred language",
         "For `model-facing` output, use English",
         "Keep the terminal protocol line exactly as specified above",
+        "Follow the handoff's `Artifact contract`",
+        "final non-empty line before `ARTIFACT_BODY_END`",
+        "final non-empty line of the receipt",
         "ARTIFACT_BODY_BEGIN",
         "1500 words",
     ),
 }
+REVIEWER_TERMINAL_LINES = {
+    "risk_reviewer": (
+        "Gate recommendation: PASS",
+        "Gate recommendation: BLOCK / NO-GO",
+        "Gate recommendation: INDETERMINATE / ESCALATE",
+    ),
+    "risk_reviewer_max": (
+        "Gate recommendation: PASS",
+        "Gate recommendation: BLOCK / NO-GO",
+    ),
+}
 ROLE_INSTRUCTION_SHA256 = {
-    "evidence_tester": "19eac606502ec8a992609a2412bfb5f605d8923741c23002252d38c9f52cceef",
-    "boundary_mapper": "64b03cd483aa01e2c1a250d1d9beafc9e07dd0b7c480587305ae603090ae7aed",
-    "risk_reviewer": "5041eb578a31c89e4492fc1c3f311c8db41afded23aaa9ebbb5655963d262749",
-    "risk_reviewer_max": "290ac09010349064f69f873e434b71ef78c398f851955ef8f41611304d6682f6",
+    "evidence_tester": "e8cfc06d58025b75a15b2075cbdac7fd3918ab40ea972f3cda08d18e8ec16aec",
+    "boundary_mapper": "73ff8065f8832480bb29fe64c302982680709b37a6514abd207dfda982a86507",
+    "risk_reviewer": "8367775e01048b9aead6deb1451b4d15d7ffe54a888da124f18253ec5969ada0",
+    "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
 }
 REFERENCE_SHA256 = {
     "routing-policy.md": "0d0855ddb0786b88ed6fa64f9c1c44fd81b28e2e154c061749b8e7241eb80449",
     "evaluation-policy.md": "38fa07a6215427bbdf6949b050c19e0d39e3bd7ed39a879505c378ca660f13b4",
-    "delegation-contracts.md": "3e788b74d89d356823dd46374e409b7b0bb8041dd8c23c1ac9a5ec51baad7352",
+    "delegation-contracts.md": "bae9bb3eeb2370c8bfdf9d6a6fcd38ed255eb6cd8bf8f037297321dde55ca264",
 }
 SKILL_SHA256 = "5b1b53b90fff700d9bb803e87050db285b13d353eae029f6a9088253364827dc"
 GLOBAL_POLICY_SHA256 = {
@@ -122,7 +145,7 @@ GLOBAL_POLICY_MARKERS = {
 }
 LIFECYCLE_ASSET_SHA256 = {
     "scripts/lifecycle_conformance.py": "20f079efefc871617e83abf6c047433d9ab9e840a784fc53e156dabbfa45371b",
-    "tests/fixtures/lifecycle-trace.json": "34c4738b184aa6cb008f91ebc1a6e284d86bc98174ba6ee2be479cb5aa9962fc",
+    "tests/fixtures/lifecycle-trace.json": "f61c224b5ab8ef26dd1a0c0010ac3b5525499647f90771945d52468817c94535",
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",
@@ -256,11 +279,20 @@ def validate_role(checks: Checks, role_path: Path, expected_skill_path: str) -> 
                 leaked_checklist_term not in instructions.lower(),
                 f"{role}: fixed domain checklist leaks into generic role: {leaked_checklist_term}",
             )
-    if role == "risk_reviewer_max":
-        checks.require(
-            "Gate recommendation: INDETERMINATE / ESCALATE" not in instructions,
-            "risk_reviewer_max: terminal max role must not emit an escalation outcome",
+        terminal_lines = tuple(
+            line[1:-1]
+            for line in instructions.splitlines()
+            if line.startswith("`Gate recommendation:") and line.endswith("`")
         )
+        checks.require(
+            terminal_lines == REVIEWER_TERMINAL_LINES[role],
+            f"{role}: exact terminal protocol mismatch; got {terminal_lines}",
+        )
+        checks.require(
+            "and its evidence threshold" not in instructions,
+            f"{role}: terminal protocol must keep evidence before the standalone line",
+        )
+    if role == "risk_reviewer_max":
         checks.require(
             "fresh `max` review" not in instructions,
             "risk_reviewer_max: terminal max role must not request another max review",
@@ -503,6 +535,12 @@ def validate_references(
         "Concurrent peers: <none | non-overlapping task names>",
         "User deadline: <none | explicit user condition>",
         "Cancellation authority: <user cancel/replace, concrete safety/scope violation",
+        "Acceptance fields: <not-applicable | one or more exact output-heading labels>",
+        "Named invariants: <not-applicable | one or more exact gate invariants>",
+        "Escalation receipt: <not-applicable | prior terminal line + sufficient evidence",
+        "Artifact contract: <none | path or body + format + writer + transfer rule>",
+        "These four fields are typed and must always be present.",
+        "`not-applicable` and `none` are literal values, not permission to omit a field.",
         "The primary must set `Output audience` explicitly.",
         "For `user-facing` output, use the user's preferred language.",
         "For `model-facing` output, use English.",
@@ -522,8 +560,19 @@ def validate_references(
         "the primary samples but does not rewrite it",
         "ARTIFACT_BODY_BEGIN",
         "Never translate, reorder, or summarize a canonical body",
+        "A gate receipt ends with exactly one standalone terminal protocol line.",
+        "Without an artifact body it is the final non-empty line.",
+        "final non-empty line before `ARTIFACT_BODY_END`",
+        "nothing may follow except that marker",
         "The primary always owns authorization, conflict handling, integration, and final acceptance.",
         "Every custom role is non-recursive.",
+        "## Portable adapter contract",
+        "`preserve-role-eligibility`",
+        "`preserve-permission-boundaries`",
+        "`preserve-non-recursion`",
+        "`preserve-terminal-collection`",
+        "`preserve-output-language-contract`",
+        "`treat-model-and-effort-values-as-client-specific-hints`",
     ))
 
 

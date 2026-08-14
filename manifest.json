@@ -60,23 +60,23 @@
     },
     {
       "path": "payload/agents/boundary_mapper.toml",
-      "sha256": "bec5849d1fb5830b6668135ec629593371008ca619cfc4343c0661e0055ee70a",
-      "size": 1802
+      "sha256": "3925ad6232f9c1609cbf84c635f51193cede498bf6141f0ccb1665b58fa3d534",
+      "size": 2000
     },
     {
       "path": "payload/agents/evidence_tester.toml",
-      "sha256": "9d5f42f9b3ab479d1e40c05c0f7e06d036a16f1896639834e7dbd0297ef5511a",
-      "size": 1811
+      "sha256": "c1beb87877d4a84b493ee45a2b7814d5b188c6adedcf9086de248080dafff22e",
+      "size": 2051
     },
     {
       "path": "payload/agents/risk_reviewer.toml",
-      "sha256": "f57b7c51a7f62d67436f394c9b3a7c4144f7c9a1ae1946188fdaac2d84dfdfd9",
-      "size": 2360
+      "sha256": "aabee4e8102977d41b9d3fd6908e29564e580d1d9e678130bd8e2be7ff24cea5",
+      "size": 2883
     },
     {
       "path": "payload/agents/risk_reviewer_max.toml",
-      "sha256": "fe8eba504f10946af3c91a65520acddf44d58a90f3e1f509e352a05600f4815e",
-      "size": 2686
+      "sha256": "52256d5887513a91d2a95f66dc98d4c1308f9de6f8a4c4afc663f02d4610f7fa",
+      "size": 3338
     },
     {
       "path": "payload/config.agents.toml",
@@ -95,8 +95,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
-      "sha256": "3e788b74d89d356823dd46374e409b7b0bb8041dd8c23c1ac9a5ec51baad7352",
-      "size": 2837
+      "sha256": "bae9bb3eeb2370c8bfdf9d6a6fcd38ed255eb6cd8bf8f037297321dde55ca264",
+      "size": 4660
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/evaluation-policy.md",
@@ -115,12 +115,12 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "dc18ea492dd3223ceff7600b669dbb0615abc28d8c1df8179080d8dc376d7e5a",
-      "size": 31189
+      "sha256": "add245274c2dee59ad09dc5d756ef5682594467b0e401397d790141c2c346977",
+      "size": 33824
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json",
-      "sha256": "34c4738b184aa6cb008f91ebc1a6e284d86bc98174ba6ee2be479cb5aa9962fc",
+      "sha256": "f61c224b5ab8ef26dd1a0c0010ac3b5525499647f90771945d52468817c94535",
       "size": 2785
     },
     {
@@ -130,13 +130,13 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
-      "sha256": "aba6cc015a7ad2fd7e5fa1dff6c1eb3d930a246a41e613861e721e8fcf40fa58",
-      "size": 35286
+      "sha256": "315e329abcb42bdca088525a6f599c75e23a86d1578a140650a7b462121189b5",
+      "size": 38556
     },
     {
       "path": "portable-profile.json",
-      "sha256": "d7cc42197e86e084056d42bdfba20414c6c1a4bc6ab5f08de6932374d870bbbc",
-      "size": 3194
+      "sha256": "90b9b136d5ef2217af24ace53029136eef18191541421b2e47a367f182dea020",
+      "size": 3643
     },
     {
       "path": "tests/test_install.py",

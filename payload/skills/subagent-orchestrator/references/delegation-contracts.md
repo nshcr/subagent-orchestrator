@@ -13,6 +13,10 @@ Transferred work: <raw work the primary will not repeat>
 Primary sampling: <small verification only>
 Forbidden: <writes, external state, Git, recursion, or scope expansion>
 Evidence required: <artifact, commands, exits, citations, checklist>
+Acceptance fields: <not-applicable | one or more exact output-heading labels>
+Named invariants: <not-applicable | one or more exact gate invariants>
+Escalation receipt: <not-applicable | prior terminal line + sufficient evidence + competing explanations + irreversible decision>
+Artifact contract: <none | path or body + format + writer + transfer rule>
 Output audience: <user-facing | model-facing>
 Completion dependency: <required-before-integration | independent-before-final>
 Concurrent peers: <none | non-overlapping task names>
@@ -21,6 +25,14 @@ Cancellation authority: <user cancel/replace, concrete safety/scope violation, p
 Done when: <acceptance condition>
 Stop when: <ambiguity, overlap, authority, or stale state>
 ```
+
+These four fields are typed and must always be present. Use `Acceptance fields`
+for field-driven evidence work, `Named invariants` for an independent gate, and
+`Escalation receipt` only for an evidence-qualified terminal escalation. Use
+`Artifact contract` whenever the child must write or return a canonical artifact;
+otherwise set it to `none`. `not-applicable` and `none` are literal values, not
+permission to omit a field. A role may reject a typed value that does not satisfy
+its own applicability rules.
 
 The primary must set `Output audience` explicitly. For `user-facing` output,
 use the user's preferred language. For `model-facing` output, use English.
@@ -49,5 +61,26 @@ body between `ARTIFACT_BODY_BEGIN` and `ARTIFACT_BODY_END`, copy only that body
 verbatim, then sample cited evidence. Never translate, reorder, or summarize a
 canonical body while transferring it.
 
+A gate receipt ends with exactly one standalone terminal protocol line. Without
+an artifact body it is the final non-empty line. With an artifact body it is the
+final non-empty line before `ARTIFACT_BODY_END`, and nothing may follow except
+that marker. The gate role defines the allowed terminal lines and must put any
+evidence threshold, reason, or bounded recheck before the terminal line.
+
 The primary always owns authorization, conflict handling, integration, and
 final acceptance. Every custom role is non-recursive.
+
+## Portable adapter contract
+
+A client adapter must preserve these package-owned requirements exactly:
+
+- `preserve-role-eligibility`
+- `preserve-permission-boundaries`
+- `preserve-non-recursion`
+- `preserve-terminal-collection`
+- `preserve-output-language-contract`
+- `treat-model-and-effort-values-as-client-specific-hints`
+
+An adapter may translate syntax, but it must not broaden a role's task class or
+permissions, allow recursive delegation, drop terminal collection or language
+rules, or treat client-specific model and effort hints as portable guarantees.

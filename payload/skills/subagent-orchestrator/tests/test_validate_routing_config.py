@@ -134,10 +134,6 @@ class RoutingContractTest(unittest.TestCase):
             ))
             errors = self.validate(candidate).errors
             self.assertTrue(any(
-                "must not emit an escalation outcome" in error
-                for error in errors
-            ))
-            self.assertTrue(any(
                 "must not request another max review" in error
                 for error in errors
             ))
@@ -175,6 +171,52 @@ class RoutingContractTest(unittest.TestCase):
                     ))
                     self.assertTrue(any(
                         "missing receipt marker" in error or "integrity mismatch" in error
+                        for error in self.validate(candidate).errors
+                    ))
+
+    def test_rejects_required_role_handoff_field_drift(self):
+        mutations = (
+            ("evidence_tester", "`Acceptance fields`", "`Acceptance schema`"),
+            ("boundary_mapper", "`Acceptance fields`", "`Acceptance schema`"),
+            ("risk_reviewer", "`Named invariants`", "`Gate checklist`"),
+            ("risk_reviewer_max", "`Escalation receipt`", "`Escalation note`"),
+        )
+        for role, old, new in mutations:
+            with self.subTest(role=role):
+                temporary, candidate = clone_candidate()
+                with temporary:
+                    path = candidate / "agents" / f"{role}.toml"
+                    original = path.read_text()
+                    self.assertIn(old, original)
+                    path.write_text(original.replace(old, new, 1))
+                    self.assertTrue(any(
+                        f"{role}: missing receipt marker" in error
+                        for error in self.validate(candidate).errors
+                    ))
+
+    def test_rejects_reviewer_terminal_line_drift(self):
+        mutations = (
+            (
+                "risk_reviewer",
+                "`Gate recommendation: PASS`",
+                "`Gate recommendation: PASS with evidence`",
+            ),
+            (
+                "risk_reviewer_max",
+                "`Gate recommendation: BLOCK / NO-GO`",
+                "`Gate recommendation: BLOCK / NO-GO because evidence is missing`",
+            ),
+        )
+        for role, old, new in mutations:
+            with self.subTest(role=role):
+                temporary, candidate = clone_candidate()
+                with temporary:
+                    path = candidate / "agents" / f"{role}.toml"
+                    original = path.read_text()
+                    self.assertIn(old, original)
+                    path.write_text(original.replace(old, new, 1))
+                    self.assertTrue(any(
+                        f"{role}: exact terminal protocol mismatch" in error
                         for error in self.validate(candidate).errors
                     ))
 
@@ -531,6 +573,33 @@ class RoutingContractTest(unittest.TestCase):
                     path.write_text(original.replace(field, ""))
                     self.assertTrue(self.validate(candidate).errors)
 
+    def test_rejects_missing_typed_handoff_fields(self):
+        fields = (
+            "Acceptance fields: <not-applicable | one or more exact output-heading labels>\n",
+            "Named invariants: <not-applicable | one or more exact gate invariants>\n",
+            (
+                "Escalation receipt: <not-applicable | prior terminal line + sufficient evidence "
+                "+ competing explanations + irreversible decision>\n"
+            ),
+            "Artifact contract: <none | path or body + format + writer + transfer rule>\n",
+        )
+        for field in fields:
+            with self.subTest(field=field):
+                temporary, candidate = clone_candidate()
+                with temporary:
+                    path = (
+                        candidate / "skills" / skill_dir.name
+                        / "references" / "delegation-contracts.md"
+                    )
+                    original = path.read_text()
+                    self.assertIn(field, original)
+                    path.write_text(original.replace(field, "", 1))
+                    self.assertTrue(any(
+                        "missing policy text" in error
+                        or "canonical policy integrity mismatch" in error
+                        for error in self.validate(candidate).errors
+                    ))
+
     def test_rejects_canonical_artifact_transfer_drift(self):
         for relative, old, new in (
             ("skills/subagent-orchestrator/references/delegation-contracts.md", "ARTIFACT_BODY_BEGIN", "BODY_START"),
@@ -788,8 +857,8 @@ class RoutingContractTest(unittest.TestCase):
         with temporary:
             path = candidate / "agents" / "evidence_tester.toml"
             path.write_text(path.read_text().replace(
-                "treat the label only as schema",
-                "treat the label as proof",
+                "Treat each label only as schema",
+                "Treat each label as proof",
             ))
             self.assertTrue(any(
                 "receipt marker" in error or "integrity mismatch" in error

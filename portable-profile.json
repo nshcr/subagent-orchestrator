@@ -74,6 +74,12 @@
     "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
     "non_recursive": true,
     "state_bound": true,
+    "required_typed_fields": {
+      "acceptance_fields": "not-applicable-or-one-or-more-exact-output-heading-labels",
+      "named_invariants": "not-applicable-or-one-or-more-exact-gate-invariants",
+      "escalation_receipt": "not-applicable-or-prior-terminal-line-plus-sufficient-evidence-plus-competing-explanations-plus-irreversible-decision",
+      "artifact_contract": "none-or-path-or-body-plus-format-plus-writer-plus-transfer-rule"
+    },
     "user_facing_language": "user-preferred",
     "model_facing_language": "English"
   },
