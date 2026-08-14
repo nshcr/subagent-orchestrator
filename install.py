@@ -39,14 +39,16 @@ AGENTS_SECTION_FILES = {
     "en": "AGENTS.section.en.md",
     "zh": "AGENTS.section.zh.md",
 }
-LEGACY_GLOBAL_POLICY_SHA256 = (
-    "37d9a41d324d5fbc259baf8f893288aaef70003b0259b6de95b6ab0a76e392e2"
-)
+ACCEPTED_GLOBAL_POLICY_SHA256 = {
+    "57ac581a53881ce2152755d425c4e4c9e3608c29fd4257d500e1c7677aca467f",
+    "37d9a41d324d5fbc259baf8f893288aaef70003b0259b6de95b6ab0a76e392e2",
+}
 ACCEPTED_STATE_MANIFESTS = {
     # Package states written by accepted predecessor bundles.
     "9eec02b6314206067d07b18596e9b3f9d454706652b235c827a32135bd99bce5",
     "481ad7ab43f2e4229489cd99052a2af50a30ac8b172ccc459c4c1f5efd6f2661",
     "498be7e574c86c9ab6c56c1f4ab09ffbcc237ad3a44d9b09975ead935f392742",
+    "ff5b4d05d03027b2808862113e6706876193cf866214f9dfb0bba0b1d937714b",
 }
 ACCEPTED_PREDECESSORS = {
     "skills/subagent-orchestrator/SKILL.md": {
@@ -60,6 +62,9 @@ ACCEPTED_PREDECESSORS = {
     },
     "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json": {
         "2ed78edc9d5513135fe9da271b1b5286b38d80e7e00db88d6d118e7d35f494cf",
+    },
+    "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": {
+        "62fd8158fd9b0b2c8ac765df3f0665bf92e62e9bf3e278e0c618fd4005a7376e",
     },
 }
 
@@ -283,7 +288,7 @@ def merge_agents(
     _, span, current_body = existing_policy
     current_hash = sha256_bytes(current_body.encode())
     state_key = "AGENTS.md#subagent-policy"
-    known_predecessor = current_hash == LEGACY_GLOBAL_POLICY_SHA256
+    known_predecessor = current_hash in ACCEPTED_GLOBAL_POLICY_SHA256
     if (
         current_hash != desired_hash
         and state.get(state_key) != current_hash

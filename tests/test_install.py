@@ -96,8 +96,13 @@ class InstallerTest(unittest.TestCase):
 
     def test_known_legacy_chinese_policy_can_migrate_without_state(self):
         self.codex_home.mkdir()
-        legacy = (PACKAGE_ROOT / "payload" / "AGENTS.section.zh.md").read_text()
-        (self.codex_home / "AGENTS.md").write_text(legacy)
+        predecessor = """## 子代理与并行
+
+- 默认单代理。仅当用户明确要求委派/并行，或一个边界清晰的专用角色能替代可观的主代理工作或提供必需独立门禁时，使用 `$subagent-orchestrator`；复杂、文件多或可拆分本身都不足以触发。
+- 可并行启动已分别满足资格、相互独立且所有权不重叠的最窄角色；不得为占满并发槽而委派，后续增派仍须由新的失败证据、未解边界或必需最终门禁触发。主代理保留授权、范围、单一写入者、整合与最终验收；子代理不得扩权或递归委派。
+- 高风险最终状态必须接受 fresh、独立、只读审阅。具体目标函数、角色资格、模型配置、artifact 交接与晋级证据由 skill、references 和角色配置分别维护；主代理等待相关子任务终态后按最终工作区重新验收，单次等待超时、静默、耗时或 token/credit 使用均不是中断依据。
+"""
+        (self.codex_home / "AGENTS.md").write_text(predecessor)
 
         result = self.run_installer("--apply")
 
@@ -105,6 +110,40 @@ class InstallerTest(unittest.TestCase):
         installed = (self.codex_home / "AGENTS.md").read_text()
         self.assertIn("## Subagents and parallelism", installed)
         self.assertNotIn("## 子代理与并行", installed)
+
+    def test_known_predecessor_english_policy_can_migrate_without_state(self):
+        self.codex_home.mkdir()
+        predecessor = """## Subagents and parallelism
+
+- Default to a single agent. Use `$subagent-orchestrator` only when the user explicitly requests delegation or parallel work, or when one bounded specialist can replace material primary work or provide a required independent gate; complexity, file count, and decomposability alone do not qualify.
+- Start the narrowest already-qualified roles in parallel only when they are mutually independent and have non-overlapping ownership. Do not delegate to fill capacity, and add later roles only for new failure evidence, an unresolved boundary, or a required final gate. The primary retains authorization, scope, single-writer integration, synthesis, and final acceptance; children cannot expand authority or delegate recursively.
+- High-risk final states require a fresh, independent, read-only review. The skill, references, and role configuration own the objective, eligibility, model settings, artifact handoff, and promotion evidence. The primary waits for required children to reach a terminal state and revalidates the final workspace; one wait timeout, silence, elapsed time, or token/credit use is not a cancellation reason.
+"""
+        (self.codex_home / "AGENTS.md").write_text(predecessor)
+
+        result = self.run_installer("--apply")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installed = (self.codex_home / "AGENTS.md").read_text()
+        self.assertIn("follow the skill's current routing", installed)
+        self.assertNotIn("Start the narrowest already-qualified roles", installed)
+
+    def test_known_predecessor_lifecycle_script_can_migrate_without_state(self):
+        relative = (
+            Path("skills")
+            / "subagent-orchestrator"
+            / "scripts"
+            / "lifecycle_conformance.py"
+        )
+        desired = PACKAGE_ROOT / "payload" / relative
+        target = self.codex_home / relative
+        target.parent.mkdir(parents=True)
+        target.write_text(desired.read_text() + "\n")
+
+        result = self.run_installer("--apply")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(target.read_bytes(), desired.read_bytes())
 
     def test_preserves_unrelated_personal_configuration_and_extra_agent(self):
         self.codex_home.mkdir()

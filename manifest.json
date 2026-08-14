@@ -40,18 +40,18 @@
     },
     {
       "path": "install.py",
-      "sha256": "6099b3e593dd9c83003ed5332acc9286d9512ee008f1a580512519ab2da3b729",
-      "size": 23598
+      "sha256": "3574330792840d9e7e548725121f0b8bf9cc9ad8e107779abacfc67ca62f73a7",
+      "size": 23901
     },
     {
       "path": "payload/AGENTS.section.en.md",
-      "sha256": "7267ed318b3acaaba51637531a2867962dea88d9fdab52caa645b9d150415dc5",
-      "size": 1159
+      "sha256": "0b27f9f0c3f41e95ac3acf316bf8faa7cc996535159fe1e72abde2367d9ccc49",
+      "size": 745
     },
     {
       "path": "payload/AGENTS.section.zh.md",
-      "sha256": "2f469d12ef94cca0445f67170bcc2120d6636acd128ace23ec87559d1adb7cf3",
-      "size": 962
+      "sha256": "08e078888f5b3f1d5bff7dcb85f657be0bd057efa6e394a123f106c06ae6a2e0",
+      "size": 635
     },
     {
       "path": "payload/agents/boundary_mapper.toml",
@@ -110,12 +110,12 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "0a90e742b0a54dfa759a5c34523b3f8f3bacaba404c98002b36af11f94f5c9d1",
-      "size": 31021
+      "sha256": "35c0131751ad5fb43297bdd18a2e1b166858a7713bdd6b028d599835004a08d0",
+      "size": 30624
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json",
-      "sha256": "8c7f78eb4ad50173cf66cedca114d1273a4fb33f602e2a54a87ead00786ca94c",
+      "sha256": "34c4738b184aa6cb008f91ebc1a6e284d86bc98174ba6ee2be479cb5aa9962fc",
       "size": 2785
     },
     {
@@ -125,8 +125,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
-      "sha256": "eef536156ddf5d3fcfd3f263d277b03bfbbe48cba77cf8bef815a64e77462bf9",
-      "size": 34147
+      "sha256": "dc1274f5a651ae6863f257708582f088893c433a8b3171fc2c2f3ba30ca6c7cc",
+      "size": 34480
     },
     {
       "path": "portable-profile.json",
@@ -135,8 +135,8 @@
     },
     {
       "path": "tests/test_install.py",
-      "sha256": "8e254e4f9e4375a8e07fb7e7a163c402d856b47c2b9f7f3b26504cfee915869e",
-      "size": 14488
+      "sha256": "916b032fde19e6287e433f3079cb4f0f3540caeb2fba00c0f3dc532dbdff9ecc",
+      "size": 17712
     },
     {
       "path": "tests/test_manifest.py",

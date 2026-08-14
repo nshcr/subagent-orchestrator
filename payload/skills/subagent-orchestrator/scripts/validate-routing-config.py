@@ -93,40 +93,34 @@ REFERENCE_SHA256 = {
 }
 SKILL_SHA256 = "5b1b53b90fff700d9bb803e87050db285b13d353eae029f6a9088253364827dc"
 GLOBAL_POLICY_SHA256 = {
-    "## Subagents and parallelism": "57ac581a53881ce2152755d425c4e4c9e3608c29fd4257d500e1c7677aca467f",
-    "## 子代理与并行": "37d9a41d324d5fbc259baf8f893288aaef70003b0259b6de95b6ab0a76e392e2",
+    "## Subagents and parallelism": "f4bfedfca74f3c0b071329655002f788b08e0bbd8207ea549a4496d26f41068c",
+    "## 子代理与并行": "8c25829e558be9a16ed32b0ff1ee21d2b6bc6d017c503e8953c9d80379e2ca7f",
 }
 GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
         "Default to a single agent",
         "Use `$subagent-orchestrator` only",
-        "mutually independent and have non-overlapping ownership",
-        "Do not delegate to fill capacity",
-        "new failure evidence, an unresolved boundary, or a required final gate",
-        "The primary retains authorization, scope, single-writer integration, synthesis, and final acceptance",
+        "idle capacity alone do not qualify",
+        "follow the skill's current routing, ownership, handoff, waiting, and gate rules",
+        "high-risk final states require a fresh, independent, read-only review",
+        "The primary always retains authorization, scope, conflict handling, integration, and final acceptance",
         "children cannot expand authority or delegate recursively",
-        "High-risk final states require a fresh, independent, read-only review",
-        "own the objective, eligibility, model settings, artifact handoff, and promotion evidence",
-        "revalidates the final workspace",
-        "one wait timeout, silence, elapsed time, or token/credit use is not a cancellation reason",
+        "every required child must reach a terminal state before the primary ends",
     ),
     "## 子代理与并行": (
         "默认单代理",
         "使用 `$subagent-orchestrator`",
-        "可并行启动已分别满足资格、相互独立且所有权不重叠的最窄角色",
-        "不得为占满并发槽而委派",
-        "后续增派仍须由新的失败证据、未解边界或必需最终门禁触发",
-        "主代理保留授权、范围、单一写入者、整合与最终验收",
-        "子代理不得扩权或递归委派",
+        "空闲并发本身不构成委派理由",
+        "遵循该 skill 当前的路由、所有权、交接、等待和门禁规则",
         "高风险最终状态必须接受 fresh、独立、只读审阅",
-        "分别维护",
-        "按最终工作区重新验收",
-        "单次等待超时、静默、耗时或 token/credit 使用均不是中断依据",
+        "主代理始终保留授权、范围、冲突处理、整合和最终验收",
+        "子代理不得扩权或递归委派",
+        "所有必需子任务在主代理结束前必须到达终态",
     ),
 }
 LIFECYCLE_ASSET_SHA256 = {
     "scripts/lifecycle_conformance.py": "20f079efefc871617e83abf6c047433d9ab9e840a784fc53e156dabbfa45371b",
-    "tests/fixtures/lifecycle-trace.json": "8c7f78eb4ad50173cf66cedca114d1273a4fb33f602e2a54a87ead00786ca94c",
+    "tests/fixtures/lifecycle-trace.json": "34c4738b184aa6cb008f91ebc1a6e284d86bc98174ba6ee2be479cb5aa9962fc",
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",
@@ -544,12 +538,12 @@ def validate_global_policy(checks: Checks, agents_text: str) -> None:
         f"{label} canonical policy integrity mismatch",
     )
     checks.require(
-        len(re.findall(r"(?m)^- ", global_agents_policy)) == 3,
-        f"{label} must contain exactly three bullets",
+        len(re.findall(r"(?m)^- ", global_agents_policy)) == 2,
+        f"{label} must contain exactly two bullets",
     )
     checks.require(
-        len(global_agents_policy.splitlines()) <= 4,
-        f"{label} exceeds four-line global policy budget",
+        len(global_agents_policy.splitlines()) <= 3,
+        f"{label} exceeds three-line global policy budget",
     )
     for detail in (
         "evidence_tester",

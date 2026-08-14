@@ -1,6 +1,7 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import copy
+import re
 import shutil
 import sys
 import tempfile
@@ -237,11 +238,17 @@ class RoutingContractTest(unittest.TestCase):
                 temporary, candidate = clone_candidate()
                 with temporary:
                     path = candidate / "config.toml"
-                    text = (
-                        f'model = "{model}"\n'
-                        f'model_reasoning_effort = "{effort}"\n\n'
-                        + path.read_text()
-                    )
+                    text = path.read_text()
+                    for key, value in (
+                        ("model", model),
+                        ("model_reasoning_effort", effort),
+                    ):
+                        pattern = rf"(?m)^{key}\s*=.*$"
+                        replacement = f'{key} = "{value}"'
+                        if re.search(pattern, text):
+                            text = re.sub(pattern, replacement, text, count=1)
+                        else:
+                            text = replacement + "\n" + text
                     path.write_text(text)
                     self.assertEqual(self.validate(candidate).errors, [])
 
@@ -288,8 +295,8 @@ class RoutingContractTest(unittest.TestCase):
             ),
             (
                 "AGENTS.md",
-                "token/credit",
-                "token-credit",
+                "fresh",
+                "stale",
             ),
         )
         for relative, old, new in mutations:
@@ -570,7 +577,7 @@ class RoutingContractTest(unittest.TestCase):
             ))
             errors = self.validate(candidate).errors
             self.assertTrue(any(
-                "three bullets" in error or "leaks implementation detail" in error
+                "two bullets" in error or "leaks implementation detail" in error
                 for error in errors
             ))
 
