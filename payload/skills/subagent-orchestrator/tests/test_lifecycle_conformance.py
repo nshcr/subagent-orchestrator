@@ -2,6 +2,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import copy
 import unittest
+from unittest.mock import patch
 
 
 skill_dir = Path(__file__).parents[1]
@@ -24,6 +25,13 @@ class LifecycleConformanceTest(unittest.TestCase):
     def event(self, kind, *, child=None, trace=None):
         return next(item for item in self.events(trace) if item["type"] == kind and (child is None or item.get("child") == child))
 
+    def message(self, producer, *, trace=None):
+        return next(
+            item
+            for item in self.events(trace)
+            if item["type"] == "send_message" and item.get("producer") == producer
+        )
+
     def errors(self, trace=None, authority=None):
         return module.validate_trace_document(
             trace or self.trace,
@@ -43,6 +51,24 @@ class LifecycleConformanceTest(unittest.TestCase):
 
     def test_accepts_complete_evidence_bus_slice(self):
         self.assertEqual(self.errors(), [])
+
+    def test_rejects_task_wide_ledger_reset_across_three_scenarios(self):
+        trace = copy.deepcopy(self.trace)
+        trace["scenarios"] = [copy.deepcopy(trace["scenarios"][0]) for _ in range(3)]
+        for index, scenario in enumerate(trace["scenarios"], start=1):
+            scenario["name"] = f"ledger-reset-attempt-{index}"
+        self.assert_rejected(
+            trace,
+            "duplicate task_id resets task-wide lifecycle ledger across scenarios",
+        )
+
+    def test_document_allows_distinct_top_level_task_ids(self):
+        trace = copy.deepcopy(self.trace)
+        trace["scenarios"] = [copy.deepcopy(trace["scenarios"][0]) for _ in range(3)]
+        for index, scenario in enumerate(trace["scenarios"], start=1):
+            scenario["task_id"] = f"distinct-task-{index}"
+        with patch.object(module, "validate_scenario", return_value=[]):
+            self.assertEqual(self.errors(trace), [])
 
     def test_rejects_full_history(self):
         trace = copy.deepcopy(self.trace)
@@ -225,6 +251,23 @@ class LifecycleConformanceTest(unittest.TestCase):
             and event.get("producer") not in removed
             and event.get("consumer") not in removed
         ]
+        self.assert_rejected(trace, "default peer is a no-op")
+
+    def test_peer_relay_requires_artifact_receipt_purpose_after_self_rehash(self):
+        trace = copy.deepcopy(self.trace)
+        message = self.message("peer-producer", trace=trace)
+        message["purpose"] = "dependency_status"
+        message["digest"] = module.canonical_message_payload_digest(message)
+        self.assert_rejected(trace, "peer relay purpose must be artifact_receipt")
+
+    def test_peer_relay_requires_named_producer_terminal_artifact(self):
+        trace = copy.deepcopy(self.trace)
+        receipt = self.event("receipt", child="peer-producer", trace=trace)
+        receipt["artifact_receipt_digest"] = "ee" * 32
+        self.assert_rejected(
+            trace,
+            "peer relay artifact was not emitted by the named producer terminal receipt",
+        )
         self.assert_rejected(trace, "default peer is a no-op")
 
     def test_scope_expanding_message_rejected_after_self_rehash(self):

@@ -82,14 +82,17 @@ ACCEPTED_PREDECESSORS = {
         "36df8d88592525fba7749b2618254751ba0f07eec4f61d4aea2533ae2aa3d112",
         "99ac84463ff80ac6b5fd0131e0d36dd96efadc0484d72f975688758c44936972",
         "b8f41ceebfe3efa0aad4485bd00f058e03b04bcd9a0ad5f83825d00b668ee8b2",
+        "b82d2905847dc376bb99555b1d49675ede80bf2050d38ee87f11218e3641f4bc",
     },
     "skills/subagent-orchestrator/references/routing-policy.md": {
         "ac944ba5ec777cd1bf187ced8347332a051b09de8ce23f4b49c4edaaccb0c1d3",
         "2b50c5bedd653476710d490de5b77784d90cd6d8f0b1e90681357c657aadcde0",
+        "60848931f487bfb55b576394e3fb6ba63d27dd6ad69736ab18bb9b2635a83465",
     },
     "skills/subagent-orchestrator/references/delegation-contracts.md": {
         "6831283a4643c1d7a538f3c02e36ee024d9188b87e6aa4042ec382cbf1635676",
         "842306b06c7501bdda207ed91357e16bddf3da17a3bf83822c29977e3640867f",
+        "792b6dfb180571f33bf81fc2ccc1c5dd55ffb7c9c1fb28dde4ed90e9075385c5",
     },
     "skills/subagent-orchestrator/references/evaluation-policy.md": {
         "59280215f90eee72eb1463d7625a034c309e6545727d3b08005a8082f3b01354",
@@ -99,6 +102,7 @@ ACCEPTED_PREDECESSORS = {
         "47b4651594044d35eaba1549ec639d30ec39ae11328cb1dcd21839a983d326f8",
         "294f0e4af60aa03d417b13a5bc011bc69e36c56777cebf90c3ce1893cf4465bb",
         "8adb983c172bfdf8f839a12cd3c92b014477203a955259103eb4bda1f85b7eb3",
+        "450fab5a3a4a0b0b2d143892dd1c747bbe07951550268543b3cfc10dd8c10fee",
     },
     "skills/subagent-orchestrator/tests/test_validate_routing_config.py": {
         "2b39e4e8cfac0fd266d1d7ed7e6de550180cfff47c071e84a2614a107d7640d6",
@@ -108,6 +112,10 @@ ACCEPTED_PREDECESSORS = {
         "83c8ab6e54b7cb9a6ecb33edcdf2447b3a54c62a0c93ca252c1c59767ed586f5",
         "54c26f25b74909e8df7aa3aedea90926b6a0a7283bc4be8a940b6fdd018f8e42",
         "2ed78edc9d5513135fe9da271b1b5286b38d80e7e00db88d6d118e7d35f494cf",
+        "9d5df95bc2a2baaa0548e87071fc499adcd23cb4b601685febb4e4fada4dd95c",
+    },
+    "skills/subagent-orchestrator/tests/fixtures/lifecycle-authority-receipts.json": {
+        "aeccd7a24408946c0f9acb4c08d1d33c039ae8ff5f34dcffb998d82bede817ba",
     },
     "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": {
         "3f48548fcd7feae76687e44f84f466d86d941224b54958b4c4df15662f4b1eef",
@@ -116,10 +124,13 @@ ACCEPTED_PREDECESSORS = {
         "4f0ee07cd211e300d1a7e8403611d227bf7cc34d9143b4041201ae0f8c591add",
         "62fd8158fd9b0b2c8ac765df3f0665bf92e62e9bf3e278e0c618fd4005a7376e",
         "06cb869d981a0b76fbcd018fda95541af39b62a902fde2a2721d6743f457c2b2",
+        "b6e870d6f1d6b906e2bad4fc5114fad647a5e67f13693732af5aaa7fa4db3343",
+        "6c416cb314c95aa3980f2a0a83d008a341d82e4e394fdd84454438812aa123f5",
     },
     "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py": {
         "e9a9d5046035c08040780596a0530ccfd1bb2d0d67a2031ed4f7f8e9e8d1f9ca",
         "e5db6b19f5de2fe41f44af5468409891f3f5aaf54563ff77dc8e03ee0c38ac0c",
+        "801a39220ea8f0fbd9ac18ac5bf6e618fc5ebd0080066484dc1d1434060da00a",
     },
 }
 

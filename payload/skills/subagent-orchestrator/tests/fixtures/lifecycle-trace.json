@@ -4,12 +4,12 @@
   "bounded_peer_leaf_cap": 2,
   "runtime_capacity": 16,
   "owner_hashes": {
-      "SKILL.md": "b82d2905847dc376bb99555b1d49675ede80bf2050d38ee87f11218e3641f4bc",
-      "references/routing-policy.md": "60848931f487bfb55b576394e3fb6ba63d27dd6ad69736ab18bb9b2635a83465",
-      "references/delegation-contracts.md": "792b6dfb180571f33bf81fc2ccc1c5dd55ffb7c9c1fb28dde4ed90e9075385c5",
+      "SKILL.md": "6fd3b830a80a72d2c07b89cea8a75e86560ba7a4072e3e8bafbed9270367d88c",
+      "references/routing-policy.md": "4bcceebe7e58e95ace680d45602ef9a37cc9eb936c86a6d4e55a37f52da5c517",
+      "references/delegation-contracts.md": "89e00d1000a619c4b6e33cddf65ef52d067609a9eee8a5dd605d80abcae1b764",
       "references/evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
-    "AGENTS.md#subagent-policy": "39235ebb5d0a72b5be545e070d9019814ec533db5cc542bfd6407b932e30a990",
-    "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
+      "AGENTS.md#subagent-policy": "76bafc03f3710f20b12270b2e289889092c5a0babf53b4b03a52962120d2045e",
+      "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
   },
   "scenarios": [
     {
@@ -199,7 +199,7 @@
           "producer": "primary",
           "consumer": "writer-governance",
           "dependency": "installer lineage",
-          "digest": "864c7cdd926d6620eeface5eeed21f2a8f3df4d3e20ee4a1ee470f611b12f04d",
+          "digest": "e64491902230afe1b0fe5a7ef9f005f37c3ce8fb4a4edf28b1dda26ac12e1ba2",
           "purpose": "dependency_status",
           "admitted": true,
           "starts_turn": false,
@@ -208,7 +208,7 @@
           "slice_id": "slice-governance",
           "scope_digest": "ad0b67a6cffe72135d1149255b658f808a61961ab83f4a4054a1606d4339923b",
           "receipt_digest": "abababababababababababababababababababababababababababababababab",
-          "admission_anchor_digest": "db37dd9a8520562d05751454a09886e8215e3b06ae7f3fb74a4fee0087e1ddcd"
+          "admission_anchor_digest": "8c550cfe593e4dbb5bf8c7c3f9a2bed8b5d749ccda8c48af4b2e5b4569f50f42"
         },
         {
           "type": "spawn",
@@ -253,7 +253,7 @@
             "materiality": null,
             "compaction_baseline": null,
             "peer_capability": "3ba21f7543dccd848ca563066f3fa3d6dc5764d4cdf574926f9f415f0bc55945",
-            "peer_relay": "d791489b9903a1f88a4023bc79280f29d46fef8f6d40ec02e455876ec63decc6"
+            "peer_relay": "1d47d772f67df8a079be4ad9caef1b7295529392766a78721162264db8b10af8"
           }
         },
         {
@@ -424,12 +424,12 @@
           "scope_digest": "4a77bf66bd9621c3c759ffcb0f9c155a736cfc7e6e3482cda55d7129380fe942",
           "dependency": "producer artifact",
           "receipt_digest": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
-          "digest": "c35ecd9281eeae73008da00b3667ba414cb8679f190c443be50c2fc299307522",
+          "digest": "90b65ad9f4ed3a45bc88fbc13e8f7679382bb1c2647a716e5fe9c8213171f484",
           "purpose": "artifact_receipt",
           "admitted": true,
           "starts_turn": false,
           "changes_handoff": false,
-          "admission_anchor_digest": "d791489b9903a1f88a4023bc79280f29d46fef8f6d40ec02e455876ec63decc6"
+          "admission_anchor_digest": "1d47d772f67df8a079be4ad9caef1b7295529392766a78721162264db8b10af8"
         },
         {
           "type": "receipt",

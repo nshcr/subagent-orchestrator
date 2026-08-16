@@ -951,12 +951,12 @@ raise SystemExit(module.main())
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("install-contract lineage is not accepted", result.stderr)
 
-    def test_current_v2_install_contract_lineage_is_accepted(self):
+    def test_direct_v2_install_contract_lineage_is_accepted(self):
         installed = self.run_installer("--apply")
         self.assertEqual(installed.returncode, 0, installed.stderr)
         state = json.loads(self.state_path().read_text())
         state["install_contract_sha256"] = (
-            "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483"
+            "b1d3ff51829c0129efdf0f0d7a5cfb64746951d2137a575712ad1412d5c2cd46"
         )
         self.state_path().write_text(
             json.dumps(state, indent=2, sort_keys=True) + "\n"
@@ -968,7 +968,7 @@ raise SystemExit(module.main())
         upgraded = json.loads(self.state_path().read_text())
         self.assertNotEqual(
             upgraded["install_contract_sha256"],
-            "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483",
+            "b1d3ff51829c0129efdf0f0d7a5cfb64746951d2137a575712ad1412d5c2cd46",
         )
 
     def test_all_target_recheck_rejects_drift_before_any_write(self):

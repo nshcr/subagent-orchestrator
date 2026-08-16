@@ -57,14 +57,20 @@ scan. Canonical owner components permanently union overlap, rename, split, and m
 aliases. Trace-external cumulative compaction receipts, not terminal self-report,
 prove when two writer compactions exhaust new writer work for that task/component.
 Each slice permits at most one writer, and sampling uses one frozen task-wide denominator.
+A trace document has exactly one scenario for each non-empty unique top-level task;
+rollover remains events in that scenario, so materiality, sampling, owner, compaction,
+gate, admission, and receipt state cannot reset at a scenario boundary.
 
 Freeze occurs only after writer terminal. Tester, reviewer, every gate, and close
 recompute HEAD, index, worktree, and complete changed-path digests. Any hash change
 invalidates all gates. Each invariant belongs to exactly one gate, and three disjoint
 fresh gates must PASS the same final hash; repairs rerun all three at the next attempt.
 Messages and follow-ups are typed, digest-bound, same-scope control events. Message
-receipts bind the original transfer digest, and a default peer needs host capability
-plus an executed producer-consumer artifact relay; polling, no-op peers,
+receipts bind the original transfer digest, exact purpose, canonical dependency digest,
+and canonical semantic message digest (excluding only the authority anchor and digest
+fields). A default peer needs host capability plus an executed `artifact_receipt` relay
+whose digest was emitted by the named producer's terminal receipt and admitted by the
+consumer transfer; polling, no-op peers,
 custom-role messaging, reviewer self-review, unregistered peers, and scope changes
 are hard blockers. Close requires the full task tree terminal.
 

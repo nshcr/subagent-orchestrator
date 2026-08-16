@@ -116,14 +116,14 @@ ROLE_INSTRUCTION_SHA256 = {
     "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
 }
 REFERENCE_SHA256 = {
-    "routing-policy.md": "60848931f487bfb55b576394e3fb6ba63d27dd6ad69736ab18bb9b2635a83465",
+    "routing-policy.md": "4bcceebe7e58e95ace680d45602ef9a37cc9eb936c86a6d4e55a37f52da5c517",
     "evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
-    "delegation-contracts.md": "792b6dfb180571f33bf81fc2ccc1c5dd55ffb7c9c1fb28dde4ed90e9075385c5",
+    "delegation-contracts.md": "89e00d1000a619c4b6e33cddf65ef52d067609a9eee8a5dd605d80abcae1b764",
 }
-SKILL_SHA256 = "b82d2905847dc376bb99555b1d49675ede80bf2050d38ee87f11218e3641f4bc"
+SKILL_SHA256 = "6fd3b830a80a72d2c07b89cea8a75e86560ba7a4072e3e8bafbed9270367d88c"
 GLOBAL_POLICY_SHA256 = {
-    "## Subagents and parallelism": "fc8df61ce6ebe5066d2797ea96cf291a3364864fca55be488b4d84cf99c72b27",
-    "## 子代理与并行": "39235ebb5d0a72b5be545e070d9019814ec533db5cc542bfd6407b932e30a990",
+    "## Subagents and parallelism": "a69936c2e62ed151ec70d50f902578f8bc46134e8e4d0a19ef0f52f64c8f9081",
+    "## 子代理与并行": "76bafc03f3710f20b12270b2e289889092c5a0babf53b4b03a52962120d2045e",
 }
 GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
@@ -131,7 +131,10 @@ GLOBAL_POLICY_MARKERS = {
         "Use `$subagent-orchestrator` only",
         "idle capacity alone do not qualify",
         "follow the skill's current routing and evidence-bus slice, topology, task-wide ownership",
-        "high-risk final states require fresh, independent, read-only, disjoint gates",
+        "one unique task occupies one trace scenario and rollover cannot reset task-wide state",
+        "message authority binds exact purpose plus canonical dependency and semantic-message digests",
+        "bounded-peer artifact relay must come from the named producer's terminal receipt",
+        "High-risk final states require fresh, independent, read-only, disjoint gates",
         "The primary always retains authorization, scope, conflict handling, integration, and final acceptance",
         "children cannot expand authority",
         "governed roles remain leaves",
@@ -143,6 +146,9 @@ GLOBAL_POLICY_MARKERS = {
         "使用 `$subagent-orchestrator`",
         "空闲并发本身不构成委派理由",
         "遵循该 skill 当前的证据总线切片、路由、拓扑、全任务所有权",
+        "一个唯一任务只占一个 trace scenario，rollover 不得重置全任务状态",
+        "消息 authority 必须绑定精确 purpose、规范 dependency 摘要和语义消息摘要",
+        "受限 peer 的 artifact relay 必须来自具名 producer 的终态收据",
         "高风险最终状态必须在同一文件系统哈希上接受 fresh、独立、只读且互不重叠的门禁",
         "主代理始终保留授权、范围、冲突处理、整合和最终验收",
         "子代理不得扩权",
@@ -152,9 +158,9 @@ GLOBAL_POLICY_MARKERS = {
     ),
 }
 LIFECYCLE_ASSET_SHA256 = {
-    "scripts/lifecycle_conformance.py": "b6e870d6f1d6b906e2bad4fc5114fad647a5e67f13693732af5aaa7fa4db3343",
-    "tests/fixtures/lifecycle-trace.json": "9d5df95bc2a2baaa0548e87071fc499adcd23cb4b601685febb4e4fada4dd95c",
-    "tests/fixtures/lifecycle-authority-receipts.json": "aeccd7a24408946c0f9acb4c08d1d33c039ae8ff5f34dcffb998d82bede817ba",
+    "scripts/lifecycle_conformance.py": "5cb331a096730e13e36f23b88ef06a4a81c889ea653e0dfcef348267bf64c55c",
+    "tests/fixtures/lifecycle-trace.json": "8850e1650822c24a47e72218ea759a9a0cc4b08b732199e7ccd0eb5f92534cac",
+    "tests/fixtures/lifecycle-authority-receipts.json": "0518e099d599ef3f20a2e2e764bb50c6361261309c510d32ccecb91fc204d91b",
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",

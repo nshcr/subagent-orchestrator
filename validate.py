@@ -298,14 +298,23 @@ def verify_portability() -> None:
     if handoff != expected_handoff:
         fail("portable profile handoff contract mismatch")
     if profile.get("evidence_bus") != {
+        "trace_scenario_task_identity": "one-scenario-per-nonempty-unique-task-id",
+        "task_wide_state_rollover": "events-only-no-ledger-reset",
         "primary_access_attribution": "task-wide",
         "precheck_and_sampling_max_percent": 10,
         "sampling_denominator": "frozen-task-wide",
         "materiality_digest": "canonical-payload-bound",
         "primary_access_receipt": "canonical-payload-bound",
-        "send_message_digest": "canonical-payload-bound-with-nonempty-dependency",
+        "send_message_digest": "canonical-semantic-payload-excluding-authority-anchor-and-digest-fields",
         "send_message_admission": "external-receipt-plus-original-transfer-scope",
-        "send_message_authority_binding": "producer-consumer-task-slice-scope-purpose-receipt",
+        "send_message_authority_binding": (
+            "producer-consumer-task-slice-scope-purpose-receipt-dependency-digest-"
+            "message-digest"
+        ),
+        "peer_relay_purpose": "artifact_receipt-only",
+        "peer_relay_artifact_binding": (
+            "named-producer-terminal-receipt-plus-consumer-transfer"
+        ),
         "integration_source_ranges_and_bytes": "zero-only",
         "followup_scope": "original-work-transfer-digest",
         "full_history_eligible": False,

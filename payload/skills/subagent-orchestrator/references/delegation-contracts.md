@@ -32,16 +32,14 @@ Escalation receipt: <not-applicable | prior terminal line + evidence + decision>
 Artifact contract: <none | path/body + format + writer + transfer rule>
 ```
 
-All fields are typed and mandatory. Default to fresh context and
-`fork_turns=none`; full-history is never eligible. User-facing output follows the
-user's language; model-facing output uses English. Preserve identifiers and schemas.
+All fields are typed and mandatory. Default to fresh context and `fork_turns=none`;
+full-history is never eligible. User-facing output follows the user's language; model-facing output uses English. Preserve identifiers and schemas.
 The admitted-state digest is the canonical hash of the complete transfer payload.
 
 ## Materiality and primary access
 
-Explorer/worker eligibility requires a host, owner, or sealed-harness issued
-materiality manifest plus a matching host-provided authority receipt in a physically
-separate document outside the trace. An agent cannot issue or proxy either. The receipt binds task, slice, child,
+Explorer/worker eligibility requires a host, owner, or sealed-harness issued materiality
+manifest plus a matching host-provided authority receipt outside the trace. An agent cannot issue or proxy either. The receipt binds task, slice, child,
 issuer, canonical source identity, range count, non-padding bytes, and manifest
 payload digest. Every source range binds
 path, path hash, start/end, content hash, and non-padding bytes. Ranges are immutable,
@@ -59,6 +57,10 @@ pre-spawn scanning, full-manifest laundering, or reconstruction replay blocks po
 promotion. Integration declares zero source ranges/bytes and consumes only previously
 admitted artifact or changed-path receipt digests; it must not repeat the transferred
 source scan or rewrite the writer-owned artifact.
+
+Each trace document has exactly one scenario for each non-empty unique top-level `task_id`.
+Rollover is events inside that scenario; materiality, sampling, owner, compaction, gate,
+admission, and receipt state is task-wide and cannot reset in another scenario.
 
 ## Owner components, freeze, and gates
 
@@ -81,12 +83,13 @@ and a terminal complete task tree.
 
 ## Messages, follow-ups, and terminal receipts
 
-`send_message` targets a running admitted built-in child and carries only digest-bound
-evidence, dependency status, or artifact receipt with task, slice, original transfer
-scope digest, producer, consumer, typed purpose, admitted receipt, dependency, and a
-canonical payload digest. Host authority or the peer-relay receipt must admit the exact
-receipt and scope; self-rehashing a scope expansion fails. It cannot start a turn or change authority, scope, ownership, topology,
-or handoff. Custom-role and unregistered peer messages are hard blockers.
+`send_message` targets a running admitted built-in child and carries only digest-bound evidence,
+dependency status, or artifact receipt with task, slice, original transfer scope, producer,
+consumer, typed purpose, admitted receipt, dependency, and a canonical message semantic digest.
+The semantic payload excludes only `admission_anchor_digest` and `digest`, preventing an
+authority-anchor cycle while binding every other field. Authority binds that semantic digest,
+canonical dependency digest, exact purpose, receipt, and scope; self-rehashing fails. It cannot start a turn or change authority, scope, ownership, topology, or handoff.
+Custom-role and unregistered peer messages are hard blockers.
 
 `followup_task` targets an idle/terminal built-in child, preserves scope, and uses
 exactly one reason: `new_failure_evidence`, `missing_acceptance_field`, or
@@ -94,10 +97,11 @@ exactly one reason: `new_failure_evidence`, `missing_acceptance_field`, or
 Status polling, custom-role follow-up, reviewer repair/review,
 scope growth, and exhausted-writer follow-up are hard blockers.
 
-A default bounded peer requires separate trace-external host capability and material-
-relay receipts. The latter binds task/slice, peer, producer, consumer, artifact,
-consumer transfer digest, and actual primary-relay removal. It must run admitted leaf
-descendants and execute that relay; no descendants, capability, or relay is a no-op.
+A default bounded peer requires separate trace-external host capability and material-relay
+receipts. The relay binds task/slice, peer, producer, consumer, artifact, consumer transfer,
+exact `artifact_receipt` purpose, canonical dependency/message digests, and primary-relay
+removal. Its artifact comes from the named producer's terminal receipt and is admitted by
+the consumer transfer. Missing descendants, capability, producer artifact, or relay is a no-op.
 Custom roles remain nonrecursive governed leaves without peer messaging.
 
 Any trace declaring `pilot`, `pilot-signed`, or promotion includes `pilot_admission`
@@ -109,15 +113,12 @@ active-task IDs, and authorization event/text digests. Missing, proxy/self-issue
 expired, cross-scope, active-task, type-invalid, or normalized create/auto-create
 authorization using spaces, punctuation, underscores, or camel case fails.
 
-Every child reaches terminal with status, artifact/receipt digest, completion digest,
-and any safe incomplete receipt. A gate receipt ends in its role's exact standalone
-protocol line. Preserve canonical `ARTIFACT_BODY_BEGIN` / `ARTIFACT_BODY_END` bodies
-verbatim. The primary owns authorization, integration, conflict handling, and acceptance.
+Every child reaches terminal with status, artifact/receipt digest, completion digest, and any
+safe incomplete receipt. A gate receipt ends in its role's exact standalone protocol line.
+Preserve canonical `ARTIFACT_BODY_BEGIN` / `ARTIFACT_BODY_END` bodies verbatim. The primary owns authorization, integration, conflict handling, and acceptance.
 
 ## Portable adapter contract
 
 An adapter must preserve: `preserve-role-eligibility`, `preserve-permission-boundaries`,
-`preserve-governed-leaf-non-recursion`, `preserve-bounded-peer-depth`,
-`preserve-peer-message-boundary`, `preserve-terminal-collection`,
-`preserve-output-language-contract`, and
-`treat-model-and-effort-values-as-client-specific-hints`.
+`preserve-governed-leaf-non-recursion`, `preserve-bounded-peer-depth`, `preserve-peer-message-boundary`,
+`preserve-terminal-collection`, `preserve-output-language-contract`, and `treat-model-and-effort-values-as-client-specific-hints`.

@@ -5,8 +5,7 @@ description: Route and supervise explicit subagent requests, bounded built-in co
 
 # Subagent Orchestrator
 
-Keep this file as the workflow entrypoint. Detailed policy lives in references;
-role behavior and fixed child runtime configuration live in agent TOMLs.
+Keep this file as the workflow entrypoint. Detailed policy lives in references; role behavior and fixed child runtime configuration live in agent TOMLs.
 
 ## Open an evidence-bus slice
 
@@ -14,14 +13,11 @@ role behavior and fixed child runtime configuration live in agent TOMLs.
    [evaluation policy](references/evaluation-policy.md) before delegation.
 2. If neither material substitution nor required independence is present, stay
    primary. Explorer and worker also require an external materiality manifest.
-3. Open one `slice_open` from [delegation contracts](references/delegation-contracts.md):
-   bind task, unique slice, one milestone, one change class, exact owner paths,
-   required gates, and the admitted state digest.
+3. Open one `slice_open` from [delegation contracts](references/delegation-contracts.md): bind task,
+   unique slice, one milestone, one change class, exact owner paths, required gates, and the admitted state digest.
 4. Issue each child an immutable work-transfer receipt. Use `fork_turns=none`;
    full-history children and agent-authored materiality are ineligible.
-5. Require host-provided authority receipts in a separate document outside the lifecycle trace. Trace
-   SHA-256 values bind payloads but never authenticate issuers; missing or unmatched
-   materiality, compaction, message, bounded-peer, or pilot authority fails closed.
+5. Require host-provided authority receipts in a separate document outside the lifecycle trace. Trace SHA-256 values bind payloads but never authenticate issuers; missing or unmatched materiality, compaction, message, bounded-peer, or pilot authority fails closed.
 
 ## Run, freeze, and close
 
@@ -30,7 +26,9 @@ role behavior and fixed child runtime configuration live in agent TOMLs.
 2. Keep a task-wide primary source-access ledger. Targeted precheck and sampling
    use one frozen denominator and must be proper subsets no larger than 10%; integration
    consumes only admitted artifact/changed-path receipts with zero transferred source
-   ranges and bytes.
+   ranges and bytes. A trace document has exactly one scenario per unique top-level
+   task; scenario or rollover boundaries never reset access, materiality, ownership,
+   compaction, gate, or receipt state.
 3. Treat wait timeout as observation-only. Never interrupt for silence, elapsed
    time, token use, credits, or repeated waits; every required descendant ends terminal.
 4. Freeze only after the writer is terminal. Tester, reviewer, gate, and close
@@ -47,13 +45,15 @@ role behavior and fixed child runtime configuration live in agent TOMLs.
   spawn/follow-up; do not cancel an active child, and accept safe incomplete receipts.
 - `send_message` carries admitted evidence, dependency status, or artifact receipt
   to a running built-in target, bound to task, slice, original transfer scope, typed
-  purpose, and an externally admitted receipt. `followup_task` uses only the three typed same-scope
+  purpose, canonical dependency digest, canonical message semantic digest, and an
+  externally admitted receipt. The semantic digest excludes only the authority anchor
+  and digest fields. `followup_task` uses only the three typed same-scope
   reasons. Custom roles never message, recurse, repair, or review their own repair.
 - A default peer requires trace-external host capability plus an executed producer-to-
-  consumer artifact relay. No-op peers without both admitted descendants and material
-  relay are ineligible.
-- Pilot authorization follows freeze, binds the exact frozen HEAD and message producer,
-  rejects every normalized create-task action, and becomes stale after any new generation.
+  consumer `artifact_receipt` relay. Its artifact digest must come from that named
+  producer's terminal receipt and be admitted by the consumer transfer. No-op peers
+  without both admitted descendants and material relay are ineligible.
+- Pilot authorization follows freeze, binds the exact frozen HEAD and message producer, rejects every normalized create-task action, and becomes stale after any new generation.
 - The primary retains authorization, scope, conflict handling, integration, and
   final acceptance. Unsupported or capability-unverified work stays primary.
 

@@ -36,6 +36,17 @@ def canonical_digest(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def canonical_message_payload_digest(event: dict[str, object]) -> str:
+    """Bind message semantics without creating an authority-anchor hash cycle."""
+    return canonical_digest(
+        {
+            key: value
+            for key, value in event.items()
+            if key not in {"admission_anchor_digest", "digest"}
+        }
+    )
+
+
 def safe_path(value: object) -> bool:
     if not isinstance(value, str) or not value or "\\" in value:
         return False
@@ -257,7 +268,7 @@ def validate_scenario(
     generation = 0
     closed = False
     spawn_seen = False
-    admitted_artifacts: set[str] = set()
+    artifact_receipts_by_child: dict[str, set[str]] = {}
     peer_relay_used: set[str] = set()
     pilot_seen = False
     pilot_generation: int | None = None
@@ -514,7 +525,9 @@ def validate_scenario(
             elif event["compaction_receipt_digest"] is not None:
                 errors.append(f"{location}: non-writer compaction receipt invalid")
             if digest(event.get("artifact_receipt_digest")):
-                admitted_artifacts.add(event["artifact_receipt_digest"])
+                artifact_receipts_by_child.setdefault(event["child"], set()).add(
+                    event["artifact_receipt_digest"]
+                )
             node["state"] = "terminal"
             node["terminal_status"] = event["status"]
 
@@ -554,7 +567,12 @@ def validate_scenario(
                 consumed = event.get("consumed_receipt_digests")
                 if counts != [0, 0, 0, 0]:
                     errors.append(f"{location}: integration cannot replay transferred source ranges or bytes")
-                if not string_list(consumed) or not all(digest(item) and item in admitted_artifacts for item in consumed):
+                terminal_artifacts = {
+                    item
+                    for child_artifacts in artifact_receipts_by_child.values()
+                    for item in child_artifacts
+                }
+                if not string_list(consumed) or not all(digest(item) and item in terminal_artifacts for item in consumed):
                     errors.append(f"{location}: integration must consume admitted artifact/changed-path receipts only")
             else:
                 if event.get("consumed_receipt_digests") != []:
@@ -588,17 +606,18 @@ def validate_scenario(
                 errors.append(f"{location}: send_message target must be running")
             if not isinstance(event.get("purpose"), str) or event.get("purpose") not in MESSAGE_PURPOSES or event.get("admitted") is not True or not digest(event.get("digest")):
                 errors.append(f"{location}: send_message payload is not admitted")
-            projection = {key: value for key, value in event.items() if key not in {"type", "digest"}}
-            if event.get("digest") != canonical_digest(projection) or not isinstance(event.get("dependency"), str) or not event["dependency"]:
+            message_payload_digest = canonical_message_payload_digest(event)
+            if event.get("digest") != message_payload_digest or not isinstance(event.get("dependency"), str) or not event["dependency"]:
                 errors.append(f"{location}: send_message digest/dependency does not bind canonical payload")
             if event.get("starts_turn") is not False or event.get("changes_handoff") is not False:
                 errors.append(f"{location}: send_message cannot start turn/change handoff")
-            if target and (
+            admitted_transfer = bool(target and (
                 event.get("task_id") != task_id
                 or event.get("slice_id") != target["slice"]
                 or event.get("scope_digest") != target.get("scope_digest")
                 or event.get("receipt_digest") not in target.get("admitted_receipts", set())
-            ):
+            ))
+            if admitted_transfer:
                 errors.append(f"{location}: send_message expands original admitted work-transfer scope")
             producer_name = event.get("producer")
             producer = nodes.get(producer_name) if isinstance(producer_name, str) else None
@@ -619,6 +638,14 @@ def validate_scenario(
                 parent = parents.get(event["producer"])
                 relay_digest = nodes.get(parent, {}).get("peer_relay")
                 relay = authority.get("peer_relay_receipts", {}).get(relay_digest) if digest(relay_digest) else None
+                peer_purpose_valid = event.get("purpose") == "artifact_receipt"
+                if not peer_purpose_valid:
+                    errors.append(f"{location}: peer relay purpose must be artifact_receipt")
+                producer_emitted = event.get("receipt_digest") in artifact_receipts_by_child.get(
+                    event.get("producer"), set()
+                )
+                if not producer_emitted:
+                    errors.append(f"{location}: peer relay artifact was not emitted by the named producer terminal receipt")
                 expected = {
                     "task_id": task_id,
                     "slice_id": target["slice"],
@@ -627,14 +654,25 @@ def validate_scenario(
                     "consumer": event.get("consumer"),
                     "artifact_receipt_digest": event.get("receipt_digest"),
                     "consumer_scope_digest": event.get("scope_digest"),
+                    "purpose": "artifact_receipt",
+                    "dependency_digest": canonical_digest(event.get("dependency")),
+                    "message_payload_digest": message_payload_digest,
                     "removed_primary_relay": True,
                 }
-                if not relay or not all(relay.get(key) == value for key, value in expected.items()):
+                relay_admitted = bool(relay and all(relay.get(key) == value for key, value in expected.items()))
+                if not relay_admitted:
                     errors.append(f"{location}: peer message lacks trusted producer-consumer relay evidence")
-                else:
-                    peer_relay_used.add(parent)
-                if event.get("admission_anchor_digest") != relay_digest:
+                anchor_matches = event.get("admission_anchor_digest") == relay_digest
+                if not anchor_matches:
                     errors.append(f"{location}: peer message admission anchor does not match trusted relay")
+                if (
+                    relay_admitted
+                    and anchor_matches
+                    and peer_purpose_valid
+                    and producer_emitted
+                    and not admitted_transfer
+                ):
+                    peer_relay_used.add(parent)
             elif target:
                 expected = {
                     "task_id": task_id,
@@ -645,6 +683,7 @@ def validate_scenario(
                     "purpose": event.get("purpose"),
                     "payload_receipt_digest": event.get("receipt_digest"),
                     "dependency_digest": canonical_digest(event.get("dependency")),
+                    "message_payload_digest": message_payload_digest,
                 }
                 if not authority_receipt(authority, "message_receipts", event.get("admission_anchor_digest"), expected):
                     errors.append(f"{location}: send_message receipt/scope is not admitted by trusted authority")
@@ -790,6 +829,21 @@ def validate_trace_document(document: object, trusted_authority_receipts: object
     scenarios = document.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
         return errors + ["scenarios must be a non-empty list"]
+    task_ids = [
+        scenario.get("task_id")
+        for scenario in scenarios
+        if isinstance(scenario, dict)
+        and isinstance(scenario.get("task_id"), str)
+        and scenario["task_id"]
+    ]
+    duplicated_task_ids = sorted(
+        task_id for task_id in set(task_ids) if task_ids.count(task_id) > 1
+    )
+    if duplicated_task_ids:
+        errors.append(
+            "duplicate task_id resets task-wide lifecycle ledger across scenarios: "
+            + ", ".join(duplicated_task_ids)
+        )
     for scenario in scenarios:
         errors.extend(validate_scenario(scenario, authority, active_task_ids))
     return errors

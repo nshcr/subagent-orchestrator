@@ -34,6 +34,9 @@ manifest; an agent cannot self-issue or proxy it. Missing evidence falls back pr
   merge union aliases permanently. Reject overlapping writers. Two accumulated
   writer compactions, proven by trace-external host receipts rather than terminal
   self-report, exhaust new writer spawn/follow-up for that component.
+- Each trace document has one scenario per non-empty unique top-level task. Scenario
+  rollover remains events within that scenario and cannot reset task-wide materiality,
+  sampling, ownership, compaction, gate, admission, or receipt state.
 - Start at most three qualified direct children; a fourth needs explicit user
   authorization. Capacity alone never qualifies delegation. Shared mutation and
   final integration remain serial.
@@ -48,7 +51,10 @@ precheck and strict proper-subset sampling no larger than 10% are promotion elig
 `send_message` carries externally admitted evidence, dependency status, or an artifact
 receipt to a running built-in target, bound to producer, task, slice, typed purpose, and the
 target's original transfer digest; it cannot start a turn or amend authorization, scope,
-ownership, topology, or handoff; its canonical digest binds a non-empty dependency.
+ownership, topology, or handoff. Its canonical semantic digest excludes only the
+authority anchor and digest fields. External authority binds that semantic digest,
+canonical dependency digest, and exact purpose. A peer relay requires
+`artifact_receipt` and the named producer's terminal artifact admitted by the consumer.
 `followup_task` targets an idle/terminal built-in
 child for `new_failure_evidence`, `missing_acceptance_field`, or
 `authorized_continue`, with a scope digest equal to the original work-transfer. Polling, custom-role, peer, reviewer repair,
