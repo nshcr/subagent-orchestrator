@@ -1309,6 +1309,7 @@ class ProductionFactsTest(unittest.TestCase):
         self.children = self.root / "children"
         self.children.mkdir()
         self.spawn = datetime(2026, 8, 16, 1, 0, tzinfo=timezone.utc)
+        self.parent_id = "parent-thread"
         self.child_id = uuid7_for(self.spawn.replace(microsecond=1000))
         self._write_valid_sources()
 
@@ -1320,11 +1321,12 @@ class ProductionFactsTest(unittest.TestCase):
         write_jsonl(
             self.parent,
             [
+                {"timestamp": self.spawn.isoformat(), "type": "session_meta", "payload": {"id": self.parent_id}},
                 {"timestamp": self.spawn.isoformat(), "type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent", "call_id": call_id, "arguments": json.dumps({"task_name": "worker__fact", "fork_turns": fork_turns})}},
                 {"timestamp": self.spawn.replace(microsecond=500).isoformat(), "type": "response_item", "payload": {"type": "function_call_output", "call_id": call_id, "output": json.dumps({"agent_id": self.child_id})}},
                 {"timestamp": self.spawn.replace(microsecond=700).isoformat(), "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 1, "cached_input_tokens": 0, "cache_write_input_tokens": 0, "output_tokens": 1, "reasoning_output_tokens": 0, "total_tokens": 2}}}},
-                {"timestamp": self.spawn.replace(microsecond=800).isoformat(), "type": "event_msg", "payload": {"type": "billing_record", "scope": "thread", "thread_id": "parent-thread", "credits": {"uncached_input": "3", "cached_input": "1", "output": "2", "total": "6"}}},
-                {"timestamp": self.spawn.replace(microsecond=900).isoformat(), "type": "event_msg", "payload": {"type": "billing_record", "scope": "run", "run_id": "run-1", "credits": {"uncached_input": "5", "cached_input": "1", "output": "4", "total": "10"}}},
+                {"timestamp": self.spawn.replace(microsecond=800).isoformat(), "type": "event_msg", "payload": {"type": "billing_record", "scope": "thread", "thread_id": self.parent_id, "credits": {"uncached_input": "3", "cached_input": "1", "output": "2", "total": "6"}}},
+                {"timestamp": self.spawn.replace(microsecond=900).isoformat(), "type": "event_msg", "payload": {"type": "billing_record", "scope": "run", "run_id": self.parent_id, "credits": {"uncached_input": "5", "cached_input": "1", "output": "4", "total": "10"}}},
                 *extra_parent,
             ],
         )
@@ -1717,6 +1719,78 @@ class ProductionFactsTest(unittest.TestCase):
         write_jsonl(self.parent, parent_events)
         with self.assertRaisesRegex(EvaluationError, "do not match complete thread"):
             self._extract()
+
+    def test_credit_records_bind_exact_thread_and_run_lineage(self):
+        exact = self._extract()
+        self.assertTrue(
+            all(
+                metric["status"] == "available"
+                for metric in exact["metrics"]["credits"].values()
+            )
+        )
+
+        cases = {
+            "unknown-thread": ("thread", "unknown-thread"),
+            "wrong-run": ("run", "wrong-run"),
+        }
+        for name, (scope, identifier) in cases.items():
+            with self.subTest(name=name):
+                self._write_valid_sources()
+                parent_events = [
+                    json.loads(line) for line in self.parent.read_text().splitlines()
+                ]
+                record = next(
+                    event
+                    for event in parent_events
+                    if event.get("payload", {}).get("scope") == scope
+                )
+                identity_key = "thread_id" if scope == "thread" else "run_id"
+                record["payload"][identity_key] = identifier
+                write_jsonl(self.parent, parent_events)
+                fact = self._extract()
+                self.assertTrue(
+                    all(
+                        metric["status"] == "unavailable"
+                        for metric in fact["metrics"]["credits"].values()
+                    )
+                )
+                self.assertFalse(fact["promotion_claim_eligible"])
+
+        for name, parent_id, child_id in (
+            ("swapped-thread", self.child_id, self.parent_id),
+            ("duplicate-thread", self.parent_id, self.parent_id),
+        ):
+            with self.subTest(name=name):
+                self._write_valid_sources()
+                parent_events = [
+                    json.loads(line) for line in self.parent.read_text().splitlines()
+                ]
+                parent_record = next(
+                    event
+                    for event in parent_events
+                    if event.get("payload", {}).get("scope") == "thread"
+                )
+                parent_record["payload"]["thread_id"] = parent_id
+                write_jsonl(self.parent, parent_events)
+                child_path = next(self.children.iterdir())
+                child_events = [
+                    json.loads(line) for line in child_path.read_text().splitlines()
+                ]
+                child_record = next(
+                    event
+                    for event in child_events
+                    if event.get("payload", {}).get("scope") == "thread"
+                )
+                child_record["payload"]["thread_id"] = child_id
+                write_jsonl(child_path, child_events)
+                fact = self._extract()
+                self.assertTrue(
+                    all(
+                        metric["status"] == "unavailable"
+                        for metric in fact["metrics"]["credits"].values()
+                    )
+                )
+                self.assertFalse(fact["promotion_claim_eligible"])
 
 
 if __name__ == "__main__":

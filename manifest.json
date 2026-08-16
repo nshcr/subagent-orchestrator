@@ -105,8 +105,8 @@
     },
     {
       "path": "evaluation/production_facts.py",
-      "sha256": "09464ea382ad9b121cc26c8078a54069715b9b6a192d1e36cd5de8931c23dcce",
-      "size": 44440
+      "sha256": "2e6e7f118e6b406de24f87fcf6a6c6e931af6af714fc38200e7d8e19c74186e2",
+      "size": 45528
     },
     {
       "path": "evaluation/quality-authority.schema.json",
@@ -230,8 +230,8 @@
     },
     {
       "path": "tests/test_evaluation.py",
-      "sha256": "665152c4ff34ffa893f652039abcdfdfa9acc1464c0fa92b54193d045ab7065f",
-      "size": 95258
+      "sha256": "b99d793b9b9cb2507c1629403a8556c060c6d32f88d4a620e92ee3bc58501e97",
+      "size": 98422
     },
     {
       "path": "tests/test_install.py",

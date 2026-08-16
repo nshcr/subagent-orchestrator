@@ -120,7 +120,7 @@ def _uuid7_time(identifier: str) -> datetime:
     return datetime.fromtimestamp(milliseconds / 1000, tz=timezone.utc)
 
 
-def _source_thread_id(events: list[dict], path: Path) -> str:
+def _source_thread_ids(events: list[dict], path: Path) -> set[str]:
     identifiers = set()
     for event in events:
         if event.get("type") != "session_meta":
@@ -133,6 +133,11 @@ def _source_thread_id(events: list[dict], path: Path) -> str:
         match = UUID_PATTERN.search(path.name)
         if match:
             identifiers.add(match.group(0))
+    return identifiers
+
+
+def _source_thread_id(events: list[dict], path: Path) -> str:
+    identifiers = _source_thread_ids(events, path)
     if len(identifiers) != 1:
         raise EvaluationError(f"child source {_path_id(path)} has missing or ambiguous session lineage")
     return next(iter(identifiers))
@@ -336,7 +341,11 @@ def _billing_records(events: list[dict], location: str) -> tuple[list[dict], int
     return records, unsupported_envelopes
 
 
-def _credit_values(source_events: list[list[dict]]) -> dict[str, object | None]:
+def _credit_values(
+    source_events: list[list[dict]],
+    expected_thread_ids: list[str | None],
+    expected_run_id: str | None,
+) -> dict[str, object | None]:
     unavailable = {
         "thread_records": None,
         **{f"thread_{key}": None for key in CREDIT_NAMES},
@@ -348,6 +357,13 @@ def _credit_values(source_events: list[list[dict]]) -> dict[str, object | None]:
     ]
     records_by_source = [records for records, _ in parsed_sources]
     if any(unsupported for _, unsupported in parsed_sources):
+        return unavailable
+    if (
+        len(expected_thread_ids) != len(records_by_source)
+        or expected_run_id is None
+        or any(identifier is None for identifier in expected_thread_ids)
+        or len(set(expected_thread_ids)) != len(expected_thread_ids)
+    ):
         return unavailable
     thread_records = [
         [record for record in records if record["scope"] == "thread"]
@@ -367,7 +383,14 @@ def _credit_values(source_events: list[list[dict]]) -> dict[str, object | None]:
         return unavailable
     flattened = [records[0] for records in thread_records]
     record_ids = [record["record_id"] for record in flattened]
-    if len(record_ids) != len(set(record_ids)):
+    if (
+        len(record_ids) != len(set(record_ids))
+        or any(
+            record_id != expected_id
+            for record_id, expected_id in zip(record_ids, expected_thread_ids)
+        )
+        or run_records[0]["record_id"] != expected_run_id
+    ):
         return unavailable
     thread_totals = {
         key: sum((record["credits"][key] for record in flattened), Decimal(0))
@@ -516,6 +539,8 @@ def extract_production_facts(
 
     parent_events, parent_raw = _load_jsonl(parent, cutoff)
     parent_source_id = _sha256(parent_raw)
+    parent_thread_ids = _source_thread_ids(parent_events, parent)
+    parent_thread_id = next(iter(parent_thread_ids)) if len(parent_thread_ids) == 1 else None
     spawns = _spawn_records(parent_events)
 
     child_sources: dict[str, tuple[Path, list[dict], bytes]] = {}
@@ -603,6 +628,10 @@ def extract_production_facts(
         filtered_children.append((selected, admitted_bytes, _sha256(raw)))
 
     all_event_lists = [parent_events, *(item[0] for item in filtered_children)]
+    expected_thread_ids = [
+        parent_thread_id,
+        *(spawn["receiver_id"] for spawn in spawns if not spawn["failed"]),
+    ]
     all_events = [event for events in all_event_lists for event in events]
     unsupported = sum(
         1
@@ -687,7 +716,11 @@ def extract_production_facts(
         "".join(sorted([parent_source_id, *(item[2] for item in filtered_children)])).encode("ascii")
     )
     tokens = _token_totals(all_event_lists)
-    credit_values = _credit_values(all_event_lists)
+    credit_values = _credit_values(
+        all_event_lists,
+        expected_thread_ids,
+        parent_thread_id,
+    )
     credits_available = all(value is not None for value in credit_values.values())
     basis = PARSER_VERSION
     repo_path_sha256 = _path_id(repo)
