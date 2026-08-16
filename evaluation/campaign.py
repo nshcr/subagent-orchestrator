@@ -2,26 +2,22 @@
 """Validate evaluation evidence and emit deterministic policy reports.
 
 This command never invokes a model, a grader, or the network. Development
-campaign evidence, caller-trusted quality authority, and sealed-holdout evidence
-are separate inputs. Sealed evidence is injected only after grading completes.
+campaign evidence and sealed-holdout evidence are separate inputs. The latter
+is injected only with ``--sealed-holdout`` after grading has completed.
 """
 
 from __future__ import annotations
 
 import argparse
 from decimal import Decimal, InvalidOperation
-import hashlib
-import hmac
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from .trusted_quality_issuers import TRUSTED_QUALITY_ISSUERS
 
-
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 1
 EXAMPLES_ROOT = Path(__file__).resolve().parent / "examples"
 ARMS = {"baseline", "custom"}
 TOKEN_KEYS = {
@@ -67,9 +63,6 @@ INSTANCE_KEYS = {
     "instance_id",
     "task_class",
     "fixture_family",
-    "fixture_sha256",
-    "prompt_sha256",
-    "rubric_sha256",
     "scenario",
     "expected_roles",
     "holdout",
@@ -110,74 +103,7 @@ THREAD_KEYS = {
 }
 THREAD_KINDS = {"primary", "child"}
 THREAD_STATUSES = {"completed", "failed", "cancelled"}
-CHECK_KEYS = {"id", "passed", "critical", "score", "max_score", "evidence"}
-CHECK_EVIDENCE_KEYS = {
-    "kind",
-    "artifact_sha256",
-    "artifact_source_id",
-    "grader_execution",
-}
-CHECK_EVIDENCE_KINDS = {"behavior", "source-fact"}
-GRADER_EXECUTION_KEYS = {
-    "receipt_sha256",
-    "authority_receipt_sha256",
-    "grader_sha256",
-    "evidence_artifact_sha256",
-    "artifact_source_id",
-    "result_sha256",
-    "exit_code",
-}
-QUALITY_AUTHORITY_KEYS = {
-    "schema_version",
-    "campaign_id",
-    "evidence_scope",
-    "authority_id",
-    "authority_receipt_sha256",
-    "admissions",
-    "issuer_id",
-    "key_id",
-    "signature_algorithm",
-    "signature_hex",
-    "campaign_sha256",
-}
-QUALITY_ADMISSION_KEYS = {
-    "schema_version",
-    "campaign_id",
-    "evidence_scope",
-    "authority_receipt_sha256",
-    "instance_id",
-    "task_class",
-    "fixture_sha256",
-    "arm",
-    "check_id",
-    "artifact_sha256",
-    "artifact_source_id",
-    "grader_sha256",
-    "quality_result",
-    "quality_result_sha256",
-    "grader_execution_receipt",
-    "grader_execution_receipt_sha256",
-}
-QUALITY_RESULT_KEYS = {
-    "schema_version",
-    "artifact_sha256",
-    "artifact_source_id",
-    "critical",
-    "evidence_kind",
-    "id",
-    "max_score",
-    "passed",
-    "score",
-}
-GRADER_EXECUTION_RECEIPT_PAYLOAD_KEYS = {
-    "schema_version",
-    "artifact_source_id",
-    "authority_receipt_sha256",
-    "evidence_artifact_sha256",
-    "exit_code",
-    "grader_sha256",
-    "result_sha256",
-}
+CHECK_KEYS = {"id", "passed", "critical", "score", "max_score"}
 AUDIT_KEYS = {"passed", "notes"}
 SEAL_KEYS = {
     "seal_id",
@@ -205,7 +131,6 @@ CONFIGURATION_HASH_KEYS = {
     "routing_policy",
     "task_fixtures",
     "graders",
-    "grader_execution_authority_receipt",
     "pricing",
 }
 DECIMAL_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
@@ -295,262 +220,6 @@ def _require_sha256(value: object, location: str) -> str:
     return value
 
 
-def _canonical_sha256(payload: dict) -> str:
-    return hashlib.sha256(
-        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
-            "utf-8"
-        )
-    ).hexdigest()
-
-
-def _canonical_json_bytes(payload: dict) -> bytes:
-    return json.dumps(
-        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-    ).encode("utf-8")
-
-
-def _quality_authority_signed_payload(authority: dict) -> dict:
-    return {key: value for key, value in authority.items() if key != "signature_hex"}
-
-
-def _verify_quality_authority_signature(authority: dict, label: str) -> None:
-    issuer_id = _require_string(authority["issuer_id"], f"{label}.issuer_id")
-    key_id = _require_string(authority["key_id"], f"{label}.key_id")
-    issuer = TRUSTED_QUALITY_ISSUERS.get(issuer_id)
-    if issuer is None:
-        raise EvaluationError(f"{label} issuer_id is not package-trusted")
-    key = issuer["keys"].get(key_id)
-    if key is None:
-        raise EvaluationError(f"{label} key_id is not package-trusted for issuer")
-    algorithm = authority["signature_algorithm"]
-    if algorithm != key["algorithm"]:
-        raise EvaluationError(f"{label} signature_algorithm does not match trusted key")
-    if authority["evidence_scope"] not in key["scopes"]:
-        raise EvaluationError(f"{label} trusted key is not authorized for evidence scope")
-    signature_hex = authority["signature_hex"]
-    modulus = key["modulus"]
-    width = (modulus.bit_length() + 7) // 8
-    if (
-        not isinstance(signature_hex, str)
-        or len(signature_hex) != width * 2
-        or not re.fullmatch(r"[0-9a-f]+", signature_hex)
-    ):
-        raise EvaluationError(f"{label}.signature_hex is not a canonical RSA signature")
-    signature = int(signature_hex, 16)
-    if signature >= modulus:
-        raise EvaluationError(f"{label}.signature_hex is outside the trusted RSA key")
-    encoded = pow(signature, key["exponent"], modulus).to_bytes(width, "big")
-    digest = hashlib.sha256(
-        _canonical_json_bytes(_quality_authority_signed_payload(authority))
-    ).digest()
-    digest_info = bytes.fromhex("3031300d060960864801650304020105000420") + digest
-    padding_length = width - len(digest_info) - 3
-    if padding_length < 8:
-        raise EvaluationError(f"{label} trusted RSA key is too small")
-    expected = b"\x00\x01" + b"\xff" * padding_length + b"\x00" + digest_info
-    if not hmac.compare_digest(encoded, expected):
-        raise EvaluationError(
-            f"{label} signature is invalid for the package-trusted issuer key "
-            f"(payload_sha256={digest.hex()})"
-        )
-
-
-def _quality_result_payload(check: dict) -> dict:
-    evidence = check["evidence"]
-    return {
-        "schema_version": "quality-check-result.v1",
-        "artifact_sha256": evidence["artifact_sha256"],
-        "artifact_source_id": evidence["artifact_source_id"],
-        "critical": check["critical"],
-        "evidence_kind": evidence["kind"],
-        "id": check["id"],
-        "max_score": check["max_score"],
-        "passed": check["passed"],
-        "score": check["score"],
-    }
-
-
-def _grader_execution_receipt_payload(execution: dict) -> dict:
-    return {
-        "artifact_source_id": execution["artifact_source_id"],
-        "authority_receipt_sha256": execution["authority_receipt_sha256"],
-        "evidence_artifact_sha256": execution["evidence_artifact_sha256"],
-        "exit_code": execution["exit_code"],
-        "grader_sha256": execution["grader_sha256"],
-        "result_sha256": execution["result_sha256"],
-        "schema_version": "grader-execution-receipt.v1",
-    }
-
-
-def _validate_quality_authority(
-    authority: object, document: dict, *, sealed_holdout: bool
-) -> None:
-    label = "sealed quality authority" if sealed_holdout else "development quality authority"
-    if authority is document:
-        raise EvaluationError(f"{label} must be a physically separate caller-supplied document")
-    authority = _require_exact_keys(authority, QUALITY_AUTHORITY_KEYS, label)
-    if authority["schema_version"] != "quality-evidence-authority.v2":
-        raise EvaluationError(
-            f"{label}.schema_version must be quality-evidence-authority.v2"
-        )
-    campaign_id = _require_string(authority["campaign_id"], f"{label}.campaign_id")
-    if campaign_id != document["campaign_id"]:
-        raise EvaluationError(f"{label}.campaign_id does not match campaign")
-    campaign_sha256 = _require_sha256(
-        authority["campaign_sha256"], f"{label}.campaign_sha256"
-    )
-    if campaign_sha256 != _canonical_sha256(document):
-        raise EvaluationError(f"{label}.campaign_sha256 does not match exact campaign")
-    evidence_scope = "sealed" if sealed_holdout else "development"
-    if authority["evidence_scope"] != evidence_scope:
-        raise EvaluationError(f"{label}.evidence_scope must be {evidence_scope}")
-    _require_string(authority["authority_id"], f"{label}.authority_id")
-    authority_receipt = _require_sha256(
-        authority["authority_receipt_sha256"],
-        f"{label}.authority_receipt_sha256",
-    )
-    expected_authority_receipt = (
-        document["seal"]["receipt_sha256"]
-        if sealed_holdout
-        else document["configuration_hashes"][
-            "grader_execution_authority_receipt"
-        ]
-    )
-    if authority_receipt != expected_authority_receipt:
-        raise EvaluationError(
-            f"{label} receipt does not match the campaign digest reference"
-        )
-    admissions = authority["admissions"]
-    if not isinstance(admissions, list) or not admissions:
-        raise EvaluationError(f"{label}.admissions must be a non-empty list")
-    observed: dict[tuple[str, str, str], dict] = {}
-    for index, admission in enumerate(admissions):
-        location = f"{label}.admissions[{index}]"
-        admission = _require_exact_keys(admission, QUALITY_ADMISSION_KEYS, location)
-        if admission["schema_version"] != "quality-evidence-admission.v1":
-            raise EvaluationError(
-                f"{location}.schema_version must be quality-evidence-admission.v1"
-            )
-        if admission["campaign_id"] != campaign_id:
-            raise EvaluationError(f"{location} has cross-campaign authority")
-        if admission["evidence_scope"] != evidence_scope:
-            raise EvaluationError(f"{location} has cross-scope authority")
-        if admission["authority_receipt_sha256"] != authority_receipt:
-            raise EvaluationError(f"{location} has mismatched authority receipt")
-        for key in ("instance_id", "task_class", "check_id", "artifact_source_id"):
-            _require_string(admission[key], f"{location}.{key}")
-        for key in (
-            "fixture_sha256",
-            "artifact_sha256",
-            "grader_sha256",
-            "quality_result_sha256",
-            "grader_execution_receipt_sha256",
-        ):
-            _require_sha256(admission[key], f"{location}.{key}")
-        if admission["arm"] not in ARMS:
-            raise EvaluationError(f"{location}.arm is invalid")
-        result = _require_exact_keys(
-            admission["quality_result"],
-            QUALITY_RESULT_KEYS,
-            f"{location}.quality_result",
-        )
-        if result.get("schema_version") != "quality-check-result.v1":
-            raise EvaluationError(
-                f"{location}.quality_result.schema_version must be quality-check-result.v1"
-            )
-        receipt = _require_exact_keys(
-            admission["grader_execution_receipt"],
-            GRADER_EXECUTION_RECEIPT_PAYLOAD_KEYS,
-            f"{location}.grader_execution_receipt",
-        )
-        if receipt.get("schema_version") != "grader-execution-receipt.v1":
-            raise EvaluationError(
-                f"{location}.grader_execution_receipt.schema_version must be "
-                "grader-execution-receipt.v1"
-            )
-        if receipt.get("exit_code") != 0 or isinstance(receipt.get("exit_code"), bool):
-            raise EvaluationError(
-                f"{location}.grader_execution_receipt.exit_code must be integer zero"
-            )
-        if admission["quality_result_sha256"] != _canonical_sha256(result):
-            raise EvaluationError(f"{location} quality result digest is invalid")
-        if admission["grader_execution_receipt_sha256"] != _canonical_sha256(receipt):
-            raise EvaluationError(f"{location} grader receipt digest is invalid")
-        key = (admission["instance_id"], admission["arm"], admission["check_id"])
-        if key in observed:
-            raise EvaluationError(f"{label} has duplicate admission {key}")
-        observed[key] = admission
-
-    _verify_quality_authority_signature(authority, label)
-
-    expected = {}
-    for instance in document["instances"]:
-        for arm in sorted(ARMS):
-            run = instance["runs"][arm]
-            for check in run["quality_checks"]:
-                execution = check["evidence"]["grader_execution"]
-                key = (instance["instance_id"], arm, check["id"])
-                expected[key] = {
-                    "schema_version": "quality-evidence-admission.v1",
-                    "campaign_id": document["campaign_id"],
-                    "evidence_scope": evidence_scope,
-                    "authority_receipt_sha256": authority_receipt,
-                    "instance_id": instance["instance_id"],
-                    "task_class": instance["task_class"],
-                    "fixture_sha256": instance["fixture_sha256"],
-                    "arm": arm,
-                    "check_id": check["id"],
-                    "artifact_sha256": check["evidence"]["artifact_sha256"],
-                    "artifact_source_id": check["evidence"]["artifact_source_id"],
-                    "grader_sha256": run["grader_sha256"],
-                    "quality_result": _quality_result_payload(check),
-                    "quality_result_sha256": execution["result_sha256"],
-                    "grader_execution_receipt": _grader_execution_receipt_payload(
-                        execution
-                    ),
-                    "grader_execution_receipt_sha256": execution["receipt_sha256"],
-                }
-    if set(observed) != set(expected):
-        missing = sorted(set(expected) - set(observed))
-        extra = sorted(set(observed) - set(expected))
-        raise EvaluationError(
-            f"{label} admissions do not exactly cover campaign checks; "
-            f"missing={missing}; extra={extra}"
-        )
-    for key, expected_admission in expected.items():
-        if observed[key] != expected_admission:
-            raise EvaluationError(
-                f"{label} admission {key} does not admit the exact immutable "
-                "campaign result, receipt, artifact, grader, and identity"
-            )
-
-
-def _validate_arm_order_balance(instances: list[dict], label: str) -> dict:
-    scopes = {"overall": instances}
-    for task_class in sorted({item["task_class"] for item in instances}):
-        scopes[f"task_class:{task_class}"] = [
-            item for item in instances if item["task_class"] == task_class
-        ]
-    result = {}
-    for scope, selected in scopes.items():
-        baseline_first = sum(item["arm_order"][0] == "baseline" for item in selected)
-        custom_first = len(selected) - baseline_first
-        difference = abs(baseline_first - custom_first)
-        allowed_difference = len(selected) % 2
-        passed = difference <= allowed_difference
-        result[scope] = {
-            "baseline_first": baseline_first,
-            "custom_first": custom_first,
-            "decision": "PASS" if passed else "BLOCK",
-        }
-        if not passed:
-            raise EvaluationError(
-                f"{label} arm order balance control failed for {scope}: "
-                f"baseline-first={baseline_first}, custom-first={custom_first}"
-            )
-    return result
-
-
 def _require_decimal(value: object, location: str) -> Decimal:
     if not isinstance(value, str) or not DECIMAL_PATTERN.fullmatch(value):
         raise EvaluationError(f"{location} must be a non-negative decimal string")
@@ -567,7 +236,6 @@ def _validate_run(
     arm: str,
     expected_roles: list[str],
     allowed_baseline_roles: list[str],
-    expected_grader_authority_sha256: str,
 ) -> None:
     run = _require_exact_keys(run, RUN_KEYS, location)
     _require_string(run["routing_decision"], f"{location}.routing_decision")
@@ -614,9 +282,9 @@ def _validate_run(
         _require_boolean(thread["terminal"], f"{thread_location}.terminal")
         if not thread["terminal"]:
             raise EvaluationError(f"{thread_location} is nonterminal")
-        cost_complete = _require_boolean(
-            thread["cost_complete"], f"{thread_location}.cost_complete"
-        )
+        _require_boolean(thread["cost_complete"], f"{thread_location}.cost_complete")
+        if not thread["cost_complete"]:
+            raise EvaluationError(f"{thread_location} has incomplete cost evidence")
         parent_thread_id = thread["parent_thread_id"]
         if parent_thread_id is not None:
             _require_string(parent_thread_id, f"{thread_location}.parent_thread_id")
@@ -671,24 +339,15 @@ def _validate_run(
         credits = _require_exact_keys(
             thread["credits"], CREDIT_KEYS, f"{thread_location}.credits"
         )
-        if cost_complete:
-            if any(value is None for value in credits.values()):
-                raise EvaluationError(
-                    f"{thread_location} complete cost evidence cannot contain null"
-                )
-            parsed_credits = {
-                key: _require_decimal(value, f"{thread_location}.credits.{key}")
-                for key, value in credits.items()
-            }
-            if parsed_credits["total"] != sum(
-                (parsed_credits[key] for key in CREDIT_CATEGORY_KEYS), Decimal(0)
-            ):
-                raise EvaluationError(
-                    f"{thread_location}.credits total does not match category sum"
-                )
-        elif any(value is not None for value in credits.values()):
+        parsed_credits = {
+            key: _require_decimal(value, f"{thread_location}.credits.{key}")
+            for key, value in credits.items()
+        }
+        if parsed_credits["total"] != sum(
+            (parsed_credits[key] for key in CREDIT_CATEGORY_KEYS), Decimal(0)
+        ):
             raise EvaluationError(
-                f"{thread_location} unavailable cost evidence must use null categories"
+                f"{thread_location}.credits total does not match category sum"
             )
 
     for thread_id, attempts in attempts_by_thread.items():
@@ -778,67 +437,6 @@ def _validate_run(
         maximum = _require_integer(check["max_score"], f"{check_location}.max_score")
         if maximum == 0 or score > maximum:
             raise EvaluationError(f"{check_location} requires 0 <= score <= max_score > 0")
-        evidence = _require_exact_keys(
-            check["evidence"], CHECK_EVIDENCE_KEYS, f"{check_location}.evidence"
-        )
-        evidence_kind = _require_string(
-            evidence["kind"], f"{check_location}.evidence.kind"
-        )
-        if evidence_kind not in CHECK_EVIDENCE_KINDS:
-            raise EvaluationError(
-                f"{check_location}.evidence.kind must be behavior or source-fact"
-            )
-        artifact_sha256 = _require_sha256(
-            evidence["artifact_sha256"], f"{check_location}.evidence.artifact_sha256"
-        )
-        artifact_source_id = _require_string(
-            evidence["artifact_source_id"],
-            f"{check_location}.evidence.artifact_source_id",
-        )
-        execution = _require_exact_keys(
-            evidence["grader_execution"],
-            GRADER_EXECUTION_KEYS,
-            f"{check_location}.evidence.grader_execution",
-        )
-        for key in (
-            "receipt_sha256",
-            "authority_receipt_sha256",
-            "grader_sha256",
-            "evidence_artifact_sha256",
-            "result_sha256",
-        ):
-            _require_sha256(
-                execution[key], f"{check_location}.evidence.grader_execution.{key}"
-            )
-        if execution["exit_code"] != 0 or isinstance(execution["exit_code"], bool):
-            raise EvaluationError(
-                f"{check_location}.evidence.grader_execution.exit_code must be integer zero"
-            )
-        if execution["evidence_artifact_sha256"] != artifact_sha256:
-            raise EvaluationError(
-                f"{check_location}.evidence grader execution does not bind evidence artifact"
-            )
-        if execution["artifact_source_id"] != artifact_source_id:
-            raise EvaluationError(
-                f"{check_location}.evidence grader execution does not bind artifact source"
-            )
-        if execution["authority_receipt_sha256"] != expected_grader_authority_sha256:
-            raise EvaluationError(
-                f"{check_location}.evidence grader execution authority does not match "
-                "frozen external authority receipt"
-            )
-        expected_result_sha256 = _canonical_sha256(_quality_result_payload(check))
-        if execution["result_sha256"] != expected_result_sha256:
-            raise EvaluationError(
-                f"{check_location}.evidence grader result does not match canonical check result"
-            )
-        expected_receipt_sha256 = _canonical_sha256(
-            _grader_execution_receipt_payload(execution)
-        )
-        if execution["receipt_sha256"] != expected_receipt_sha256:
-            raise EvaluationError(
-                f"{check_location}.evidence grader receipt does not match canonical execution"
-            )
 
     violations = run["scope_violations"]
     if not isinstance(violations, list) or any(
@@ -861,14 +459,11 @@ def _validate_instance(
     *,
     allowed_baseline_roles: list[str],
     expected_grader_sha256: str,
-    expected_grader_authority_sha256: str,
 ) -> str:
     instance = _require_exact_keys(instance, INSTANCE_KEYS, location)
     instance_id = _require_string(instance["instance_id"], f"{location}.instance_id")
     for key in ("task_class", "fixture_family", "scenario"):
         _require_string(instance[key], f"{location}.{key}")
-    _require_sha256(instance["fixture_sha256"], f"{location}.fixture_sha256")
-    _require_sha256(instance["prompt_sha256"], f"{location}.prompt_sha256")
     expected_roles = _require_string_list(
         instance["expected_roles"], f"{location}.expected_roles"
     )
@@ -886,7 +481,6 @@ def _validate_instance(
             arm=arm,
             expected_roles=expected_roles,
             allowed_baseline_roles=allowed_baseline_roles,
-            expected_grader_authority_sha256=expected_grader_authority_sha256,
         )
     if runs["baseline"]["grader_sha256"] != runs["custom"]["grader_sha256"]:
         raise EvaluationError(f"{location} paired grader_sha256 mismatch")
@@ -894,24 +488,9 @@ def _validate_instance(
         runs[arm]["grader_sha256"] != expected_grader_sha256 for arm in sorted(ARMS)
     ):
         raise EvaluationError(f"{location} run grader does not match frozen grader")
-    for arm in sorted(ARMS):
-        for check in runs[arm]["quality_checks"]:
-            if (
-                check["evidence"]["grader_execution"]["grader_sha256"]
-                != runs[arm]["grader_sha256"]
-            ):
-                raise EvaluationError(
-                    f"{location}.runs.{arm} quality evidence grader execution "
-                    "does not match run grader"
-                )
     rubric_signatures = {
         arm: sorted(
-            (
-                check["id"],
-                check["critical"],
-                check["max_score"],
-                check["evidence"]["kind"],
-            )
+            (check["id"], check["critical"], check["max_score"])
             for check in runs[arm]["quality_checks"]
         )
         for arm in sorted(ARMS)
@@ -919,25 +498,12 @@ def _validate_instance(
     if rubric_signatures["baseline"] != rubric_signatures["custom"]:
         raise EvaluationError(
             f"{location} paired rubric mismatch; expected identical "
-            "(id, critical, max_score, evidence kind) signatures"
+            "(id, critical, max_score) signatures"
         )
-    rubric_sha256 = hashlib.sha256(
-        json.dumps(
-            rubric_signatures["baseline"], separators=(",", ":")
-        ).encode("utf-8")
-    ).hexdigest()
-    _require_sha256(instance["rubric_sha256"], f"{location}.rubric_sha256")
-    if instance["rubric_sha256"] != rubric_sha256:
-        raise EvaluationError(f"{location}.rubric_sha256 does not match frozen rubric")
     return instance_id
 
 
-def validate_campaign(
-    document: dict,
-    *,
-    sealed_holdout: bool = False,
-    quality_authority: dict | None = None,
-) -> None:
+def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
     expected_keys = HOLDOUT_KEYS if sealed_holdout else CAMPAIGN_KEYS
     label = "sealed holdout" if sealed_holdout else "campaign"
     document = _require_exact_keys(document, expected_keys, label)
@@ -959,9 +525,6 @@ def validate_campaign(
         for key, value in hashes.items():
             _require_sha256(value, f"campaign.configuration_hashes.{key}")
         expected_grader_sha256 = hashes["graders"]
-        expected_grader_authority_sha256 = hashes[
-            "grader_execution_authority_receipt"
-        ]
         policies = document["class_policies"]
         if not isinstance(policies, dict) or not policies:
             raise EvaluationError("campaign.class_policies must be a non-empty object")
@@ -1027,7 +590,6 @@ def validate_campaign(
         ):
             _require_sha256(seal[key], f"sealed holdout.seal.{key}")
         expected_grader_sha256 = seal["grader_sha256"]
-        expected_grader_authority_sha256 = seal["receipt_sha256"]
         for key in (
             "agent_visibility_boundary_enforced",
             "runner_unlinked_before_agents",
@@ -1059,8 +621,6 @@ def validate_campaign(
     if not isinstance(instances, list) or not instances:
         raise EvaluationError(f"{label}.instances must be a non-empty list")
     seen = set()
-    seen_fixtures: dict[str, str] = {}
-    seen_prompts: dict[str, str] = {}
     for index, instance in enumerate(instances):
         instance_id = _validate_instance(
             instance,
@@ -1068,21 +628,10 @@ def validate_campaign(
             sealed=sealed_holdout,
             allowed_baseline_roles=allowed_baseline_roles,
             expected_grader_sha256=expected_grader_sha256,
-            expected_grader_authority_sha256=expected_grader_authority_sha256,
         )
         if instance_id in seen:
             raise EvaluationError(f"duplicate instance_id in {label}: {instance_id}")
         seen.add(instance_id)
-        for field, observed in (
-            ("fixture_sha256", seen_fixtures),
-            ("prompt_sha256", seen_prompts),
-        ):
-            digest = instance[field]
-            if digest in observed:
-                raise EvaluationError(
-                    f"duplicate {field} in {label}: {instance_id} and {observed[digest]}"
-                )
-            observed[digest] = instance_id
 
     execution_order = document["execution_order"]
     if not isinstance(execution_order, list):
@@ -1122,7 +671,6 @@ def validate_campaign(
         raise EvaluationError(f"{label} run execution_index values must be unique and contiguous")
     if [entry for _, entry in observed_execution] != execution_order:
         raise EvaluationError(f"{label}.execution_order drifts from recorded run indexes")
-    _validate_arm_order_balance(instances, label)
 
     if not sealed_holdout:
         task_classes = {item["task_class"] for item in instances}
@@ -1146,11 +694,6 @@ def validate_campaign(
                 raise EvaluationError(
                     f"{instance['instance_id']} expected_roles must exactly equal its class policy role"
                 )
-    if quality_authority is None:
-        raise EvaluationError(f"{label} requires a separate caller-supplied quality authority")
-    _validate_quality_authority(
-        quality_authority, document, sealed_holdout=sealed_holdout
-    )
 
 
 def _decimal_text(value: Decimal) -> str:
@@ -1170,17 +713,9 @@ def _median(values: Iterable[Decimal]) -> Decimal:
 
 def _run_summary(run: dict) -> dict:
     checks = run["quality_checks"]
-    cost_complete = all(thread["cost_complete"] for thread in run["threads"])
-    credits = (
-        sum(
-            (
-                _require_decimal(thread["credits"]["total"], "credit")
-                for thread in run["threads"]
-            ),
-            Decimal(0),
-        )
-        if cost_complete
-        else None
+    credits = sum(
+        (_require_decimal(thread["credits"]["total"], "credit") for thread in run["threads"]),
+        Decimal(0),
     )
     tokens = {
         key: sum(thread["tokens"][key] for thread in run["threads"])
@@ -1193,7 +728,7 @@ def _run_summary(run: dict) -> dict:
         "completion_status": run["completion_status"],
         "contamination_audit": dict(sorted(run["contamination_audit"].items())),
         "contamination_audit_passed": run["contamination_audit"]["passed"],
-        "cost_complete": cost_complete,
+        "cost_complete": all(thread["cost_complete"] for thread in run["threads"]),
         "critical_failures": sum(
             1 for check in checks if check["critical"] and not check["passed"]
         ),
@@ -1233,11 +768,7 @@ def _run_summary(run: dict) -> dict:
         "threads": [
             {
                 "credits": {
-                    key: (
-                        _decimal_text(_require_decimal(value, "credit"))
-                        if value is not None
-                        else None
-                    )
+                    key: _decimal_text(_require_decimal(value, "credit"))
                     for key, value in sorted(thread["credits"].items())
                 },
                 "attempt": thread["attempt"],
@@ -1259,24 +790,18 @@ def _run_summary(run: dict) -> dict:
         ],
         "tokens": tokens,
         "total_tokens": tokens["total_tokens"],
-        "total_credits": _decimal_text(credits) if credits is not None else None,
+        "total_credits": _decimal_text(credits),
         "wall_time_ms": run["wall_time_ms"],
     }
 
 
-def _ratio(numerator: Decimal, denominator: Decimal) -> Decimal | None:
-    return numerator / denominator if denominator > 0 else None
+def _quality_compare(left: dict, right: dict) -> int:
+    cross_left = left["quality_score"] * right["quality_max"]
+    cross_right = right["quality_score"] * left["quality_max"]
+    return (cross_left > cross_right) - (cross_left < cross_right)
 
 
-def _class_summary(
-    task_class: str,
-    instances: list[dict],
-    policy: dict,
-    *,
-    overall_baseline: Decimal | None,
-    overall_custom: Decimal | None,
-    overall_pair_ratios: list[Decimal] | None,
-) -> dict:
+def _class_summary(task_class: str, instances: list[dict], policy: dict) -> dict:
     arm_totals = {}
     for arm in sorted(ARMS):
         summaries = [instance["arms"][arm] for instance in instances]
@@ -1292,16 +817,12 @@ def _class_summary(
                 and item["routing_compliant"]
                 and not item["recursion_detected"]
                 and item["all_threads_terminal"]
+                and item["cost_complete"]
                 and item["process_completed"]
                 for item in summaries
             ),
-            "cost_complete": all(item["cost_complete"] for item in summaries),
-            "median_total_credits": (
-                _decimal_text(
-                    _median(Decimal(item["total_credits"]) for item in summaries)
-                )
-                if all(item["cost_complete"] for item in summaries)
-                else None
+            "median_total_credits": _decimal_text(
+                _median(Decimal(item["total_credits"]) for item in summaries)
             ),
             "quality_max": sum(item["quality_max"] for item in summaries),
             "quality_score": sum(item["quality_score"] for item in summaries),
@@ -1311,15 +832,8 @@ def _class_summary(
             "routing_violation_count": sum(
                 len(item["routing_violations"]) for item in summaries
             ),
-            "total_credits": (
-                _decimal_text(
-                    sum(
-                        (Decimal(item["total_credits"]) for item in summaries),
-                        Decimal(0),
-                    )
-                )
-                if all(item["cost_complete"] for item in summaries)
-                else None
+            "total_credits": _decimal_text(
+                sum((Decimal(item["total_credits"]) for item in summaries), Decimal(0))
             ),
             "total_tokens": sum(item["total_tokens"] for item in summaries),
         }
@@ -1327,14 +841,8 @@ def _class_summary(
     families = sorted({instance["fixture_family"] for instance in instances})
     sealed_count = sum(1 for instance in instances if instance["holdout"])
     arm_orders = sorted({"/".join(instance["arm_order"]) for instance in instances})
-    order_balance = _validate_arm_order_balance(
-        instances, f"report task class {task_class}"
-    )["overall"]
     evidence_complete = (
-        len(families) >= 3
-        and sealed_count >= 1
-        and len(arm_orders) == 2
-        and order_balance["decision"] == "PASS"
+        len(families) >= 3 and sealed_count >= 1 and len(arm_orders) == 2
     )
     custom = arm_totals["custom"]
     baseline = arm_totals["baseline"]
@@ -1347,163 +855,59 @@ def _class_summary(
         and arm["evidence_integrity_passed"]
         for arm in (baseline, custom)
     )
-    quality_deltas = []
-    for instance in instances:
-        baseline_run = instance["arms"]["baseline"]
-        custom_run = instance["arms"]["custom"]
-        left = custom_run["quality_score"] * baseline_run["quality_max"]
-        right = baseline_run["quality_score"] * custom_run["quality_max"]
-        quality_deltas.append((left > right) - (left < right))
-    quality_non_regression = all(delta >= 0 for delta in quality_deltas)
-    quality_improved = quality_non_regression and any(
-        delta > 0 for delta in quality_deltas
+    quality = _quality_compare(custom, baseline)
+    baseline_median = Decimal(baseline["median_total_credits"])
+    custom_median = Decimal(custom["median_total_credits"])
+    credit_threshold_met = baseline_median > 0 and custom_median <= (
+        baseline_median * Decimal("0.9")
     )
-    quality_tied = quality_non_regression and all(
-        delta == 0 for delta in quality_deltas
-    )
-
-    cost_complete = baseline["cost_complete"] and custom["cost_complete"]
-    pair_ratios: list[Decimal] = []
-    positive_baselines = cost_complete
-    if cost_complete:
-        for instance in instances:
-            baseline_cost = Decimal(instance["arms"]["baseline"]["total_credits"])
-            custom_cost = Decimal(instance["arms"]["custom"]["total_credits"])
-            if baseline_cost <= 0:
-                positive_baselines = False
-                break
-            pair_ratios.append(custom_cost / baseline_cost)
-    class_ratio = (
-        _ratio(Decimal(custom["total_credits"]), Decimal(baseline["total_credits"]))
-        if cost_complete
-        else None
-    )
-    overall_ratio = (
-        _ratio(overall_custom, overall_baseline)
-        if overall_custom is not None and overall_baseline is not None
-        else None
-    )
-    paired_median_ratio = (
-        _median(overall_pair_ratios) if overall_pair_ratios else None
-    )
-    cost_non_regression = (
-        positive_baselines
-        and bool(pair_ratios)
-        and overall_pair_ratios is not None
-        and all(ratio <= Decimal("1") for ratio in overall_pair_ratios)
-        and class_ratio is not None
-        and class_ratio <= Decimal("1")
-        and overall_ratio is not None
-        and overall_ratio <= Decimal("1")
-    )
-    tie_efficiency = (
-        not quality_tied
-        or (
-            paired_median_ratio is not None
-            and paired_median_ratio <= Decimal("0.9")
-            and class_ratio is not None
-            and class_ratio <= Decimal("0.9")
-            and overall_ratio is not None
-            and overall_ratio <= Decimal("0.9")
-        )
-    )
-    retention_passed = (
-        evidence_complete and paired_integrity_passed and quality_non_regression
-    )
-    efficiency_passed = retention_passed and cost_non_regression and tie_efficiency
     if policy["decision_mode"] == "mandatory_named_gate":
-        if retention_passed:
-            recommendation = (
-                "retained-efficient" if efficiency_passed else "retained-not-efficient"
-            )
-        else:
-            recommendation = "primary-default"
+        promoted = evidence_complete and paired_integrity_passed and quality >= 0
+        recommendation = "mandatory-custom" if promoted else "primary-default"
     else:
-        recommendation = "custom" if efficiency_passed else "primary-default"
+        promoted = evidence_complete and paired_integrity_passed and (
+            quality > 0 or (quality == 0 and credit_threshold_met)
+        )
+        recommendation = "custom" if promoted else "primary-default"
 
-    retention_reasons = []
+    reasons = []
     if not evidence_complete:
-        retention_reasons.append(
+        reasons.append(
             "requires three fixture families, one sealed holdout, and both arm orders"
         )
     if not paired_integrity_passed:
-        retention_reasons.append("paired baseline/custom integrity gate failed")
-    if not quality_non_regression:
-        retention_reasons.append(
-            "custom normalized quality regresses on at least one paired instance"
-        )
-    efficiency_reasons = list(retention_reasons)
-    if not cost_complete:
-        efficiency_reasons.append("exact end-to-end credit evidence is unavailable")
-    elif not positive_baselines:
-        efficiency_reasons.append("efficiency requires positive exact baseline credits")
-    elif not cost_non_regression:
-        efficiency_reasons.append("paired, class, or overall aggregate credits regress")
-    elif quality_tied and not tie_efficiency:
-        efficiency_reasons.append(
-            "quality tie requires 10% paired-median and aggregate savings"
-        )
+        reasons.append("paired baseline/custom integrity gate failed")
+    if quality < 0:
+        reasons.append("custom verified quality is lower")
+    elif (
+        policy["decision_mode"] == "elective"
+        and quality == 0
+        and not credit_threshold_met
+    ):
+        reasons.append("indistinguishable quality without 10% median credit reduction")
 
     return {
         "arms": arm_totals,
         "arm_orders": arm_orders,
-        "order_balance_control": order_balance,
         "evidence_complete": evidence_complete,
         "fixture_families": families,
         "instance_count": len(instances),
         "paired_integrity_passed": paired_integrity_passed,
-        "quality_non_regression": quality_non_regression,
-        "quality_outcome": "improved" if quality_improved else ("tied" if quality_tied else "regressed"),
-        "pair_credit_ratios": [_decimal_text(value) for value in pair_ratios],
-        "class_credit_ratio": _decimal_text(class_ratio) if class_ratio is not None else None,
-        "overall_credit_ratio": _decimal_text(overall_ratio) if overall_ratio is not None else None,
-        "paired_median_credit_ratio": (
-            _decimal_text(paired_median_ratio) if paired_median_ratio is not None else None
-        ),
-        "overall_paired_median_credit_ratio": (
-            _decimal_text(paired_median_ratio) if paired_median_ratio is not None else None
-        ),
         "policy": dict(sorted(policy.items())),
         "decision_mode": policy["decision_mode"],
         "custom_role": policy["custom_role"],
         "recommendation": recommendation,
-        "recommendation_reasons": efficiency_reasons,
-        "governance_retention": {
-            "decision": (
-                "PASS" if retention_passed else "BLOCK"
-            ) if policy["decision_mode"] == "mandatory_named_gate" else "not-applicable",
-            "eligible": retention_passed if policy["decision_mode"] == "mandatory_named_gate" else False,
-            "reasons": (
-                retention_reasons
-                if policy["decision_mode"] == "mandatory_named_gate"
-                else []
-            ),
-        },
-        "efficiency_promotion": {
-            "decision": "PASS" if efficiency_passed else "BLOCK",
-            "eligible": efficiency_passed,
-            "reasons": efficiency_reasons,
-        },
+        "recommendation_reasons": reasons,
         "sealed_holdout_count": sealed_count,
         "task_class": task_class,
     }
 
 
-def build_report(
-    campaign: dict,
-    sealed_holdout: dict | None = None,
-    *,
-    quality_authority: dict | None = None,
-    sealed_quality_authority: dict | None = None,
-) -> dict:
-    validate_campaign(campaign, quality_authority=quality_authority)
+def build_report(campaign: dict, sealed_holdout: dict | None = None) -> dict:
+    validate_campaign(campaign)
     all_instances = list(campaign["instances"])
     if sealed_holdout is not None:
-        validate_campaign(
-            sealed_holdout,
-            sealed_holdout=True,
-            quality_authority=sealed_quality_authority,
-        )
+        validate_campaign(sealed_holdout, sealed_holdout=True)
         if sealed_holdout["campaign_id"] != campaign["campaign_id"]:
             raise EvaluationError("sealed holdout campaign_id does not match campaign")
         if sorted(sealed_holdout["allowed_baseline_roles"]) != sorted(
@@ -1524,22 +928,10 @@ def build_report(
                 if run["grader_sha256"] != sealed_holdout["seal"]["grader_sha256"]:
                     raise EvaluationError("sealed holdout run grader does not match sealed grader")
         all_instances.extend(sealed_holdout["instances"])
-    elif sealed_quality_authority is not None:
-        raise EvaluationError(
-            "sealed quality authority cannot be supplied without a sealed holdout"
-        )
-
-    overall_order_balance = _validate_arm_order_balance(
-        all_instances, "combined development and sealed evidence"
-    )
 
     ids = [instance["instance_id"] for instance in all_instances]
     if len(ids) != len(set(ids)):
         raise EvaluationError("instance_id collides across campaign and sealed holdout")
-    for field in ("fixture_sha256", "prompt_sha256"):
-        digests = [instance[field] for instance in all_instances]
-        if len(digests) != len(set(digests)):
-            raise EvaluationError(f"{field} collides across campaign and sealed holdout")
 
     instance_reports = []
     for instance in sorted(all_instances, key=lambda item: item["instance_id"]):
@@ -1550,51 +942,14 @@ def build_report(
                     arm: _run_summary(instance["runs"][arm]) for arm in sorted(ARMS)
                 },
                 "fixture_family": instance["fixture_family"],
-                "fixture_sha256": instance["fixture_sha256"],
                 "holdout": instance["holdout"],
                 "instance_id": instance["instance_id"],
-                "prompt_sha256": instance["prompt_sha256"],
-                "rubric_sha256": instance["rubric_sha256"],
                 "scenario": instance["scenario"],
                 "task_class": instance["task_class"],
             }
         )
 
     classes = []
-    cost_complete = all(
-        report["arms"][arm]["cost_complete"]
-        for report in instance_reports
-        for arm in sorted(ARMS)
-    )
-    overall_baseline = (
-        sum(
-            (Decimal(report["arms"]["baseline"]["total_credits"]) for report in instance_reports),
-            Decimal(0),
-        )
-        if cost_complete
-        else None
-    )
-    overall_custom = (
-        sum(
-            (Decimal(report["arms"]["custom"]["total_credits"]) for report in instance_reports),
-            Decimal(0),
-        )
-        if cost_complete
-        else None
-    )
-    overall_pair_ratios = (
-        [
-            Decimal(report["arms"]["custom"]["total_credits"])
-            / Decimal(report["arms"]["baseline"]["total_credits"])
-            for report in instance_reports
-        ]
-        if cost_complete
-        and all(
-            Decimal(report["arms"]["baseline"]["total_credits"]) > 0
-            for report in instance_reports
-        )
-        else None
-    )
     task_classes = sorted({instance["task_class"] for instance in instance_reports})
     unknown_classes = set(task_classes) - set(campaign["class_policies"])
     if unknown_classes:
@@ -1606,14 +961,7 @@ def build_report(
             instance for instance in instance_reports if instance["task_class"] == task_class
         ]
         classes.append(
-            _class_summary(
-                task_class,
-                selected,
-                campaign["class_policies"][task_class],
-                overall_baseline=overall_baseline,
-                overall_custom=overall_custom,
-                overall_pair_ratios=overall_pair_ratios,
-            )
+            _class_summary(task_class, selected, campaign["class_policies"][task_class])
         )
 
     return {
@@ -1621,7 +969,6 @@ def build_report(
         "configuration_hashes": dict(sorted(campaign["configuration_hashes"].items())),
         "development_execution_order": list(campaign["execution_order"]),
         "instances": instance_reports,
-        "overall_order_balance_control": overall_order_balance["overall"],
         "schema_version": SCHEMA_VERSION,
         "sealed_holdout_execution_order": (
             list(sealed_holdout["execution_order"])
@@ -1657,20 +1004,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--campaign", type=Path, required=True)
         subparser.add_argument(
-            "--quality-authority",
-            type=Path,
-            required=True,
-            help="caller-trusted development grader/artifact admissions document",
-        )
-        subparser.add_argument(
             "--sealed-holdout",
             type=Path,
             help="external post-grading sealed evidence; never passed to tested agents",
-        )
-        subparser.add_argument(
-            "--sealed-quality-authority",
-            type=Path,
-            help="caller-trusted sealed grader/artifact admissions document",
         )
         if command == "report":
             subparser.add_argument("--output", type=Path)
@@ -1678,121 +1014,29 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "smoke",
         help="validate bundled public example evidence and deterministic reporting",
     )
-    facts = subparsers.add_parser(
-        "production-facts", help="extract production-fact.v3 from rollout and Git sources"
-    )
-    facts.add_argument("--parent", type=Path, required=True)
-    facts.add_argument("--children-root", type=Path, required=True)
-    facts.add_argument("--repo", type=Path, required=True)
-    facts.add_argument("--base", required=True)
-    facts.add_argument("--cutoff", required=True)
-    facts.add_argument(
-        "--source-state", choices=("terminal", "active", "incomplete"), required=True
-    )
-    facts.add_argument("--output", type=Path, required=True)
-    tiers = subparsers.add_parser(
-        "evidence-tier", help="validate an exact monotonic evidence-tier chain"
-    )
-    tiers.add_argument("--input", type=Path, action="append", required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(argv)
     try:
-        if arguments.command == "production-facts":
-            from .production_facts import extract_production_facts, parse_cutoff
-
-            if not arguments.output.is_absolute():
-                raise EvaluationError("--output must be an absolute path")
-            if not arguments.output.parent.is_dir():
-                raise EvaluationError("--output parent must be an existing directory")
-            report = extract_production_facts(
-                parent=arguments.parent,
-                children_root=arguments.children_root,
-                repo=arguments.repo,
-                base=arguments.base,
-                cutoff=parse_cutoff(arguments.cutoff),
-                source_state=arguments.source_state,
-            )
-            _write_report(report, arguments.output)
-            return 0
-        if arguments.command == "evidence-tier":
-            from .evidence_tiers import load_evidence_chain
-
-            documents = load_evidence_chain(arguments.input)
-            print(
-                f"PASS: evidence tier chain is valid through {documents[-1]['tier']}"
-            )
-            return 0
         if arguments.command == "smoke":
             campaign = load_json(EXAMPLES_ROOT / "campaign.json")
             holdout = load_json(EXAMPLES_ROOT / "sealed-holdout.json")
-            authority = load_json(EXAMPLES_ROOT / "quality-authority-development.json")
-            sealed_authority = load_json(EXAMPLES_ROOT / "quality-authority-sealed.json")
-            first = json.dumps(
-                build_report(
-                    campaign,
-                    holdout,
-                    quality_authority=authority,
-                    sealed_quality_authority=sealed_authority,
-                ),
-                sort_keys=True,
-            )
-            second = json.dumps(
-                build_report(
-                    campaign,
-                    holdout,
-                    quality_authority=authority,
-                    sealed_quality_authority=sealed_authority,
-                ),
-                sort_keys=True,
-            )
+            first = json.dumps(build_report(campaign, holdout), sort_keys=True)
+            second = json.dumps(build_report(campaign, holdout), sort_keys=True)
             if first != second:
                 raise EvaluationError("bundled smoke report is nondeterministic")
             print("PASS: bundled evaluation smoke evidence is valid and deterministic")
             return 0
         campaign = load_json(arguments.campaign)
-        authority = load_json(arguments.quality_authority)
         holdout = load_json(arguments.sealed_holdout) if arguments.sealed_holdout else None
-        sealed_authority = (
-            load_json(arguments.sealed_quality_authority)
-            if arguments.sealed_quality_authority
-            else None
-        )
-        input_paths = [arguments.campaign, arguments.quality_authority]
-        if arguments.sealed_holdout:
-            input_paths.append(arguments.sealed_holdout)
-        if arguments.sealed_quality_authority:
-            input_paths.append(arguments.sealed_quality_authority)
-        resolved_paths = [path.resolve() for path in input_paths]
-        if len(resolved_paths) != len(set(resolved_paths)):
-            raise EvaluationError(
-                "campaign, holdout, and quality authorities must be physically separate files"
-            )
-        if (holdout is None) != (sealed_authority is None):
-            raise EvaluationError(
-                "--sealed-holdout and --sealed-quality-authority must be supplied together"
-            )
         if arguments.command == "validate":
-            build_report(
-                campaign,
-                holdout,
-                quality_authority=authority,
-                sealed_quality_authority=sealed_authority,
-            )
+            build_report(campaign, holdout)
             print("PASS: evaluation campaign evidence is valid")
         else:
-            _write_report(
-                build_report(
-                    campaign,
-                    holdout,
-                    quality_authority=authority,
-                    sealed_quality_authority=sealed_authority,
-                ),
-                arguments.output,
-            )
-    except (EvaluationError, OSError) as error:
+            _write_report(build_report(campaign, holdout), arguments.output)
+    except EvaluationError as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
     return 0

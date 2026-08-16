@@ -1,10 +1,10 @@
 {
   "format_version": 1,
-  "profile_id": "quality-first-subagent-orchestration-2026-08",
+  "profile_id": "efficient-user-controlled-subagent-orchestration-2026-08",
   "objective": [
-    "authorization-safety-correctness-evidence-integrity",
-    "stable-verified-quality",
-    "end-to-end-chatgpt-credits"
+    "correctness-and-user-control",
+    "material-work-substitution",
+    "end-to-end-efficiency"
   ],
   "time_policy": "telemetry-only",
   "primary": {
@@ -15,6 +15,7 @@
       "scope",
       "single-writer-integration",
       "conflict-handling",
+      "user-checkpoints",
       "final-acceptance"
     ]
   },
@@ -26,28 +27,20 @@
     {
       "id": "explorer",
       "topology": "leaf",
-      "eligibility": "material narrow read-only question with host-owner-sealed manifest whose scan replaces primary exploration"
+      "eligibility": "material narrow read-only codebase question whose focused scan replaces primary exploration"
     },
     {
       "id": "worker",
       "topology": "leaf",
-      "eligibility": "scoped implementation or fix with host-owner-sealed manifest, settled strategy, and disjoint task-wide writer ownership"
-    },
-    {
-      "id": "default",
-      "topology": "bounded-peer",
-      "eligibility": "material dependency graph where direct evidence handoff avoids primary relay and current client capability is proven",
-      "delegation_depth": 1,
-      "leaf_descendant_cap": 2
+      "eligibility": "scoped implementation or fix with settled strategy and disjoint writer ownership"
     }
   ],
   "concurrency": {
     "runtime_thread_cap": 16,
-    "qualified_direct_child_cap": 3,
-    "fourth_direct_child_requires_user_authorization": true,
-    "bounded_peer_coordinator_cap": 1,
-    "bounded_peer_leaf_descendant_cap": 2,
-    "wait_timeout_is_terminal": false
+    "ordinary_first_wave_child_cap": 2,
+    "ordinary_first_wave_writer_cap": 1,
+    "later_wave_requires_user_checkpoint": true,
+    "explicit_final_review_cap": 3
   },
   "roles": [
     {
@@ -95,101 +88,18 @@
     "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
     "state_bound": true,
     "context_default": "fresh",
-    "governed_custom_roles_non_recursive": true,
-    "bounded_peer_delegation_depth": 1,
-    "peer_messages": "disabled-for-custom-and-unregistered-peers",
-    "fork_context": "none-only",
-    "slice_open_required": true,
-    "materiality_manifest_issuer": "host-owner-or-sealed-harness",
-    "authority_receipts": "host-provided-outside-trace-separate-document",
-    "required_typed_fields": {
-      "topology": "leaf-or-bounded-peer",
-      "delegation_depth": "zero-or-one",
-      "message_peers": "none-or-task-names-plus-evidence-dependency-purpose",
-      "context_policy": "fresh-or-inherited-plus-material-reason",
-      "acceptance_fields": "not-applicable-or-one-or-more-exact-output-heading-labels",
-      "named_invariants": "not-applicable-or-one-or-more-exact-gate-invariants",
-      "escalation_receipt": "not-applicable-or-prior-terminal-line-plus-sufficient-evidence-plus-competing-explanations-plus-irreversible-decision",
-      "artifact_contract": "none-or-path-or-body-plus-format-plus-writer-plus-transfer-rule"
-    },
+    "children_are_leaves": true,
+    "peer_messages": "none",
+    "later_wave_requires_user_checkpoint": true,
     "user_facing_language": "user-preferred",
     "model_facing_language": "English"
-  },
-  "evidence_bus": {
-    "trace_scenario_task_identity": "one-scenario-per-nonempty-unique-task-id",
-    "task_wide_state_rollover": "events-only-no-ledger-reset",
-    "primary_access_attribution": "task-wide",
-    "precheck_and_sampling_max_percent": 10,
-    "sampling_denominator": "frozen-task-wide",
-    "materiality_digest": "canonical-payload-bound",
-    "materiality_issuer_class": "trace-external-host-owner-or-sealed-harness",
-    "materiality_issuer_participant_exclusion": "preindexed-primary-child-parent-role-and-agent-identities",
-    "primary_access_receipt": "canonical-payload-plus-external-authority-bound",
-    "external_receipt_issuer_classes": "primary-access-materiality:host-owner-sealed-harness;compaction-message:host-owner;peer-capability-relay-pilot:host",
-    "external_receipt_participant_exclusion": "preindexed-current-and-future-task-identities-at-consumption",
-    "work_transfer_schema": "complete-exact-key-canonical-snake-case",
-    "work_transfer_spawn_binding": "route-topology-and-delegation-depth",
-    "role_specific_transfer_semantics": "tester-acceptance-path-artifact;reviewer-invariants-escalation-optional-markdown-body",
-    "reviewer_gate_invariant_binding": "transfer-equals-registry-equals-result-owner",
-    "send_message_digest": "canonical-semantic-payload-excluding-authority-anchor-and-digest-fields",
-    "send_message_admission": "external-receipt-plus-original-transfer-scope",
-    "send_message_authority_binding": "producer-consumer-task-slice-scope-purpose-receipt-dependency-digest-message-digest",
-    "peer_relay_purpose": "artifact_receipt-only",
-    "peer_relay_artifact_binding": "named-producer-terminal-receipt-plus-consumer-transfer",
-    "integration_source_ranges_and_bytes": "zero-only",
-    "followup_scope": "original-work-transfer-digest",
-    "full_history_eligible": false,
-    "send_message_purposes": [
-      "evidence",
-      "dependency_status",
-      "artifact_receipt"
-    ],
-    "followup_reasons": [
-      "new_failure_evidence",
-      "missing_acceptance_field",
-      "authorized_continue"
-    ]
-  },
-  "lifecycle": {
-    "freeze_after_all_task_workers_terminal": true,
-    "post_freeze_writer_owner_mutation": "fail-closed-and-invalidate-generation",
-    "readback_fields": ["head", "index", "worktree", "changed_paths"],
-    "writer_compaction_cap_per_task_owner_component": 2,
-    "writer_compaction_authority": "external-cumulative-receipt",
-    "writer_cap_per_slice": 1,
-    "slice_writer_scope_binding": "writer-paths-component-and-path-artifacts",
-    "owner_alias_union_reasons": ["overlap", "rename", "split", "merge"],
-    "disjoint_final_gate_count": 3,
-    "hash_change_invalidates_all_gates": true,
-    "close_requires_terminal_tree": true
-  },
-  "evidence_tiers": [
-    "implemented",
-    "verified-local",
-    "verified-ci",
-    "verified-target",
-    "pilot-signed"
-  ],
-  "pilot": {
-    "host_issued_admission_required": true,
-    "auto_create_task": false,
-    "excluded_active_task_ids_required": true,
-    "self_issued_or_proxy_receipt": "reject",
-    "receipt_digest": "canonical-payload-bound",
-    "validity_evaluated_at": "observed_at",
-    "authorization_anchor": "host-provided-outside-trace",
-    "authorization_text_and_contract_bound": true,
-    "revision": "exact-frozen-head-and-generation-bound",
-    "actions_and_exclusions": "nonempty-strings",
-    "action_normalization": "reject-create-task-separator-and-camel-variants"
   },
   "unsupported_work_route": "primary",
   "adapter_requirements": [
     "preserve-role-eligibility",
     "preserve-permission-boundaries",
-    "preserve-governed-leaf-non-recursion",
-    "preserve-bounded-peer-depth",
-    "preserve-peer-message-boundary",
+    "preserve-leaf-non-recursion",
+    "preserve-user-checkpoints",
     "preserve-terminal-collection",
     "preserve-output-language-contract",
     "treat-model-and-effort-values-as-client-specific-hints"

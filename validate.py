@@ -7,7 +7,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -34,8 +33,7 @@ ROLE_PROFILE_POLICY = {
             "explicit acceptance fields and one requested artifact"
         ),
         "routing_markers": (
-            "Material structured test-output triage",
-            "Material bounded log corpus",
+            "Structured multi-file test or bounded log evidence",
             "`evidence_tester`",
         ),
     },
@@ -46,7 +44,7 @@ ROLE_PROFILE_POLICY = {
             "a targeted primary check"
         ),
         "routing_markers": (
-            "Named unresolved cross-component boundary",
+            "One unresolved cross-component execution boundary",
             "`boundary_mapper`",
         ),
     },
@@ -57,7 +55,7 @@ ROLE_PROFILE_POLICY = {
             "acceptance invariants"
         ),
         "routing_markers": (
-            "Required independent high-risk final gate",
+            "Independent high-risk final decision",
             "fresh `risk_reviewer`",
         ),
     },
@@ -69,17 +67,15 @@ ROLE_PROFILE_POLICY = {
             "authorization, or data-integrity decision"
         ),
         "routing_markers": (
-            "One `risk_reviewer_max`",
-            "only for sufficient evidence",
+            "`risk_reviewer_max` is available only",
         ),
     },
 }
 ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
     "preserve-permission-boundaries",
-    "preserve-governed-leaf-non-recursion",
-    "preserve-bounded-peer-depth",
-    "preserve-peer-message-boundary",
+    "preserve-leaf-non-recursion",
+    "preserve-user-checkpoints",
     "preserve-terminal-collection",
     "preserve-output-language-contract",
     "treat-model-and-effort-values-as-client-specific-hints",
@@ -168,6 +164,7 @@ def verify_portability() -> None:
             "scope",
             "single-writer-integration",
             "conflict-handling",
+            "user-checkpoints",
             "final-acceptance",
         ],
     }:
@@ -187,38 +184,27 @@ def verify_portability() -> None:
             "id": "explorer",
             "topology": "leaf",
             "eligibility": (
-                "material narrow read-only question with host-owner-sealed manifest "
-                "whose scan replaces primary exploration"
+                "material narrow read-only codebase question whose focused scan "
+                "replaces primary exploration"
             ),
         },
         {
             "id": "worker",
             "topology": "leaf",
             "eligibility": (
-                "scoped implementation or fix with host-owner-sealed manifest, "
-                "settled strategy, and disjoint task-wide writer ownership"
+                "scoped implementation or fix with settled strategy and disjoint "
+                "writer ownership"
             ),
-        },
-        {
-            "id": "default",
-            "topology": "bounded-peer",
-            "eligibility": (
-                "material dependency graph where direct evidence handoff avoids "
-                "primary relay and current client capability is proven"
-            ),
-            "delegation_depth": 1,
-            "leaf_descendant_cap": 2,
         },
     ]
     if profile.get("builtin_routes") != expected_builtin_routes:
         fail("portable profile built-in routes drift from routing ownership")
     if profile.get("concurrency") != {
         "runtime_thread_cap": config["max_concurrent_threads_per_session"],
-        "qualified_direct_child_cap": 3,
-        "fourth_direct_child_requires_user_authorization": True,
-        "bounded_peer_coordinator_cap": 1,
-        "bounded_peer_leaf_descendant_cap": 2,
-        "wait_timeout_is_terminal": False,
+        "ordinary_first_wave_child_cap": 2,
+        "ordinary_first_wave_writer_cap": 1,
+        "later_wave_requires_user_checkpoint": True,
+        "explicit_final_review_cap": 3,
     }:
         fail("portable profile concurrency drifts from routing/config ownership")
 
@@ -264,19 +250,6 @@ def verify_portability() -> None:
             if marker not in routing_policy:
                 fail(f"routing policy no longer proves profile role {role}: {marker}")
 
-    expected_typed_fields = {
-        "topology": "leaf-or-bounded-peer",
-        "delegation_depth": "zero-or-one",
-        "message_peers": "none-or-task-names-plus-evidence-dependency-purpose",
-        "context_policy": "fresh-or-inherited-plus-material-reason",
-        "acceptance_fields": "not-applicable-or-one-or-more-exact-output-heading-labels",
-        "named_invariants": "not-applicable-or-one-or-more-exact-gate-invariants",
-        "escalation_receipt": (
-            "not-applicable-or-prior-terminal-line-plus-sufficient-evidence-plus-"
-            "competing-explanations-plus-irreversible-decision"
-        ),
-        "artifact_contract": "none-or-path-or-body-plus-format-plus-writer-plus-transfer-rule",
-    }
     handoff = profile.get("handoff")
     expected_handoff = {
         "contract_reference": (
@@ -284,96 +257,14 @@ def verify_portability() -> None:
         ),
         "state_bound": True,
         "context_default": "fresh",
-        "governed_custom_roles_non_recursive": True,
-        "bounded_peer_delegation_depth": 1,
-        "peer_messages": "disabled-for-custom-and-unregistered-peers",
-        "fork_context": "none-only",
-        "slice_open_required": True,
-        "materiality_manifest_issuer": "host-owner-or-sealed-harness",
-        "authority_receipts": "host-provided-outside-trace-separate-document",
-        "required_typed_fields": expected_typed_fields,
+        "children_are_leaves": True,
+        "peer_messages": "none",
+        "later_wave_requires_user_checkpoint": True,
         "user_facing_language": "user-preferred",
         "model_facing_language": "English",
     }
     if handoff != expected_handoff:
         fail("portable profile handoff contract mismatch")
-    if profile.get("evidence_bus") != {
-        "trace_scenario_task_identity": "one-scenario-per-nonempty-unique-task-id",
-        "task_wide_state_rollover": "events-only-no-ledger-reset",
-        "primary_access_attribution": "task-wide",
-        "precheck_and_sampling_max_percent": 10,
-        "sampling_denominator": "frozen-task-wide",
-        "materiality_digest": "canonical-payload-bound",
-        "materiality_issuer_class": "trace-external-host-owner-or-sealed-harness",
-        "materiality_issuer_participant_exclusion": (
-            "preindexed-primary-child-parent-role-and-agent-identities"
-        ),
-        "primary_access_receipt": "canonical-payload-plus-external-authority-bound",
-        "external_receipt_issuer_classes": (
-            "primary-access-materiality:host-owner-sealed-harness;"
-            "compaction-message:host-owner;peer-capability-relay-pilot:host"
-        ),
-        "external_receipt_participant_exclusion": (
-            "preindexed-current-and-future-task-identities-at-consumption"
-        ),
-        "work_transfer_schema": "complete-exact-key-canonical-snake-case",
-        "work_transfer_spawn_binding": "route-topology-and-delegation-depth",
-        "role_specific_transfer_semantics": (
-            "tester-acceptance-path-artifact;"
-            "reviewer-invariants-escalation-optional-markdown-body"
-        ),
-        "reviewer_gate_invariant_binding": (
-            "transfer-equals-registry-equals-result-owner"
-        ),
-        "send_message_digest": "canonical-semantic-payload-excluding-authority-anchor-and-digest-fields",
-        "send_message_admission": "external-receipt-plus-original-transfer-scope",
-        "send_message_authority_binding": (
-            "producer-consumer-task-slice-scope-purpose-receipt-dependency-digest-"
-            "message-digest"
-        ),
-        "peer_relay_purpose": "artifact_receipt-only",
-        "peer_relay_artifact_binding": (
-            "named-producer-terminal-receipt-plus-consumer-transfer"
-        ),
-        "integration_source_ranges_and_bytes": "zero-only",
-        "followup_scope": "original-work-transfer-digest",
-        "full_history_eligible": False,
-        "send_message_purposes": ["evidence", "dependency_status", "artifact_receipt"],
-        "followup_reasons": ["new_failure_evidence", "missing_acceptance_field", "authorized_continue"],
-    }:
-        fail("portable profile evidence bus mismatch")
-    if profile.get("lifecycle") != {
-        "freeze_after_all_task_workers_terminal": True,
-        "post_freeze_writer_owner_mutation": "fail-closed-and-invalidate-generation",
-        "readback_fields": ["head", "index", "worktree", "changed_paths"],
-        "writer_compaction_cap_per_task_owner_component": 2,
-        "writer_compaction_authority": "external-cumulative-receipt",
-        "writer_cap_per_slice": 1,
-        "slice_writer_scope_binding": "writer-paths-component-and-path-artifacts",
-        "owner_alias_union_reasons": ["overlap", "rename", "split", "merge"],
-        "disjoint_final_gate_count": 3,
-        "hash_change_invalidates_all_gates": True,
-        "close_requires_terminal_tree": True,
-    }:
-        fail("portable profile lifecycle mismatch")
-    if profile.get("evidence_tiers") != [
-        "implemented", "verified-local", "verified-ci", "verified-target", "pilot-signed"
-    ]:
-        fail("portable profile evidence tier chain mismatch")
-    if profile.get("pilot") != {
-        "host_issued_admission_required": True,
-        "auto_create_task": False,
-        "excluded_active_task_ids_required": True,
-        "self_issued_or_proxy_receipt": "reject",
-        "receipt_digest": "canonical-payload-bound",
-        "validity_evaluated_at": "observed_at",
-        "authorization_anchor": "host-provided-outside-trace",
-        "authorization_text_and_contract_bound": True,
-        "revision": "exact-frozen-head-and-generation-bound",
-        "actions_and_exclusions": "nonempty-strings",
-        "action_normalization": "reject-create-task-separator-and-camel-variants",
-    }:
-        fail("portable profile pilot admission mismatch")
     if not (ROOT / expected_handoff["contract_reference"]).is_file():
         fail("portable profile handoff reference is missing")
     if profile.get("adapter_requirements") != ADAPTER_REQUIREMENTS:
@@ -384,12 +275,6 @@ def verify_portability() -> None:
         for marker in (f"built-in `{route['id']}`", route["topology"]):
             if marker not in routing_policy:
                 fail(f"routing policy no longer proves built-in route {route['id']}: {marker}")
-    delegation_contract = (ROOT / expected_handoff["contract_reference"]).read_text(
-        encoding="utf-8"
-    )
-    for requirement in ADAPTER_REQUIREMENTS:
-        if f"`{requirement}`" not in delegation_contract:
-            fail(f"delegation contract is missing adapter requirement: {requirement}")
 
 
 def verify_manifest_builder() -> None:
@@ -421,46 +306,21 @@ def run(command: list[str]) -> str:
 
 def verify_hermetic_install() -> None:
     with tempfile.TemporaryDirectory() as temporary:
-        archive_root = Path(temporary) / "manifest-archive"
-        archive_root.mkdir()
-        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-        for item in manifest["files"]:
-            source = ROOT / item["path"]
-            destination = archive_root / item["path"]
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
-        shutil.copy2(MANIFEST, archive_root / "manifest.json")
         for language in ("en", "zh"):
             codex_home = Path(temporary) / f"codex-home-{language}"
             command = [
                 sys.executable,
                 "-B",
-                str(archive_root / "install.py"),
+                str(ROOT / "install.py"),
                 "--codex-home",
                 str(codex_home),
                 "--agents-language",
                 language,
             ]
-            check_output = run(command + ["--check", "--format", "json"])
-            try:
-                plan_receipt = json.loads(check_output)
-            except ValueError as error:
-                fail(f"{language}: empty-home preflight emitted invalid JSON: {error}")
-            if (
-                not isinstance(plan_receipt, dict)
-                or plan_receipt.get("format_version") != 1
-                or plan_receipt.get("package_id") != "subagent-orchestrator"
-                or not isinstance(plan_receipt.get("targets"), list)
-                or not plan_receipt["targets"]
-            ):
-                fail(f"{language}: empty-home preflight emitted an invalid plan receipt")
-            receipt_path = Path(temporary) / f"plan-receipt-{language}.json"
-            try:
-                with receipt_path.open("x", encoding="utf-8") as stream:
-                    stream.write(check_output)
-            except OSError as error:
-                fail(f"{language}: cannot preserve plan receipt: {error}")
-            run(command + ["--apply", "--plan-receipt", str(receipt_path)])
+            check_output = run(command + ["--check"])
+            if "WOULD_TOUCH" not in check_output:
+                fail(f"{language}: empty-home preflight produced no touched-path hashes")
+            run(command + ["--apply"])
             second_check = run(command + ["--check"])
             if "0 path(s) would change" not in second_check:
                 fail(f"{language}: installer is not idempotent")

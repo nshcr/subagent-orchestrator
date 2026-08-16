@@ -1,7 +1,7 @@
 interface:
   display_name: "Subagent Orchestrator"
-  short_description: "Evidence-backed delegation routing"
-  default_prompt: "Use $subagent-orchestrator to decide whether to delegate this task, then follow the selected route without expanding scope."
+  short_description: "Efficient delegation with user checkpoints"
+  default_prompt: "Use $subagent-orchestrator to delegate only material work, stop reviewer-driven scope growth, and checkpoint with me before another wave."
 
 policy:
   allow_implicit_invocation: true

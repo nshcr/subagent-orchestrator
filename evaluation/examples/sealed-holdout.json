@@ -8,7 +8,7 @@
     "all_records_valid": true,
     "all_tested_threads_terminal_before_archive": true,
     "archive_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "receipt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "results_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
   "execution_order": [
@@ -31,11 +31,8 @@
         "evidence_tester"
       ],
       "fixture_family": "public-sealed",
-      "fixture_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "holdout": true,
       "instance_id": "sealed-smoke",
-      "prompt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-      "rubric_sha256": "175477d27e98477551afa3de27d6792b128110b4fa9a37de7a87783d4303eb0c",
       "runs": {
         "baseline": {
           "child_count": 1,
@@ -57,20 +54,6 @@
           "quality_checks": [
             {
               "critical": true,
-              "evidence": {
-                "artifact_sha256": "2494d8d42b3881b45177307b51b864a2f0be56d75fe75dec6f2b9b3c30cf0ed5",
-                "artifact_source_id": "sidecar://sealed-smoke/baseline/grounded-result",
-                "grader_execution": {
-                  "artifact_source_id": "sidecar://sealed-smoke/baseline/grounded-result",
-                  "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-                  "evidence_artifact_sha256": "2494d8d42b3881b45177307b51b864a2f0be56d75fe75dec6f2b9b3c30cf0ed5",
-                  "exit_code": 0,
-                  "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                  "receipt_sha256": "4a3eeb2c8cc733d63f15f58f8eabeb0597b84e137c147074766e2d065477b9c6",
-                  "result_sha256": "b9d47a6beb8fea72e0c0dd2361b01652189d588926553cf82ae319ecbd161a87"
-                },
-                "kind": "behavior"
-              },
               "id": "grounded-result",
               "max_score": 10,
               "passed": true,
@@ -159,20 +142,6 @@
           "quality_checks": [
             {
               "critical": true,
-              "evidence": {
-                "artifact_sha256": "2d998773f2ddc1338387a0a9eaf15ce9096e715d3d6abf30662df3df4a032848",
-                "artifact_source_id": "sidecar://sealed-smoke/custom/grounded-result",
-                "grader_execution": {
-                  "artifact_source_id": "sidecar://sealed-smoke/custom/grounded-result",
-                  "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-                  "evidence_artifact_sha256": "2d998773f2ddc1338387a0a9eaf15ce9096e715d3d6abf30662df3df4a032848",
-                  "exit_code": 0,
-                  "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                  "receipt_sha256": "8c713b6ea2c4b2312c2332d81b6590708f12655fd6a8ebe089e2e89fa6d120c0",
-                  "result_sha256": "d0fff49b0fb44b54c65590e3390d653a73a15d748b0756f3500700330eebd1ac"
-                },
-                "kind": "behavior"
-              },
               "id": "grounded-result",
               "max_score": 10,
               "passed": true,
@@ -246,7 +215,7 @@
       "task_class": "test-triage"
     }
   ],
-  "schema_version": 5,
+  "schema_version": 1,
   "seal": {
     "agent_visibility_boundary_enforced": true,
     "expected_answers_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -255,7 +224,7 @@
     "harness_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "live_configuration_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "prompts_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "receipt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "runner_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "runner_unlinked_before_agents": true,
     "seal_id": "external-seal-1"

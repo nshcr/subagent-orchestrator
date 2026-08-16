@@ -6,18 +6,17 @@
   "additionalProperties": false,
   "required": ["schema_version", "campaign_id", "configuration_hashes", "allowed_baseline_roles", "class_policies", "execution_order", "instances"],
   "properties": {
-    "schema_version": {"const": 5},
+    "schema_version": {"const": 1},
     "campaign_id": {"$ref": "#/$defs/string"},
     "configuration_hashes": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["role_instructions", "routing_policy", "task_fixtures", "graders", "grader_execution_authority_receipt", "pricing"],
+      "required": ["role_instructions", "routing_policy", "task_fixtures", "graders", "pricing"],
       "properties": {
         "role_instructions": {"$ref": "#/$defs/sha256"},
         "routing_policy": {"$ref": "#/$defs/sha256"},
         "task_fixtures": {"$ref": "#/$defs/sha256"},
         "graders": {"$ref": "#/$defs/sha256"},
-        "grader_execution_authority_receipt": {"$ref": "#/$defs/sha256"},
         "pricing": {"$ref": "#/$defs/sha256"}
       }
     },
@@ -87,14 +86,11 @@
     "instance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["instance_id", "task_class", "fixture_family", "fixture_sha256", "prompt_sha256", "rubric_sha256", "scenario", "expected_roles", "holdout", "arm_order", "runs"],
+      "required": ["instance_id", "task_class", "fixture_family", "scenario", "expected_roles", "holdout", "arm_order", "runs"],
       "properties": {
         "instance_id": {"$ref": "#/$defs/string"},
         "task_class": {"$ref": "#/$defs/string"},
         "fixture_family": {"$ref": "#/$defs/string"},
-        "fixture_sha256": {"$ref": "#/$defs/sha256"},
-        "prompt_sha256": {"$ref": "#/$defs/sha256"},
-        "rubric_sha256": {"$ref": "#/$defs/sha256"},
         "scenario": {"$ref": "#/$defs/string"},
         "expected_roles": {"$ref": "#/$defs/stringList"},
         "holdout": {"type": "boolean"},
@@ -155,14 +151,7 @@
         "service_tier": {"const": "default"},
         "tokens": {"$ref": "#/$defs/tokens"},
         "credits": {"$ref": "#/$defs/credits"}
-      },
-      "allOf": [
-        {
-          "if": {"properties": {"cost_complete": {"const": true}}},
-          "then": {"properties": {"credits": {"$ref": "#/$defs/exactCredits"}}},
-          "else": {"properties": {"credits": {"$ref": "#/$defs/unavailableCredits"}}}
-        }
-      ]
+      }
     },
     "tokens": {
       "type": "object",
@@ -182,64 +171,22 @@
       "additionalProperties": false,
       "required": ["uncached_input", "cached_input", "output", "total"],
       "properties": {
-        "uncached_input": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
-        "cached_input": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
-        "output": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
-        "total": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]}
-      }
-    },
-    "exactCredits": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["uncached_input", "cached_input", "output", "total"],
-      "properties": {
-        "uncached_input": {"$ref": "#/$defs/decimal"}, "cached_input": {"$ref": "#/$defs/decimal"},
-        "output": {"$ref": "#/$defs/decimal"}, "total": {"$ref": "#/$defs/decimal"}
-      }
-    },
-    "unavailableCredits": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["uncached_input", "cached_input", "output", "total"],
-      "properties": {
-        "uncached_input": {"type": "null"}, "cached_input": {"type": "null"},
-        "output": {"type": "null"}, "total": {"type": "null"}
+        "uncached_input": {"$ref": "#/$defs/decimal"},
+        "cached_input": {"$ref": "#/$defs/decimal"},
+        "output": {"$ref": "#/$defs/decimal"},
+        "total": {"$ref": "#/$defs/decimal"}
       }
     },
     "check": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "passed", "critical", "score", "max_score", "evidence"],
+      "required": ["id", "passed", "critical", "score", "max_score"],
       "properties": {
         "id": {"$ref": "#/$defs/string"},
         "passed": {"type": "boolean"},
         "critical": {"type": "boolean"},
         "score": {"type": "integer", "minimum": 0},
-        "max_score": {"type": "integer", "minimum": 1},
-        "evidence": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind", "artifact_sha256", "artifact_source_id", "grader_execution"],
-          "properties": {
-            "kind": {"enum": ["behavior", "source-fact"]},
-            "artifact_sha256": {"$ref": "#/$defs/sha256"},
-            "artifact_source_id": {"$ref": "#/$defs/string"},
-            "grader_execution": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["receipt_sha256", "authority_receipt_sha256", "grader_sha256", "evidence_artifact_sha256", "artifact_source_id", "result_sha256", "exit_code"],
-              "properties": {
-                "receipt_sha256": {"$ref": "#/$defs/sha256"},
-                "authority_receipt_sha256": {"$ref": "#/$defs/sha256"},
-                "grader_sha256": {"$ref": "#/$defs/sha256"},
-                "evidence_artifact_sha256": {"$ref": "#/$defs/sha256"},
-                "artifact_source_id": {"$ref": "#/$defs/string"},
-                "result_sha256": {"$ref": "#/$defs/sha256"},
-                "exit_code": {"const": 0}
-              }
-            }
-          }
-        }
+        "max_score": {"type": "integer", "minimum": 1}
       }
     }
   }

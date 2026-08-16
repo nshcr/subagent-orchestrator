@@ -30,8 +30,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "d95edd8a2fc49849b08d5e64aef5259f99d9427ac0b696cf797e6656a66801b4",
-      "size": 20224
+      "sha256": "33390d8963a1a7f486bf275643c7558869669d4fd93e1225741bb54509c75fe2",
+      "size": 10199
     },
     {
       "path": "build_manifest.py",
@@ -40,13 +40,13 @@
     },
     {
       "path": "evaluation/README.md",
-      "sha256": "290136ece98c7d0ea13fc6057546e21f115f8c249ea476ae30accfefc405d1a3",
-      "size": 14848
+      "sha256": "df0d1774d816801724a4be251ee067c813cb305a1257f1d1310f07d0440ad85a",
+      "size": 5535
     },
     {
       "path": "evaluation/__init__.py",
-      "sha256": "257e23083155bcc45afbf72655ab0294604c4b9fb14e2767a6bb7d6bcadefee6",
-      "size": 532
+      "sha256": "60f9390b8062a0ab6e7b06bb4b8974f6bd9a33b825a7255943d57e9b79005597",
+      "size": 243
     },
     {
       "path": "evaluation/__main__.py",
@@ -55,93 +55,48 @@
     },
     {
       "path": "evaluation/campaign.py",
-      "sha256": "8c43dea5359f6ec9c10a2aa1d53751de76939daf942fb0fa4f87e56ba58854df",
-      "size": 73410
+      "sha256": "8784ad02fa06934b3458c04b9aaefd5fd30c0893c14d8252d3ad7195b3e55cb9",
+      "size": 42846
     },
     {
       "path": "evaluation/campaign.schema.json",
-      "sha256": "1eb55a08cce22275c9fa5464c803aa43f3b58bede73cc94e5c016eea40b073f2",
-      "size": 10730
-    },
-    {
-      "path": "evaluation/evidence-tier.schema.json",
-      "sha256": "3ba9329ef8e8388bdc5c33fa6a19ce914695f1033fa099931021b07614236e0b",
-      "size": 4194
-    },
-    {
-      "path": "evaluation/evidence_tiers.py",
-      "sha256": "0783aa4d2041956013b7771ce1c00ac15f90333c27e7ee25ecef8a76ed4eb014",
-      "size": 5946
+      "sha256": "63015e4f788a94ab38302d0bed8ee4da397a8f0a8cf0792ab609e00aabd38c90",
+      "size": 8082
     },
     {
       "path": "evaluation/examples/campaign.json",
-      "sha256": "c37ba0344e504039086770d829adb5bee4fb8a77f9cb955bdd55d7124dac7da5",
-      "size": 9241
-    },
-    {
-      "path": "evaluation/examples/evidence-tier-implemented.json",
-      "sha256": "9a2c5c1c7a876905a41c04066242f6add31688434234e7c5dc6f6c38261291df",
-      "size": 610
-    },
-    {
-      "path": "evaluation/examples/quality-authority-development.json",
-      "sha256": "35968312006fd4a44f5df9dbbc6087f8b7b5eb362e93ce049ffd7e095ecd5288",
-      "size": 5014
-    },
-    {
-      "path": "evaluation/examples/quality-authority-sealed.json",
-      "sha256": "6590a6319587e92dab2efc69d860a6ae5410c7499f02b440132f0f78d919bfaa",
-      "size": 4954
+      "sha256": "46c05eb13ea43d9a4abdd3f46db7b63df24d495029ef9ddda2028b580b81d9d7",
+      "size": 6859
     },
     {
       "path": "evaluation/examples/sealed-holdout.json",
-      "sha256": "3304ca08ffd4870efd5486a0cd9156b44778dfb1245ce4892ea8fc3039b4a037",
-      "size": 9795
-    },
-    {
-      "path": "evaluation/production-fact.schema.json",
-      "sha256": "d4c2ba52a6142bdf121549ba73c7f349b297b4f04734c0d23c2b1c532bab248a",
-      "size": 10708
-    },
-    {
-      "path": "evaluation/production_facts.py",
-      "sha256": "2e6e7f118e6b406de24f87fcf6a6c6e931af6af714fc38200e7d8e19c74186e2",
-      "size": 45528
-    },
-    {
-      "path": "evaluation/quality-authority.schema.json",
-      "sha256": "d8b996b27b4819b1029e0b0bf6c54ff3f051e03ac4fdf889d29d56243ee2f790",
-      "size": 4477
+      "sha256": "4846f149b8f0aa204aa592cd7558f968920235e2429342f929f799544c2fe113",
+      "size": 7543
     },
     {
       "path": "evaluation/sealed-holdout.schema.json",
-      "sha256": "aafa235768e21b1a47a3a6b9fbeffe43f8b6b32617fcba7ea285ea1ecf6bfdd1",
+      "sha256": "00370a1c085f6ebeb55acabbf94968b99b2f94d44cac833e123ebdad948ba615",
       "size": 2779
     },
     {
-      "path": "evaluation/trusted_quality_issuers.py",
-      "sha256": "b686b5a0f82128ada15ae8a3333be7bb0aa6988966281a3e84284e2d7af26eed",
-      "size": 1136
-    },
-    {
       "path": "install-migrations.json",
-      "sha256": "f43aa986d7e8fc7c5f595ca71c266f7a63cb282d9bd643ab2e0923bddd9d2bfb",
-      "size": 560
+      "sha256": "11470397befad0f23b3d69b0e123482b282f257b2cd467a8fb611988403fd1fd",
+      "size": 1042
     },
     {
       "path": "install.py",
-      "sha256": "c49d76732cb8b70b93b5de3445c3f3f5af1ada6369b76273fd9e5b1f43e63c4e",
-      "size": 156393
+      "sha256": "f3735304fa811ff54f84b8cb9acc6084f394f010d083f3fbd819054f31c8cfb5",
+      "size": 59446
     },
     {
       "path": "payload/AGENTS.section.en.md",
-      "sha256": "514a3268e0e348a252ffae5b388a35921a395312cd2f9750109d2d4d7c17bda6",
-      "size": 1987
+      "sha256": "c9f5606745d01523349caee7405035ac6b2b73696bbbd7dfc5a48ee56bda39c0",
+      "size": 944
     },
     {
       "path": "payload/AGENTS.section.zh.md",
-      "sha256": "864055779486d6d94cb45f04b73baf2100ad05af924008fb24339b6bd1360d66",
-      "size": 1906
+      "sha256": "a2d656b4eca65e494787a46874925a2ab32247340c8953a599354643eda0cda9",
+      "size": 875
     },
     {
       "path": "payload/agents/boundary_mapper.toml",
@@ -170,73 +125,53 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/SKILL.md",
-      "sha256": "ecf218e1923a707a001ecbc4336ea974b5d4b67748cf22e1f3d394d933d88fca",
-      "size": 4977
+      "sha256": "1164254db33f899118db1d49a07d83f02cdad1e06ef8dd6be60c002c1d7a0680",
+      "size": 4180
     },
     {
       "path": "payload/skills/subagent-orchestrator/agents/openai.yaml",
-      "sha256": "ea4f34eb93016c580f09fd1e22c6920a78dfe51aeb43e9343ef051b4cc8479a3",
-      "size": 296
+      "sha256": "2e5f9d0dd4b64061dedf7aae5a53d49fa903efa280f7b539b93e08f9a206a18b",
+      "size": 318
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
-      "sha256": "592f5c33f64abd8ffa3f04cbba6c0cf65342a0f5ff01a6513a5e3fb8d3001837",
-      "size": 9148
+      "sha256": "df218bdca65ff1e85b6b28a5c039514397b308f7d645b1fe6ded11af35ec3af1",
+      "size": 1671
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/evaluation-policy.md",
-      "sha256": "6feb335f607b667e74f4cd87df425fbd2b05372e59c294e7742ae43d86d711c5",
-      "size": 5750
+      "sha256": "c4ce693cbe252394580f9d7993c4b056f0f9391d06100459854551176a39c75d",
+      "size": 2401
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/routing-policy.md",
-      "sha256": "838094a6da58d863eff3885e3e2e64a2e61711636181f18a9caf9d86eda2ac09",
-      "size": 6869
-    },
-    {
-      "path": "payload/skills/subagent-orchestrator/scripts/lifecycle_conformance.py",
-      "sha256": "fe1d64292cc40f0908cca5a022b3927609568c159d08c9e2935b7f880c0354f1",
-      "size": 65459
+      "sha256": "d73603b740f0bc03d17c6d8022db4934dc28021164c412ef0a93c2c16c5332c7",
+      "size": 2633
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "b4756a15a0f4692712fb0a62bd04b54a38e4fffea142a2bbe208ae28b02e98e6",
-      "size": 31805
-    },
-    {
-      "path": "payload/skills/subagent-orchestrator/tests/fixtures/lifecycle-authority-receipts.json",
-      "sha256": "bcb360e9e21528f8bfc54427c2962b83488f171976ec604af745730783cdb1d1",
-      "size": 6252
-    },
-    {
-      "path": "payload/skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json",
-      "sha256": "55819002097e0fe4b08f9b44e9c1adc920ed8e9bf100ff659e1f62cffd8235b9",
-      "size": 34576
-    },
-    {
-      "path": "payload/skills/subagent-orchestrator/tests/test_lifecycle_conformance.py",
-      "sha256": "1b4679d58c4a715bc4b3b050554d426143a0ae595f057baeaabed622abe5cb7a",
-      "size": 50425
+      "sha256": "03112b0fa2557f6aeb0a3dd42ccf5dc36f1badfb718c4f5f66a0ae1d6e5b4fb9",
+      "size": 12217
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
-      "sha256": "5afe1fc143f319f9bff454b5e731ee880c4508707f19d9d0bec60e7b2ff906ad",
-      "size": 24408
+      "sha256": "8866a05d439413be8843a1c041f4a2115a85f7f840606b868b5024968d17aa47",
+      "size": 5227
     },
     {
       "path": "portable-profile.json",
-      "sha256": "1e6964ad8aed417b5dcc5e763f1ee352c183e20f806a3bd25817659c78ba7e8e",
-      "size": 8542
+      "sha256": "cf20b81805a9f92e36746322dba1e50a41a39d1b9c5b4269e2d41fa563701c25",
+      "size": 3748
     },
     {
       "path": "tests/test_evaluation.py",
-      "sha256": "b99d793b9b9cb2507c1629403a8556c060c6d32f88d4a620e92ee3bc58501e97",
-      "size": 98422
+      "sha256": "e6c6e746c992158802c424f087562c22caa7460a46a8bc7784808218e8c59197",
+      "size": 20347
     },
     {
       "path": "tests/test_install.py",
-      "sha256": "62a544135db3b4a749211cb4e9ed493147f38882a860de45b341c1944a812b11",
-      "size": 103925
+      "sha256": "3e0d094c90a717ff9b38e3fb768bb498749da84e12411dfdd5fb9c1d778f0783",
+      "size": 45479
     },
     {
       "path": "tests/test_manifest.py",
@@ -245,13 +180,13 @@
     },
     {
       "path": "tests/test_profile.py",
-      "sha256": "927a777da366559d025c3d0c86248620bc0650c3e51f79e46cc4e1515a086718",
-      "size": 5584
+      "sha256": "7b0b793590ac8ff1ca0f91923893ea305e9dd177e79b138832ce5070d7293142",
+      "size": 5596
     },
     {
       "path": "validate.py",
-      "sha256": "e2656308c00a1910b4ee42393ea3518c65f5fdb06b81e4839448d3a500fb842a",
-      "size": 21004
+      "sha256": "a3892570413583c3d93048d31770a0f8bd1ec49b32b98c6e37ddc9a6d8709670",
+      "size": 13629
     }
   ],
   "format_version": 1,

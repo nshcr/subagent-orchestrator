@@ -88,26 +88,26 @@ class PortableProfileContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "model_hint mismatch"):
             self.validate()
 
-    def test_rejects_handoff_schema_drift(self):
+    def test_rejects_user_checkpoint_drift(self):
         document = self.profile()
-        del document["handoff"]["required_typed_fields"]["named_invariants"]
+        document["handoff"]["later_wave_requires_user_checkpoint"] = False
         self.write_profile(document)
         with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
             self.validate()
 
-    def test_rejects_bounded_peer_route_or_cap_drift(self):
+    def test_rejects_leaf_route_or_first_wave_cap_drift(self):
         mutations = (
-            ("route", lambda document: document["builtin_routes"][2].update(topology="leaf")),
+            ("route", lambda document: document["builtin_routes"][0].update(topology="bounded-peer")),
             (
-                "depth",
-                lambda document: document["handoff"].update(
-                    bounded_peer_delegation_depth=2
+                "child-cap",
+                lambda document: document["concurrency"].update(
+                    ordinary_first_wave_child_cap=3
                 ),
             ),
             (
-                "descendant-cap",
+                "writer-cap",
                 lambda document: document["concurrency"].update(
-                    bounded_peer_leaf_descendant_cap=3
+                    ordinary_first_wave_writer_cap=2
                 ),
             ),
         )

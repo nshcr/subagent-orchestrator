@@ -1,13 +1,30 @@
 {
   "accepted_install_contracts": [
-    "22dc101c1d7238e143d9438ef6efee2b45f652cb032aa224e6f35345082abf8b",
-    "24e545209e9c1527318d49c2590559016c3d65e3f9a8ccb4d3b7232fc65ad840",
-    "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483",
-    "b1d3ff51829c0129efdf0f0d7a5cfb64746951d2137a575712ad1412d5c2cd46",
-    "b84916be372dc404cb58dfab7c40f7fb897d4e87c6a6655adf858d3b4126ec65",
-    "91f9f7d927aa8776e83f4f0f1c4e813d3af2fdc42090782e998e06befd62d1fe"
+    "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483"
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "retired_paths": []
+  "retired_paths": [
+    {
+      "accepted_sha256": [
+        "20f079efefc871617e83abf6c047433d9ab9e840a784fc53e156dabbfa45371b",
+        "4f0ee07cd211e300d1a7e8403611d227bf7cc34d9143b4041201ae0f8c591add"
+      ],
+      "path": "skills/subagent-orchestrator/scripts/lifecycle_conformance.py"
+    },
+    {
+      "accepted_sha256": [
+        "54c26f25b74909e8df7aa3aedea90926b6a0a7283bc4be8a940b6fdd018f8e42",
+        "f61c224b5ab8ef26dd1a0c0010ac3b5525499647f90771945d52468817c94535"
+      ],
+      "path": "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json"
+    },
+    {
+      "accepted_sha256": [
+        "61be44517b12093a429ce1a81a3f365381850e32deac73b6f8c212acde74f5ad",
+        "e5db6b19f5de2fe41f44af5468409891f3f5aaf54563ff77dc8e03ee0c38ac0c"
+      ],
+      "path": "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py"
+    }
+  ]
 }

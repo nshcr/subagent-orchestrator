@@ -1,4 +1,5 @@
 ## 子代理与并行
 
-- 默认单代理。仅当用户明确要求委派/并行，或一个经宿主/owner 准入的边界清晰子任务能替代可观的主代理工作或提供必需独立门禁时，使用 `$subagent-orchestrator`；复杂度、文件数、可拆分性或空闲并发本身不构成委派理由。
-- 委派后遵循该 skill 当前的证据总线切片、路由、拓扑、全任务所有权与账本、不可变交接、trace 外宿主受信凭据、等待、冻结、消息和门禁规则；一个唯一任务只占一个 trace scenario，rollover 不得重置全任务状态。slice owner paths 必须绑定每个 writer path/component 与 path artifact；每个 work transfer 使用完整、精确 key 的规范 schema，绑定 spawn depth，并执行 tester 的 acceptance 加单一路径 artifact，以及 reviewer 的 invariant/escalation 加可选规范 Markdown body 语义。每类外部收据在消费时都必须绑定获准 issuer class，并拒绝 primary 或任何预索引的当前/未来 child、parent、role、agent 身份充当 issuer。trace 哈希只绑定 payload，不能证明发行者身份；消息 authority 必须绑定精确 purpose、规范 dependency 摘要和语义消息摘要，受限 peer 的 artifact relay 必须来自具名 producer 的终态收据。冻结前所有 slice 的全任务 writer 都必须终态；后续 writer/owner 变更会使冻结和全部门禁失效。高风险最终状态必须在同一文件系统哈希上接受 fresh、独立、只读且互不重叠的门禁，且 reviewer transfer invariants 必须等于对应 registry/result ownership。主代理始终保留授权、范围、冲突处理、整合和最终验收；子代理不得扩权，治理角色保持叶子，仅同时通过能力与实质 relay 准入的受限协作代理可继续委派一层，所有必需后代在主代理结束前必须到达终态。
+- 默认单代理。仅当用户明确要求委派、一个有界叶子能替代主代理的实质工作，或必须提供一次独立高风险终态门禁时，使用 `$subagent-orchestrator`。如果主代理主要只剩编排、轮询或等待，就应直接完成工作。
+- 普通首轮最多两个叶子子代理且只有一个写入者。未经用户检查点，不得开始嵌套委派、第二轮派生、第二个写入者、范围扩张或 reviewer 重跑；用户明确要求最终多视角评审时，只允许一批最多三个、invariant 互斥的 reviewer。
+- Reviewer 只审一个冻结状态和命名 invariant。先收齐首批问题，再做一次修复和一次 fresh 复检；仍有 BLOCK 就把决定权交还用户。验收范围外的建议一律延期，静态 harness 检查不得冒充宿主强制或生产效率证明。
