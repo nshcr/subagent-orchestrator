@@ -81,8 +81,8 @@
     },
     {
       "path": "install-migrations.json",
-      "sha256": "11470397befad0f23b3d69b0e123482b282f257b2cd467a8fb611988403fd1fd",
-      "size": 1042
+      "sha256": "7331ab11580a2db4d11225826a826f00e158b3aba12c9563d2c62572da490bf2",
+      "size": 1114
     },
     {
       "path": "install.py",
@@ -171,8 +171,8 @@
     },
     {
       "path": "tests/test_install.py",
-      "sha256": "0985b3405c919db635faf5a5800efb46ae66379fce9e62e7ab91ee5a1befa830",
-      "size": 45578
+      "sha256": "5a4d9a92fe13b568423af0e69f429df389def164bc372f55912c09b371499a75",
+      "size": 46228
     },
     {
       "path": "tests/test_manifest.py",

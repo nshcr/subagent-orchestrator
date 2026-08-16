@@ -346,25 +346,34 @@ raise SystemExit(module.main())
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("install-contract lineage is not accepted", result.stderr)
 
-    def test_current_v2_install_contract_lineage_is_accepted(self):
-        installed = self.run_installer("--apply")
-        self.assertEqual(installed.returncode, 0, installed.stderr)
-        state = json.loads(self.state_path().read_text())
-        state["install_contract_sha256"] = (
-            "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483"
-        )
-        self.state_path().write_text(
-            json.dumps(state, indent=2, sort_keys=True) + "\n"
-        )
-
-        result = self.run_installer("--apply")
-
-        self.assertEqual(result.returncode, 0, result.stderr)
-        upgraded = json.loads(self.state_path().read_text())
-        self.assertNotEqual(
-            upgraded["install_contract_sha256"],
+    def test_accepted_v2_install_contract_lineage_is_upgraded(self):
+        predecessors = (
             "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483",
+            "b9ea0d3772a917b3926394a057cafcb01d603074115898a6e98fc267aa1de6ca",
         )
+        for predecessor in predecessors:
+            with self.subTest(predecessor=predecessor):
+                with tempfile.TemporaryDirectory() as temporary:
+                    original_home = self.codex_home
+                    self.codex_home = Path(temporary) / "codex-home"
+                    try:
+                        installed = self.run_installer("--apply")
+                        self.assertEqual(installed.returncode, 0, installed.stderr)
+                        state = json.loads(self.state_path().read_text())
+                        state["install_contract_sha256"] = predecessor
+                        self.state_path().write_text(
+                            json.dumps(state, indent=2, sort_keys=True) + "\n"
+                        )
+
+                        result = self.run_installer("--apply")
+
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        upgraded = json.loads(self.state_path().read_text())
+                        self.assertNotEqual(
+                            upgraded["install_contract_sha256"], predecessor
+                        )
+                    finally:
+                        self.codex_home = original_home
 
     def test_all_target_recheck_rejects_drift_before_any_write(self):
         plans, _ = INSTALL_MODULE.plan_install(self.codex_home, "en")
