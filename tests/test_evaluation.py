@@ -27,7 +27,57 @@ from evaluation.production_facts import _metric  # noqa: E402
 
 
 DIGEST = "a" * 64
-RUBRIC_DIGEST = "225bfb839fbb7dbf0ab3c05ea75ed9c09fb759288b85d82ac001d6e144a348e0"
+DEVELOPMENT_AUTHORITY = "d" * 64
+SEALED_AUTHORITY = "e" * 64
+RUBRIC_DIGEST = "175477d27e98477551afa3de27d6792b128110b4fa9a37de7a87783d4303eb0c"
+
+
+def payload_digest(payload):
+    return hashlib.sha256(
+        json.dumps(
+            payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def refresh_quality_binding(check, authority, grader=DIGEST):
+    evidence = check["evidence"]
+    result_payload = {
+        "artifact_sha256": evidence["artifact_sha256"],
+        "artifact_source_id": evidence["artifact_source_id"],
+        "critical": check["critical"],
+        "evidence_kind": evidence["kind"],
+        "id": check["id"],
+        "max_score": check["max_score"],
+        "passed": check["passed"],
+        "schema_version": "quality-check-result.v1",
+        "score": check["score"],
+    }
+    result_sha256 = payload_digest(result_payload)
+    execution = {
+        "authority_receipt_sha256": authority,
+        "grader_sha256": grader,
+        "evidence_artifact_sha256": evidence["artifact_sha256"],
+        "artifact_source_id": evidence["artifact_source_id"],
+        "result_sha256": result_sha256,
+        "exit_code": 0,
+    }
+    receipt_payload = {
+        "artifact_source_id": execution["artifact_source_id"],
+        "authority_receipt_sha256": execution["authority_receipt_sha256"],
+        "evidence_artifact_sha256": execution["evidence_artifact_sha256"],
+        "exit_code": execution["exit_code"],
+        "grader_sha256": execution["grader_sha256"],
+        "result_sha256": execution["result_sha256"],
+        "schema_version": "grader-execution-receipt.v1",
+    }
+    execution["receipt_sha256"] = payload_digest(receipt_payload)
+    evidence["grader_execution"] = execution
+
+
+def refresh_run_quality(run, authority):
+    for check in run["quality_checks"]:
+        refresh_quality_binding(check, authority, run["grader_sha256"])
 
 
 def billed_thread(thread_id, kind, role, parent, credits):
@@ -61,11 +111,13 @@ def billed_thread(thread_id, kind, role, parent, credits):
     }
 
 
-def arm_evidence(arm, credits):
+def arm_evidence(arm, credits, identifier, authority):
     primary_id = f"{arm}-primary"
     child_id = f"{arm}-child"
     child_role = "explorer" if arm == "baseline" else "evidence_tester"
-    return {
+    artifact_source_id = f"sidecar://{identifier}/{arm}/grounded-result"
+    artifact_sha256 = hashlib.sha256(artifact_source_id.encode("utf-8")).hexdigest()
+    run = {
         "threads": [
             billed_thread(primary_id, "primary", "primary", None, credits),
             billed_thread(child_id, "child", child_role, primary_id, "0"),
@@ -85,6 +137,12 @@ def arm_evidence(arm, credits):
                 "critical": True,
                 "score": 10,
                 "max_score": 10,
+                "evidence": {
+                    "kind": "behavior",
+                    "artifact_sha256": artifact_sha256,
+                    "artifact_source_id": artifact_source_id,
+                    "grader_execution": {},
+                },
             }
         ],
         "scope_violations": [],
@@ -93,6 +151,8 @@ def arm_evidence(arm, credits):
         "grader_sha256": DIGEST,
         "contamination_audit": {"passed": True, "notes": "clean"},
     }
+    refresh_run_quality(run, authority)
+    return run
 
 
 def instance(identifier, family, *, holdout=False):
@@ -101,6 +161,7 @@ def instance(identifier, family, *, holdout=False):
         if identifier == "development-b"
         else ["baseline", "custom"]
     )
+    authority = SEALED_AUTHORITY if holdout else DEVELOPMENT_AUTHORITY
     return {
         "instance_id": identifier,
         "task_class": "test-triage",
@@ -113,8 +174,8 @@ def instance(identifier, family, *, holdout=False):
         "holdout": holdout,
         "arm_order": arm_order,
         "runs": {
-            "baseline": arm_evidence("baseline", "10"),
-            "custom": arm_evidence("custom", "9"),
+            "baseline": arm_evidence("baseline", "10", identifier, authority),
+            "custom": arm_evidence("custom", "9", identifier, authority),
         },
     }
 
@@ -143,13 +204,14 @@ def campaign():
         instance("development-a", "family-a"),
     ]
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "campaign_id": "campaign-1",
         "configuration_hashes": {
             "role_instructions": DIGEST,
             "routing_policy": DIGEST,
             "task_fixtures": DIGEST,
             "graders": DIGEST,
+            "grader_execution_authority_receipt": DEVELOPMENT_AUTHORITY,
             "pricing": DIGEST,
         },
         "allowed_baseline_roles": ["explorer"],
@@ -167,12 +229,12 @@ def campaign():
 def holdout():
     instances = [instance("sealed-c", "family-c", holdout=True)]
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "campaign_id": "campaign-1",
         "allowed_baseline_roles": ["explorer"],
         "seal": {
             "seal_id": "external-seal-1",
-            "receipt_sha256": DIGEST,
+            "receipt_sha256": SEALED_AUTHORITY,
             "runner_sha256": DIGEST,
             "harness_sha256": DIGEST,
             "grader_sha256": DIGEST,
@@ -184,7 +246,7 @@ def holdout():
             "runner_unlinked_before_agents": True,
         },
         "completion": {
-            "receipt_sha256": DIGEST,
+            "receipt_sha256": SEALED_AUTHORITY,
             "results_sha256": DIGEST,
             "archive_sha256": DIGEST,
             "all_tested_threads_terminal_before_archive": True,
@@ -333,7 +395,9 @@ class EvaluationCampaignTest(unittest.TestCase):
             for mutate in mutations:
                 with self.subTest(arm=arm, mutation=mutate):
                     sealed = holdout()
-                    mutate(sealed["instances"][0]["runs"][arm])
+                    run = sealed["instances"][0]["runs"][arm]
+                    mutate(run)
+                    refresh_run_quality(run, SEALED_AUTHORITY)
                     result = build_report(campaign(), sealed)["task_classes"][0]
                     self.assertEqual(result["recommendation"], "primary-default")
                     self.assertFalse(result["paired_integrity_passed"])
@@ -353,6 +417,7 @@ class EvaluationCampaignTest(unittest.TestCase):
             else:
                 _, _, field = path.split(".")
                 run["quality_checks"][0][field] = value
+                refresh_run_quality(run, DEVELOPMENT_AUTHORITY)
             with self.subTest(path=path):
                 with self.assertRaisesRegex(EvaluationError, message):
                     validate_campaign(document)
@@ -369,8 +434,116 @@ class EvaluationCampaignTest(unittest.TestCase):
         unfrozen = campaign()
         for run in unfrozen["instances"][0]["runs"].values():
             run["quality_checks"][0]["max_score"] = 11
+            refresh_run_quality(run, DEVELOPMENT_AUTHORITY)
         with self.assertRaisesRegex(EvaluationError, "rubric_sha256 does not match"):
             validate_campaign(unfrozen)
+
+    def test_quality_checks_require_bound_artifacts_and_verified_grader_execution(self):
+        behavior = campaign()
+        validate_campaign(behavior)
+
+        prescribed = campaign()
+        prescribed["instances"][0]["runs"]["custom"]["quality_checks"][0][
+            "evidence"
+        ]["kind"] = "prescribed-phrase"
+        with self.assertRaisesRegex(EvaluationError, "must be behavior or source-fact"):
+            validate_campaign(prescribed)
+
+        unbound = campaign()
+        execution = unbound["instances"][0]["runs"]["custom"]["quality_checks"][0][
+            "evidence"
+        ]["grader_execution"]
+        execution["evidence_artifact_sha256"] = "b" * 64
+        with self.assertRaisesRegex(EvaluationError, "does not bind evidence artifact"):
+            validate_campaign(unbound)
+
+        missing_source = campaign()
+        missing_source["instances"][0]["runs"]["custom"]["quality_checks"][0][
+            "evidence"
+        ]["artifact_source_id"] = ""
+        with self.assertRaisesRegex(EvaluationError, "must be a non-empty string"):
+            validate_campaign(missing_source)
+
+        self_filled = campaign()
+        self_filled_execution = self_filled["instances"][0]["runs"]["custom"][
+            "quality_checks"
+        ][0]["evidence"]["grader_execution"]
+        self_filled_execution["result_sha256"] = "b" * 64
+        self_filled_execution["receipt_sha256"] = "c" * 64
+        with self.assertRaisesRegex(EvaluationError, "canonical check result"):
+            validate_campaign(self_filled)
+
+        changed_after_receipt = campaign()
+        changed_check = changed_after_receipt["instances"][0]["runs"]["custom"][
+            "quality_checks"
+        ][0]
+        original_receipt = changed_check["evidence"]["grader_execution"][
+            "receipt_sha256"
+        ]
+        changed_check["score"] = 9
+        refresh_quality_binding(changed_check, DEVELOPMENT_AUTHORITY)
+        changed_check["evidence"]["grader_execution"][
+            "receipt_sha256"
+        ] = original_receipt
+        with self.assertRaisesRegex(EvaluationError, "canonical execution"):
+            validate_campaign(changed_after_receipt)
+
+        wrong_authority = campaign()
+        wrong_authority_check = wrong_authority["instances"][0]["runs"]["custom"][
+            "quality_checks"
+        ][0]
+        refresh_quality_binding(wrong_authority_check, "b" * 64)
+        with self.assertRaisesRegex(EvaluationError, "frozen external authority"):
+            validate_campaign(wrong_authority)
+
+        wrong_sealed_authority = holdout()
+        wrong_sealed_check = wrong_sealed_authority["instances"][0]["runs"][
+            "custom"
+        ]["quality_checks"][0]
+        refresh_quality_binding(wrong_sealed_check, DEVELOPMENT_AUTHORITY)
+        with self.assertRaisesRegex(EvaluationError, "frozen external authority"):
+            validate_campaign(wrong_sealed_authority, sealed_holdout=True)
+
+        wrong_grader = campaign()
+        wrong_grader_check = wrong_grader["instances"][0]["runs"]["custom"][
+            "quality_checks"
+        ][0]
+        refresh_quality_binding(
+            wrong_grader_check, DEVELOPMENT_AUTHORITY, grader="b" * 64
+        )
+        with self.assertRaisesRegex(EvaluationError, "does not match run grader"):
+            validate_campaign(wrong_grader)
+
+        unverified = campaign()
+        unverified["instances"][0]["runs"]["custom"]["quality_checks"][0][
+            "evidence"
+        ]["grader_execution"]["exit_code"] = 1
+        with self.assertRaisesRegex(EvaluationError, "exit_code must be integer zero"):
+            validate_campaign(unverified)
+
+        source_fact = campaign()
+        for run in source_fact["instances"][0]["runs"].values():
+            run["quality_checks"][0]["evidence"]["kind"] = "source-fact"
+            refresh_run_quality(run, DEVELOPMENT_AUTHORITY)
+        signature = [("grounded-result", True, 10, "source-fact")]
+        source_fact["instances"][0]["rubric_sha256"] = hashlib.sha256(
+            json.dumps(signature, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        validate_campaign(source_fact)
+
+        relabeled = copy.deepcopy(source_fact)
+        for run in relabeled["instances"][0]["runs"].values():
+            check = run["quality_checks"][0]
+            original_receipt = check["evidence"]["grader_execution"][
+                "receipt_sha256"
+            ]
+            check["evidence"]["kind"] = "behavior"
+            refresh_quality_binding(check, DEVELOPMENT_AUTHORITY)
+            check["evidence"]["grader_execution"][
+                "receipt_sha256"
+            ] = original_receipt
+        with self.assertRaisesRegex(EvaluationError, "canonical execution"):
+            validate_campaign(relabeled)
 
     def test_mandatory_named_gate_exception_is_narrow_and_fail_closed(self):
         base = campaign()
@@ -412,6 +585,9 @@ class EvaluationCampaignTest(unittest.TestCase):
             validate_campaign(builtin)
         lower = copy.deepcopy(sealed)
         lower["instances"][0]["runs"]["custom"]["quality_checks"][0]["score"] = 8
+        refresh_run_quality(
+            lower["instances"][0]["runs"]["custom"], SEALED_AUTHORITY
+        )
         self.assertEqual(
             build_report(base, lower)["task_classes"][0]["recommendation"],
             "primary-default",
@@ -495,7 +671,26 @@ class EvaluationCampaignTest(unittest.TestCase):
         self.assertFalse(production["additionalProperties"])
         self.assertFalse(production["properties"]["metrics"]["additionalProperties"])
         self.assertFalse(tiers["additionalProperties"])
-        self.assertEqual(schema["properties"]["schema_version"]["const"], 2)
+        self.assertEqual(schema["properties"]["schema_version"]["const"], 3)
+        self.assertEqual(sealed["properties"]["schema_version"]["const"], 3)
+        self.assertIn(
+            "grader_execution_authority_receipt",
+            schema["properties"]["configuration_hashes"]["required"],
+        )
+        evidence_schema = schema["$defs"]["check"]["properties"]["evidence"]
+        self.assertIn("artifact_source_id", evidence_schema["required"])
+        self.assertIn(
+            "authority_receipt_sha256",
+            evidence_schema["properties"]["grader_execution"]["required"],
+        )
+        self.assertEqual(
+            evidence_schema["properties"]["kind"]["enum"],
+            ["behavior", "source-fact"],
+        )
+        self.assertFalse(evidence_schema["additionalProperties"])
+        self.assertFalse(
+            evidence_schema["properties"]["grader_execution"]["additionalProperties"]
+        )
         self.assertEqual(schema["$defs"]["thread"]["properties"]["kind"]["enum"], ["primary", "child"])
 
     def test_bundled_smoke_fixture_and_cli(self):
@@ -519,11 +714,17 @@ class EvaluationCampaignTest(unittest.TestCase):
     def test_paired_pareto_blocks_pooled_quality_and_independent_median_tricks(self):
         pooled = campaign()
         pooled["instances"][0]["runs"]["custom"]["quality_checks"][0]["score"] = 9
+        refresh_run_quality(
+            pooled["instances"][0]["runs"]["custom"], DEVELOPMENT_AUTHORITY
+        )
         for arm in ("baseline", "custom"):
-            pooled["instances"][1]["runs"][arm]["quality_checks"][0]["max_score"] = 100
+            run = pooled["instances"][1]["runs"][arm]
+            run["quality_checks"][0]["max_score"] = 100
         pooled["instances"][1]["runs"]["baseline"]["quality_checks"][0]["score"] = 1
         pooled["instances"][1]["runs"]["custom"]["quality_checks"][0]["score"] = 100
-        pooled["instances"][1]["rubric_sha256"] = "8c7533cb85006bebd138a7e11b43f152fb4b6bb7ca95496cfa44874c49eb0a56"
+        for run in pooled["instances"][1]["runs"].values():
+            refresh_run_quality(run, DEVELOPMENT_AUTHORITY)
+        pooled["instances"][1]["rubric_sha256"] = "727ebd27e04a873a6e84043d1a71ade2060beffb668d26c6b2707e484ecb208d"
         result = build_report(pooled, holdout())["task_classes"][0]
         self.assertFalse(result["quality_non_regression"])
         self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
@@ -589,6 +790,9 @@ class EvaluationCampaignTest(unittest.TestCase):
         improved = campaign()
         sealed = holdout()
         improved["instances"][0]["runs"]["baseline"]["quality_checks"][0]["score"] = 9
+        refresh_run_quality(
+            improved["instances"][0]["runs"]["baseline"], DEVELOPMENT_AUTHORITY
+        )
         set_run_credits(improved["instances"][0]["runs"]["custom"], "11")
         result = build_report(improved, sealed)["task_classes"][0]
         self.assertEqual(result["quality_outcome"], "improved")
@@ -727,6 +931,9 @@ class EvidenceTierTest(unittest.TestCase):
         pilot = evidence_chain()
         del pilot[-1]["provenance"]["authority"]
         cases.append((pilot, "keys mismatch"))
+        target_receipt_mismatch = evidence_chain()
+        target_receipt_mismatch[-1]["provenance"]["target_receipt_sha256"] = "b" * 64
+        cases.append((target_receipt_mismatch, "does not match verified-target receipt"))
         for chain, message in cases:
             with self.subTest(message=message):
                 with self.assertRaisesRegex(EvaluationError, message):
@@ -809,7 +1016,13 @@ class ProductionFactsTest(unittest.TestCase):
     def test_terminal_fact_is_private_typed_and_complete(self):
         fact = self._extract()
         self.assertEqual(fact["schema_version"], "production-fact.v1")
-        self.assertTrue(fact["completion_claim_eligible"])
+        self.assertFalse(fact["completion_claim_eligible"])
+        self.assertFalse(fact["causal_claim_eligible"])
+        self.assertFalse(fact["promotion_claim_eligible"])
+        observational_laundering = copy.deepcopy(fact)
+        observational_laundering["completion_claim_eligible"] = True
+        with self.assertRaisesRegex(EvaluationError, "observational production facts"):
+            validate_production_fact(observational_laundering)
         self.assertEqual(fact["metrics"]["forks"]["all"]["value"], 1)
         serialized = json.dumps(fact)
         self.assertNotIn(str(self.root), serialized)
@@ -920,6 +1133,33 @@ class ProductionFactsTest(unittest.TestCase):
         fact = self._extract()
         self.assertEqual(fact["metrics"]["spawns"]["failed"]["value"], 1)
         self.assertFalse(fact["completion_claim_eligible"])
+
+    def test_child_lineage_requires_unique_ordered_earliest_turn_context(self):
+        child_path = next(self.children.iterdir())
+        events = [json.loads(line) for line in child_path.read_text().splitlines()]
+        events[1]["timestamp"] = self.spawn.replace(microsecond=3000).isoformat()
+        events.insert(
+            2,
+            {
+                "timestamp": self.spawn.replace(microsecond=2000).isoformat(),
+                "type": "turn_context",
+                "payload": {"role": "worker"},
+            },
+        )
+        write_jsonl(child_path, events)
+        with self.assertRaisesRegex(EvaluationError, "lineage is out of order"):
+            self._extract()
+
+        self._write_valid_sources()
+        child_path = next(self.children.iterdir())
+        events = [json.loads(line) for line in child_path.read_text().splitlines()]
+        events.insert(2, copy.deepcopy(events[1]))
+        write_jsonl(child_path, events)
+        with self.assertRaisesRegex(EvaluationError, "lineage start is ambiguous"):
+            self._extract()
+
+        self._write_valid_sources()
+        self.assertFalse(self._extract()["completion_claim_eligible"])
 
     def test_metric_status_equivalence_and_divergent_git(self):
         with self.assertRaisesRegex(EvaluationError, "available metric"):

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 EXAMPLES_ROOT = Path(__file__).resolve().parent / "examples"
 ARMS = {"baseline", "custom"}
 TOKEN_KEYS = {
@@ -107,7 +107,23 @@ THREAD_KEYS = {
 }
 THREAD_KINDS = {"primary", "child"}
 THREAD_STATUSES = {"completed", "failed", "cancelled"}
-CHECK_KEYS = {"id", "passed", "critical", "score", "max_score"}
+CHECK_KEYS = {"id", "passed", "critical", "score", "max_score", "evidence"}
+CHECK_EVIDENCE_KEYS = {
+    "kind",
+    "artifact_sha256",
+    "artifact_source_id",
+    "grader_execution",
+}
+CHECK_EVIDENCE_KINDS = {"behavior", "source-fact"}
+GRADER_EXECUTION_KEYS = {
+    "receipt_sha256",
+    "authority_receipt_sha256",
+    "grader_sha256",
+    "evidence_artifact_sha256",
+    "artifact_source_id",
+    "result_sha256",
+    "exit_code",
+}
 AUDIT_KEYS = {"passed", "notes"}
 SEAL_KEYS = {
     "seal_id",
@@ -135,6 +151,7 @@ CONFIGURATION_HASH_KEYS = {
     "routing_policy",
     "task_fixtures",
     "graders",
+    "grader_execution_authority_receipt",
     "pricing",
 }
 DECIMAL_PATTERN = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
@@ -224,6 +241,41 @@ def _require_sha256(value: object, location: str) -> str:
     return value
 
 
+def _canonical_sha256(payload: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+
+def _quality_result_payload(check: dict) -> dict:
+    evidence = check["evidence"]
+    return {
+        "schema_version": "quality-check-result.v1",
+        "artifact_sha256": evidence["artifact_sha256"],
+        "artifact_source_id": evidence["artifact_source_id"],
+        "critical": check["critical"],
+        "evidence_kind": evidence["kind"],
+        "id": check["id"],
+        "max_score": check["max_score"],
+        "passed": check["passed"],
+        "score": check["score"],
+    }
+
+
+def _grader_execution_receipt_payload(execution: dict) -> dict:
+    return {
+        "artifact_source_id": execution["artifact_source_id"],
+        "authority_receipt_sha256": execution["authority_receipt_sha256"],
+        "evidence_artifact_sha256": execution["evidence_artifact_sha256"],
+        "exit_code": execution["exit_code"],
+        "grader_sha256": execution["grader_sha256"],
+        "result_sha256": execution["result_sha256"],
+        "schema_version": "grader-execution-receipt.v1",
+    }
+
+
 def _require_decimal(value: object, location: str) -> Decimal:
     if not isinstance(value, str) or not DECIMAL_PATTERN.fullmatch(value):
         raise EvaluationError(f"{location} must be a non-negative decimal string")
@@ -240,6 +292,7 @@ def _validate_run(
     arm: str,
     expected_roles: list[str],
     allowed_baseline_roles: list[str],
+    expected_grader_authority_sha256: str,
 ) -> None:
     run = _require_exact_keys(run, RUN_KEYS, location)
     _require_string(run["routing_decision"], f"{location}.routing_decision")
@@ -450,6 +503,67 @@ def _validate_run(
         maximum = _require_integer(check["max_score"], f"{check_location}.max_score")
         if maximum == 0 or score > maximum:
             raise EvaluationError(f"{check_location} requires 0 <= score <= max_score > 0")
+        evidence = _require_exact_keys(
+            check["evidence"], CHECK_EVIDENCE_KEYS, f"{check_location}.evidence"
+        )
+        evidence_kind = _require_string(
+            evidence["kind"], f"{check_location}.evidence.kind"
+        )
+        if evidence_kind not in CHECK_EVIDENCE_KINDS:
+            raise EvaluationError(
+                f"{check_location}.evidence.kind must be behavior or source-fact"
+            )
+        artifact_sha256 = _require_sha256(
+            evidence["artifact_sha256"], f"{check_location}.evidence.artifact_sha256"
+        )
+        artifact_source_id = _require_string(
+            evidence["artifact_source_id"],
+            f"{check_location}.evidence.artifact_source_id",
+        )
+        execution = _require_exact_keys(
+            evidence["grader_execution"],
+            GRADER_EXECUTION_KEYS,
+            f"{check_location}.evidence.grader_execution",
+        )
+        for key in (
+            "receipt_sha256",
+            "authority_receipt_sha256",
+            "grader_sha256",
+            "evidence_artifact_sha256",
+            "result_sha256",
+        ):
+            _require_sha256(
+                execution[key], f"{check_location}.evidence.grader_execution.{key}"
+            )
+        if execution["exit_code"] != 0 or isinstance(execution["exit_code"], bool):
+            raise EvaluationError(
+                f"{check_location}.evidence.grader_execution.exit_code must be integer zero"
+            )
+        if execution["evidence_artifact_sha256"] != artifact_sha256:
+            raise EvaluationError(
+                f"{check_location}.evidence grader execution does not bind evidence artifact"
+            )
+        if execution["artifact_source_id"] != artifact_source_id:
+            raise EvaluationError(
+                f"{check_location}.evidence grader execution does not bind artifact source"
+            )
+        if execution["authority_receipt_sha256"] != expected_grader_authority_sha256:
+            raise EvaluationError(
+                f"{check_location}.evidence grader execution authority does not match "
+                "frozen external authority receipt"
+            )
+        expected_result_sha256 = _canonical_sha256(_quality_result_payload(check))
+        if execution["result_sha256"] != expected_result_sha256:
+            raise EvaluationError(
+                f"{check_location}.evidence grader result does not match canonical check result"
+            )
+        expected_receipt_sha256 = _canonical_sha256(
+            _grader_execution_receipt_payload(execution)
+        )
+        if execution["receipt_sha256"] != expected_receipt_sha256:
+            raise EvaluationError(
+                f"{check_location}.evidence grader receipt does not match canonical execution"
+            )
 
     violations = run["scope_violations"]
     if not isinstance(violations, list) or any(
@@ -472,6 +586,7 @@ def _validate_instance(
     *,
     allowed_baseline_roles: list[str],
     expected_grader_sha256: str,
+    expected_grader_authority_sha256: str,
 ) -> str:
     instance = _require_exact_keys(instance, INSTANCE_KEYS, location)
     instance_id = _require_string(instance["instance_id"], f"{location}.instance_id")
@@ -496,6 +611,7 @@ def _validate_instance(
             arm=arm,
             expected_roles=expected_roles,
             allowed_baseline_roles=allowed_baseline_roles,
+            expected_grader_authority_sha256=expected_grader_authority_sha256,
         )
     if runs["baseline"]["grader_sha256"] != runs["custom"]["grader_sha256"]:
         raise EvaluationError(f"{location} paired grader_sha256 mismatch")
@@ -503,9 +619,24 @@ def _validate_instance(
         runs[arm]["grader_sha256"] != expected_grader_sha256 for arm in sorted(ARMS)
     ):
         raise EvaluationError(f"{location} run grader does not match frozen grader")
+    for arm in sorted(ARMS):
+        for check in runs[arm]["quality_checks"]:
+            if (
+                check["evidence"]["grader_execution"]["grader_sha256"]
+                != runs[arm]["grader_sha256"]
+            ):
+                raise EvaluationError(
+                    f"{location}.runs.{arm} quality evidence grader execution "
+                    "does not match run grader"
+                )
     rubric_signatures = {
         arm: sorted(
-            (check["id"], check["critical"], check["max_score"])
+            (
+                check["id"],
+                check["critical"],
+                check["max_score"],
+                check["evidence"]["kind"],
+            )
             for check in runs[arm]["quality_checks"]
         )
         for arm in sorted(ARMS)
@@ -513,7 +644,7 @@ def _validate_instance(
     if rubric_signatures["baseline"] != rubric_signatures["custom"]:
         raise EvaluationError(
             f"{location} paired rubric mismatch; expected identical "
-            "(id, critical, max_score) signatures"
+            "(id, critical, max_score, evidence kind) signatures"
         )
     rubric_sha256 = hashlib.sha256(
         json.dumps(
@@ -548,6 +679,9 @@ def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
         for key, value in hashes.items():
             _require_sha256(value, f"campaign.configuration_hashes.{key}")
         expected_grader_sha256 = hashes["graders"]
+        expected_grader_authority_sha256 = hashes[
+            "grader_execution_authority_receipt"
+        ]
         policies = document["class_policies"]
         if not isinstance(policies, dict) or not policies:
             raise EvaluationError("campaign.class_policies must be a non-empty object")
@@ -613,6 +747,7 @@ def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
         ):
             _require_sha256(seal[key], f"sealed holdout.seal.{key}")
         expected_grader_sha256 = seal["grader_sha256"]
+        expected_grader_authority_sha256 = seal["receipt_sha256"]
         for key in (
             "agent_visibility_boundary_enforced",
             "runner_unlinked_before_agents",
@@ -653,6 +788,7 @@ def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
             sealed=sealed_holdout,
             allowed_baseline_roles=allowed_baseline_roles,
             expected_grader_sha256=expected_grader_sha256,
+            expected_grader_authority_sha256=expected_grader_authority_sha256,
         )
         if instance_id in seen:
             raise EvaluationError(f"duplicate instance_id in {label}: {instance_id}")

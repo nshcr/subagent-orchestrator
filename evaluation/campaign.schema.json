@@ -6,17 +6,18 @@
   "additionalProperties": false,
   "required": ["schema_version", "campaign_id", "configuration_hashes", "allowed_baseline_roles", "class_policies", "execution_order", "instances"],
   "properties": {
-    "schema_version": {"const": 2},
+    "schema_version": {"const": 3},
     "campaign_id": {"$ref": "#/$defs/string"},
     "configuration_hashes": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["role_instructions", "routing_policy", "task_fixtures", "graders", "pricing"],
+      "required": ["role_instructions", "routing_policy", "task_fixtures", "graders", "grader_execution_authority_receipt", "pricing"],
       "properties": {
         "role_instructions": {"$ref": "#/$defs/sha256"},
         "routing_policy": {"$ref": "#/$defs/sha256"},
         "task_fixtures": {"$ref": "#/$defs/sha256"},
         "graders": {"$ref": "#/$defs/sha256"},
+        "grader_execution_authority_receipt": {"$ref": "#/$defs/sha256"},
         "pricing": {"$ref": "#/$defs/sha256"}
       }
     },
@@ -208,13 +209,37 @@
     "check": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "passed", "critical", "score", "max_score"],
+      "required": ["id", "passed", "critical", "score", "max_score", "evidence"],
       "properties": {
         "id": {"$ref": "#/$defs/string"},
         "passed": {"type": "boolean"},
         "critical": {"type": "boolean"},
         "score": {"type": "integer", "minimum": 0},
-        "max_score": {"type": "integer", "minimum": 1}
+        "max_score": {"type": "integer", "minimum": 1},
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "artifact_sha256", "artifact_source_id", "grader_execution"],
+          "properties": {
+            "kind": {"enum": ["behavior", "source-fact"]},
+            "artifact_sha256": {"$ref": "#/$defs/sha256"},
+            "artifact_source_id": {"$ref": "#/$defs/string"},
+            "grader_execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["receipt_sha256", "authority_receipt_sha256", "grader_sha256", "evidence_artifact_sha256", "artifact_source_id", "result_sha256", "exit_code"],
+              "properties": {
+                "receipt_sha256": {"$ref": "#/$defs/sha256"},
+                "authority_receipt_sha256": {"$ref": "#/$defs/sha256"},
+                "grader_sha256": {"$ref": "#/$defs/sha256"},
+                "evidence_artifact_sha256": {"$ref": "#/$defs/sha256"},
+                "artifact_source_id": {"$ref": "#/$defs/string"},
+                "result_sha256": {"$ref": "#/$defs/sha256"},
+                "exit_code": {"const": 0}
+              }
+            }
+          }
+        }
       }
     }
   }

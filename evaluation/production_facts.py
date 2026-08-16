@@ -464,7 +464,12 @@ def extract_production_facts(
         ]
         if not starts:
             raise EvaluationError("child source has no turn_context at or after spawn")
-        start = starts[0]["_observed_at"]
+        start_times = [event["_observed_at"] for event in starts]
+        if start_times != sorted(start_times):
+            raise EvaluationError("child post-spawn turn_context lineage is out of order")
+        start = start_times[0]
+        if start_times.count(start) != 1:
+            raise EvaluationError("child post-spawn turn_context lineage start is ambiguous")
         if start < uuid_start:
             raise EvaluationError("child turn_context predates UUIDv7 lineage start")
         selected = [event for event in events if event["_observed_at"] >= start]
@@ -646,17 +651,6 @@ def extract_production_facts(
         for item in _walk_dicts(metrics)
         if item.get("status") == "unavailable"
     )
-    terminal_children = all(item["terminal_observed"] for item in child_intervals)
-    safe_state = (
-        source_state == "terminal"
-        and clean
-        and ancestor
-        and unsupported == 0
-        and unavailable_count == 0
-        and nested_spawns == 0
-        and not any(item["failed"] for item in spawns)
-        and terminal_children
-    )
     document = {
         "schema_version": SCHEMA_VERSION,
         "parser": {"version": PARSER_VERSION, "sha256": _sha256(Path(__file__).read_bytes())},
@@ -683,9 +677,9 @@ def extract_production_facts(
         "unavailable_metric_count": _metric(
             unavailable_count, "metric-status-denominator", combined_source_id
         ),
-        "completion_claim_eligible": safe_state,
-        "causal_claim_eligible": safe_state,
-        "promotion_claim_eligible": safe_state,
+        "completion_claim_eligible": False,
+        "causal_claim_eligible": False,
+        "promotion_claim_eligible": False,
     }
     validate_production_fact(document)
     return document
@@ -919,18 +913,5 @@ def validate_production_fact(document: dict) -> None:
     intervals = document["metrics"]["concurrency"]["intervals"]["value"]
     if not isinstance(intervals, list):
         raise EvaluationError("production fact concurrency intervals must be a list")
-    unsafe = (
-        unavailable > 0
-        or document["source_state"] != "terminal"
-        or document["unsupported_event_count"]["value"] > 0
-        or not git_source.get("clean")
-        or not git_source.get("base_is_ancestor")
-        or document["metrics"]["spawns"]["failed"]["value"] > 0
-        or document["metrics"]["spawns"]["nested"]["value"] > 0
-        or (
-            isinstance(intervals, list)
-            and any(not item.get("terminal_observed") for item in intervals)
-        )
-    )
-    if unsafe and any(claims):
-        raise EvaluationError("unavailable or observational evidence cannot support claims")
+    if any(claims):
+        raise EvaluationError("observational production facts cannot support claims")

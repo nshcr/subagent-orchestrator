@@ -29,10 +29,23 @@ to `true`. It uses the same instance shape defined in `campaign.schema.json` but
 intentionally omits campaign policy and configuration hashes.
 Development campaigns reject sealed instances, sealed inputs reject development
 instances, unknown fields are rejected, and instance identifiers cannot overlap.
-Expected answers and grader implementation are not schema fields. Only grader
-hashes, quality results, and contamination-audit outcomes enter the report, so
-fixtures, expected answers, and grader code can remain outside this repository
-and inaccessible to tested agents.
+Expected answers and grader implementation are not schema fields. Every quality
+check instead records a `behavior` or `source-fact` evidence artifact digest, a
+nonempty sidecar source identity, and a successful grader-execution receipt. The
+canonical check-result digest binds check ID, pass/critical flags, score and
+maximum, evidence kind, artifact digest, and source identity. The canonical
+execution-receipt digest binds that result, the frozen grader, exact artifact and
+source, zero exit code, and an external authority receipt. Development authority
+is frozen in `configuration_hashes.grader_execution_authority_receipt`; sealed
+authority is the external seal receipt. Fixtures, expected answers, grader code,
+artifact sidecars, and execution-receipt sidecars must be preserved outside this
+repository and outside the tested agent's visibility boundary while their
+identities enter the report.
+
+These canonical SHA-256 checks prove deterministic payload binding, not signer
+authenticity by themselves. Authenticity depends on the stated external harness,
+seal, and sidecar custody boundary; the reporter does not claim or verify a digital
+signature beyond that boundary.
 
 Each arm records every billed primary, child, review, repair, failed-attempt, or
 retry thread separately, including its actual model, effort, service tier, token
@@ -72,8 +85,10 @@ completeness are all reported; any defect in either arm blocks promotion.
 Promotion is paired and Pareto-safe. Every instance freezes SHA-256 identities
 for its fixture and prompt; neither digest may be reused within or across the
 development and sealed inputs. Execution identities and order remain unique.
-Both arms must use the same grader and sorted `(id, critical, max_score)` rubric
-signature. The report publishes a digest of that signature.
+Both arms must use the same grader and sorted
+`(id, critical, max_score, evidence kind)` rubric signature. The report publishes
+a digest of that signature. Prescribed phrases, copied labels, bare booleans, and
+unbound scores are not accepted evidence kinds and cannot enter quality totals.
 
 Normalized quality is compared on every paired instance, never by pooling raw
 scores across different scales. One negative custom delta or any integrity
@@ -86,8 +101,9 @@ exact credits.
 
 Each paired instance is also fail-closed for comparability. Baseline and custom
 must use the same `grader_sha256` and the same rubric signature after sorting by
-check ID: `(id, critical, max_score)`. Only observed `passed` and `score` values
-may differ between arms. Development runs must also match the campaign's frozen
+check ID: `(id, critical, max_score, evidence kind)`. Only observed `passed`,
+`score`, bound artifact, and grader-execution receipts may differ between arms.
+Development runs must also match the campaign's frozen
 grader hash; sealed runs must match the external seal's grader hash. This contract
 applies equally to development campaigns and externally injected sealed holdouts.
 
@@ -116,9 +132,9 @@ retention itself.
 child rollout directory, and a Git repository at an explicit base revision and
 cutoff. All input and output paths must be absolute and existing input types are
 checked. A child must have one unambiguous parent spawn receipt and a UUIDv7
-lineage. Accounting begins at its first post-spawn `turn_context`; copied
-pre-spawn history, duplicate receivers, missing outputs, and orphan child logs
-are rejected.
+lineage. Accounting begins at its unique earliest post-spawn `turn_context`;
+out-of-order or timestamp-ambiguous starts, copied pre-spawn history, duplicate
+receivers, missing outputs, and orphan child logs are rejected.
 
 The fact binds parser and complete raw-source hashes, Git revisions and trees,
 hashed changed paths, commit/path/numstat/staged denominators, token decomposition,
@@ -142,11 +158,12 @@ estimate.
 Every reported measurement, including values below `metrics` and the two source
 quality denominators, has exactly `{status,basis,source_id,value}`.
 `unavailable` is equivalent to a null value and null provenance; an available
-value requires parser basis and a source digest. Any unavailable required metric,
-active/incomplete source, dirty or divergent Git tree, unsupported event,
-failed/nested spawn, or missing terminal observation makes completion, causal,
-and promotion claim eligibility false. The fact remains observational evidence,
-not a causal claim.
+value requires parser basis and a source digest. Production JSONL is observational
+evidence even when the source is terminal and all measurements are complete.
+Therefore completion, causal, and promotion claim eligibility are always false;
+unavailable metrics, active/incomplete sources, dirty or divergent Git state,
+unsupported events, failed/nested spawns, and missing terminal observations remain
+visible as additional evidence limitations.
 
 ## Evidence tiers
 
@@ -157,5 +174,6 @@ SHA-256 of that predecessor's canonical JSON. Revision and package identity stay
 constant across the chain. Each tier has an exact provenance object: source/diff
 receipts, local command/environment/result, CI provider/run/revision/result,
 target/environment/revision/package/receipt, then pilot authority/time/signature.
-Narrative proxies, missing fields, a skipped tier, mismatched identities, or an
-omitted pilot authority fail validation.
+The pilot's target receipt must exactly equal the preceding verified-target
+`receipt_sha256`. Narrative proxies, missing fields, a skipped tier, mismatched
+identities or receipts, or an omitted pilot authority fail validation.

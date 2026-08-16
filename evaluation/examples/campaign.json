@@ -10,6 +10,7 @@
     }
   },
   "configuration_hashes": {
+    "grader_execution_authority_receipt": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
     "graders": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "pricing": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "role_instructions": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -40,7 +41,7 @@
       "holdout": false,
       "instance_id": "development-smoke",
       "prompt_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      "rubric_sha256": "225bfb839fbb7dbf0ab3c05ea75ed9c09fb759288b85d82ac001d6e144a348e0",
+      "rubric_sha256": "175477d27e98477551afa3de27d6792b128110b4fa9a37de7a87783d4303eb0c",
       "runs": {
         "baseline": {
           "child_count": 1,
@@ -62,6 +63,20 @@
           "quality_checks": [
             {
               "critical": true,
+              "evidence": {
+                "artifact_sha256": "58310fd212ff0908e9af4d51c53a18524fdf2d3513424ed03b5afc680810bf8b",
+                "artifact_source_id": "sidecar://development-smoke/baseline/grounded-result",
+                "grader_execution": {
+                  "artifact_source_id": "sidecar://development-smoke/baseline/grounded-result",
+                  "authority_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                  "evidence_artifact_sha256": "58310fd212ff0908e9af4d51c53a18524fdf2d3513424ed03b5afc680810bf8b",
+                  "exit_code": 0,
+                  "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "receipt_sha256": "10507abaf6fa7be5a534aadb20867fcc73c762e01eab4bede0a07c3b702ad05c",
+                  "result_sha256": "afb3831287c673bcf913a77f72dab4f30ce544422d65c9c4552ba8e64bebaa34"
+                },
+                "kind": "behavior"
+              },
               "id": "grounded-result",
               "max_score": 10,
               "passed": true,
@@ -150,6 +165,20 @@
           "quality_checks": [
             {
               "critical": true,
+              "evidence": {
+                "artifact_sha256": "8af939eeb424fe056e8de56431b481c93994096397cf3578969ccab6d0da069b",
+                "artifact_source_id": "sidecar://development-smoke/custom/grounded-result",
+                "grader_execution": {
+                  "artifact_source_id": "sidecar://development-smoke/custom/grounded-result",
+                  "authority_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                  "evidence_artifact_sha256": "8af939eeb424fe056e8de56431b481c93994096397cf3578969ccab6d0da069b",
+                  "exit_code": 0,
+                  "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "receipt_sha256": "5d188faeebb77500faf7425a966e6fb8c91dfbf1aca311f6ec61c1c7f530fd13",
+                  "result_sha256": "2c25fd6c6e44e96111dc2975b21c6c7c20c73a182747f5caf59111a7dccb63a6"
+                },
+                "kind": "behavior"
+              },
               "id": "grounded-result",
               "max_score": 10,
               "passed": true,
@@ -223,5 +252,5 @@
       "task_class": "test-triage"
     }
   ],
-  "schema_version": 2
+  "schema_version": 3
 }

@@ -136,6 +136,13 @@ def validate_evidence_chain(documents: Sequence[dict]) -> None:
             raise EvaluationError(
                 f"{location}.provenance.package_digest does not match package_digest"
             )
+        if tier == "pilot-signed":
+            target_receipt = documents[index - 1]["provenance"]["receipt_sha256"]
+            if provenance["target_receipt_sha256"] != target_receipt:
+                raise EvaluationError(
+                    f"{location}.provenance.target_receipt_sha256 does not match "
+                    "verified-target receipt_sha256"
+                )
 
 
 def load_evidence_chain(paths: Sequence[Path]) -> list[dict]:
