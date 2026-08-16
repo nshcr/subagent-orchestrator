@@ -346,6 +346,7 @@ raise SystemExit(module.main())
         prior_backup = self.codex_home / agents_target["prior_backup_relative"]
         self.assertEqual(prior_backup.read_bytes(), prior_agents)
         self.assertEqual(prior_backup.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(INSTALL_MODULE.same_physical_file(agents, prior_backup))
         self.assertFalse(
             next(
                 target
@@ -367,8 +368,254 @@ raise SystemExit(module.main())
             hashlib.sha256(candidate_backup.read_bytes()).hexdigest(),
             agents_target["candidate_sha256"],
         )
+        self.assertEqual(
+            candidate_backup.stat().st_mode & 0o777,
+            agents_target["candidate_mode"],
+        )
+        self.assertFalse(INSTALL_MODULE.same_physical_file(agents, candidate_backup))
         report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
         self.assertEqual(report["restore_receipts"][0]["status"], "RESTORED")
+
+    def test_restore_snapshots_are_independent_and_never_replace_collisions(self):
+        self.codex_home.mkdir()
+        source = self.codex_home / "AGENTS.md"
+        content = b"# prior policy\n"
+        digest = hashlib.sha256(content).hexdigest()
+        source.write_bytes(content)
+        source.chmod(0o600)
+        destination = self.codex_home / INSTALL_MODULE.vault_relative(
+            "prior", "0" * 64, "AGENTS.md"
+        )
+
+        INSTALL_MODULE.preserve_snapshot(
+            source, destination, self.codex_home, digest, 0o600
+        )
+
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(INSTALL_MODULE.same_physical_file(source, destination))
+        source.chmod(0o644)
+        self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
+
+        destination.write_text("tampered snapshot\n")
+        with self.assertRaisesRegex(
+            INSTALL_MODULE.InstallError, "restore vault artifact mismatch"
+        ):
+            INSTALL_MODULE.preserve_snapshot(
+                source, destination, self.codex_home, digest, 0o644
+            )
+
+        collision = self.codex_home / INSTALL_MODULE.vault_relative(
+            "prior", "1" * 64, "AGENTS.md"
+        )
+        original_link = INSTALL_MODULE.os.link
+
+        def inject_collision(temporary, target):
+            if Path(target) == collision:
+                collision.write_bytes(b"concurrent owner bytes\n")
+            return original_link(temporary, target)
+
+        with mock.patch.object(INSTALL_MODULE.os, "link", side_effect=inject_collision):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "appeared concurrently"
+            ):
+                INSTALL_MODULE.preserve_snapshot(
+                    source,
+                    collision,
+                    self.codex_home,
+                    hashlib.sha256(source.read_bytes()).hexdigest(),
+                    0o644,
+                )
+        self.assertEqual(collision.read_bytes(), b"concurrent owner bytes\n")
+
+    def test_mode_drift_after_backup_gate_fails_before_managed_mutation(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# personal policy\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        original_verify = INSTALL_MODULE.verify_restore_target_backups
+        injected = False
+
+        def verify_then_chmod(codex_home, targets):
+            nonlocal injected
+            original_verify(codex_home, targets)
+            if not injected:
+                injected = True
+                agents.chmod(0o644)
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "verify_restore_target_backups",
+            side_effect=verify_then_chmod,
+        ):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "target drifted after preflight: AGENTS.md"
+            ):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        apply_journal = self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE
+        install_journal = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertFalse((self.codex_home / "config.toml").exists())
+        self.assertTrue(apply_journal.is_file())
+        self.assertTrue(install_journal.is_file())
+        apply_document = INSTALL_MODULE.validate_apply_receipt_journal(
+            INSTALL_MODULE.read_managed_json(
+                self.codex_home,
+                INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE,
+                "receipt-bound apply transaction",
+            )
+        )
+        target = next(
+            item
+            for item in apply_document["restore_targets"]
+            if item["relative"] == "AGENTS.md"
+        )
+        backup = self.codex_home / target["prior_backup_relative"]
+        self.assertEqual(backup.read_bytes(), prior)
+        self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(INSTALL_MODULE.same_physical_file(agents, backup))
+
+        with self.assertRaisesRegex(
+            INSTALL_MODULE.InstallError, "target drifted after preflight: AGENTS.md"
+        ):
+            INSTALL_MODULE.apply_install_with_receipt(
+                self.codex_home, "en", plan
+            )
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertFalse((self.codex_home / "config.toml").exists())
+        self.assertTrue(apply_journal.is_file())
+        self.assertTrue(install_journal.is_file())
+
+        agents.chmod(0o600)
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        self.assertTrue(touched)
+        self.assertTrue(receipt_path.is_file())
+        self.assertFalse(apply_journal.exists())
+        self.assertFalse(install_journal.exists())
+
+    def test_candidate_mismatch_retains_resumable_apply_evidence(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# original policy\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        original_apply = INSTALL_MODULE.apply_plans
+
+        def apply_then_drift(plans, codex_home, on_touched=None):
+            touched = original_apply(plans, codex_home, on_touched)
+            agents.chmod(0o644)
+            return touched
+
+        with mock.patch.object(
+            INSTALL_MODULE, "apply_plans", side_effect=apply_then_drift
+        ):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "candidate postimage mismatch: AGENTS.md"
+            ):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        apply_journal = self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE
+        install_journal = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+        self.assertTrue(apply_journal.is_file())
+        self.assertTrue(install_journal.is_file())
+        apply_document = INSTALL_MODULE.validate_apply_receipt_journal(
+            INSTALL_MODULE.read_managed_json(
+                self.codex_home,
+                INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE,
+                "receipt-bound apply transaction",
+            )
+        )
+        target = next(
+            item
+            for item in apply_document["restore_targets"]
+            if item["relative"] == "AGENTS.md"
+        )
+        backup = self.codex_home / target["prior_backup_relative"]
+        self.assertEqual(backup.read_bytes(), prior)
+        self.assertEqual(backup.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(INSTALL_MODULE.same_physical_file(agents, backup))
+        self.assertFalse((self.codex_home / INSTALL_MODULE.RESTORE_RECEIPTS_RELATIVE).exists())
+
+        agents.chmod(target["candidate_mode"])
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        self.assertEqual(touched, [])
+        self.assertTrue(receipt_path.is_file())
+        self.assertFalse(apply_journal.exists())
+        self.assertFalse(install_journal.exists())
+
+    def test_receipt_durability_and_cleanup_interruptions_resume_forward(self):
+        phases = ("before_receipt", "after_receipt", "after_journal")
+        for phase in phases:
+            with self.subTest(phase=phase):
+                self.codex_home = Path(self.temporary.name) / phase
+                plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+                original_write = INSTALL_MODULE.write_new_json
+                original_finish = INSTALL_MODULE.finish_journal
+
+                def interrupt_receipt(path, document, mode=0o600):
+                    if Path(path).parent.name == INSTALL_MODULE.RESTORE_RECEIPTS_RELATIVE.name:
+                        if phase == "before_receipt":
+                            raise OSError("injected before receipt durability")
+                        if phase == "after_receipt":
+                            original_write(path, document, mode)
+                            raise OSError("injected after receipt durability")
+                    return original_write(path, document, mode)
+
+                def interrupt_after_journal(codex_home, journal):
+                    original_finish(codex_home, journal)
+                    raise OSError("injected after journal cleanup")
+
+                write_patch = mock.patch.object(
+                    INSTALL_MODULE, "write_new_json", side_effect=interrupt_receipt
+                )
+                finish_patch = (
+                    mock.patch.object(
+                        INSTALL_MODULE,
+                        "finish_journal",
+                        side_effect=interrupt_after_journal,
+                    )
+                    if phase == "after_journal"
+                    else mock.patch.object(
+                        INSTALL_MODULE, "finish_journal", wraps=original_finish
+                    )
+                )
+                expected = {
+                    "before_receipt": "before receipt durability",
+                    "after_receipt": "after receipt durability",
+                    "after_journal": "after journal cleanup",
+                }[phase]
+                with write_patch, finish_patch:
+                    with self.assertRaisesRegex(OSError, expected):
+                        INSTALL_MODULE.apply_install_with_receipt(
+                            self.codex_home, "en", plan
+                        )
+
+                apply_journal = (
+                    self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE
+                )
+                install_journal = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+                self.assertTrue(apply_journal.is_file())
+                self.assertEqual(install_journal.exists(), phase != "after_journal")
+
+                touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+                self.assertEqual(touched, [])
+                self.assertTrue(receipt_path.is_file())
+                self.assertFalse(apply_journal.exists())
+                self.assertFalse(install_journal.exists())
 
     def test_plan_receipt_rejects_target_source_and_schema_drift(self):
         plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")

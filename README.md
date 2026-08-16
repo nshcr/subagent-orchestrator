@@ -150,10 +150,12 @@ restored or left at a journal-owned recovery path.
 
 Apply uses an exclusive target-scoped lock, an all-target precondition gate,
 same-directory temporary files, `fsync`, atomic replacement, and a durable
-transaction journal. Before its first managed replacement, it hard-links every
-existing prior file into a digest-addressed target-local restore vault and
-records its exact mode; prior absence is recorded explicitly. Atomicity is per
-file, not across the complete plan. If a
+transaction journal. Before its first managed replacement, it copies every
+existing prior file into a digest-addressed, no-replace target-local restore
+vault snapshot with an independent inode, exact bytes and mode, and durable file
+and directory `fsync`; prior absence is recorded explicitly. Content and mode
+are rechecked immediately before each managed mutation. Atomicity is per file,
+not across the complete plan. If a
 late change or interruption stops an apply, already completed `TOUCHED` receipts
 are flushed and the journal remains for read-only diagnosis and idempotent
 forward recovery with the same package, language, and plan receipt. Conflicting
@@ -164,9 +166,12 @@ staging links. `--doctor` reports both recoverable states, and the next matching
 apply finishes the journal forward without replacing any existing path. A
 verified staging link remains afterward as a read-only retirement receipt.
 
-Successful apply emits an absolute `RESTORE_RECEIPT` path. Restore first verifies
-every candidate postimage, then hard-links all displaced candidate bytes into a
-separate vault before restoring prior bytes and modes or removing paths whose
+Successful apply emits an absolute `RESTORE_RECEIPT` path. The install journal
+is retained through exact candidate postimage validation and durable receipt
+creation; cleanup interruptions resume forward from the receipt-bound metadata.
+Restore first verifies every candidate postimage, then copies all displaced
+candidate bytes and modes into independent-inode, no-replace, `fsync`-durable
+vault snapshots before restoring prior bytes and modes or removing paths whose
 prior state was absent. Its journal is independent and resumable with the same
 receipt. Cross-home receipts, incomplete or modified receipts, vault damage,
 candidate drift, and concurrent changes fail closed. Both prior backups and

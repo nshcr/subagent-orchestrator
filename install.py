@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import ctypes
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import errno
 import hashlib
 import json
@@ -124,6 +124,7 @@ class PlannedWrite:
     managed_hash: str | None
     expected_prior_exists: bool
     expected_prior_sha256: str | None
+    expected_prior_mode: int | None
     managed_key: str | None = None
     quarantine_path: Path | None = None
     staging_path: Path | None = None
@@ -682,6 +683,11 @@ def planned_write(
         managed_hash=managed_hash,
         expected_prior_exists=prior is not None,
         expected_prior_sha256=sha256_bytes(prior) if prior is not None else None,
+        expected_prior_mode=(
+            path.stat(follow_symlinks=False).st_mode & 0o777
+            if prior is not None
+            else None
+        ),
         managed_key=managed_key,
         quarantine_path=quarantine_path,
         staging_path=staging_path,
@@ -700,15 +706,22 @@ def verify_precondition(plan: PlannedWrite, codex_home: Path) -> None:
     current = safe_existing_bytes(plan.path, codex_home)
     current_exists = current is not None
     current_hash = sha256_bytes(current) if current is not None else None
+    current_mode = (
+        plan.path.stat(follow_symlinks=False).st_mode & 0o777
+        if current is not None
+        else None
+    )
     if (
         current_exists != plan.expected_prior_exists
         or current_hash != plan.expected_prior_sha256
+        or current_mode != plan.expected_prior_mode
     ):
         expected = plan.expected_prior_sha256 or "<absent>"
         actual = current_hash or "<absent>"
         raise InstallError(
             f"target drifted after preflight: {plan.relative}; "
-            f"expected {expected}, got {actual}"
+            f"expected {expected} mode {plan.expected_prior_mode}, "
+            f"got {actual} mode {current_mode}"
         )
 
 
@@ -1159,7 +1172,7 @@ def planned_mode(plan: PlannedWrite) -> int | None:
     if plan.content is None:
         return None
     if plan.expected_prior_exists:
-        return plan.path.stat(follow_symlinks=False).st_mode & 0o777
+        return plan.expected_prior_mode
     return 0o644
 
 
@@ -1187,9 +1200,7 @@ def plan_receipt_document(
                 "operation": plan.operation,
                 "prior_exists": plan.expected_prior_exists,
                 "prior_mode": (
-                    plan.path.stat(follow_symlinks=False).st_mode & 0o777
-                    if plan.expected_prior_exists
-                    else None
+                    plan.expected_prior_mode
                 ),
                 "prior_sha256": plan.expected_prior_sha256,
                 "relative": plan.relative,
@@ -1385,7 +1396,7 @@ def vault_relative(kind: str, plan_digest: str, relative: str) -> Path:
     return RESTORE_VAULT_RELATIVE / kind / plan_digest / path_id / Path(relative).name
 
 
-def preserve_hardlink(
+def preserve_snapshot(
     source: Path,
     destination: Path,
     codex_home: Path,
@@ -1397,28 +1408,67 @@ def preserve_hardlink(
         if (
             sha256_bytes(existing) != expected_sha256
             or destination.stat(follow_symlinks=False).st_mode & 0o777 != expected_mode
-            or not same_physical_file(source, destination)
+            or same_physical_file(source, destination)
         ):
             raise InstallError(f"restore vault artifact mismatch: {destination}")
         return
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.link(source, destination)
-    except FileExistsError as error:
-        raise InstallError(f"restore vault artifact appeared concurrently: {destination}") from error
-    linked = safe_existing_bytes(destination, codex_home)
+
+    source_content = safe_existing_bytes(source, codex_home)
+    source_mode = (
+        source.stat(follow_symlinks=False).st_mode & 0o777
+        if source_content is not None
+        else None
+    )
     if (
-        linked is None
-        or sha256_bytes(linked) != expected_sha256
-        or not same_physical_file(source, destination)
+        source_content is None
+        or sha256_bytes(source_content) != expected_sha256
+        or source_mode != expected_mode
     ):
-        raise InstallError(f"failed to preserve hard-linked restore bytes: {source}")
-    descriptor = os.open(destination, os.O_RDONLY)
+        raise InstallError(f"restore snapshot source drifted: {source}")
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.snapshot.", dir=destination.parent
+    )
+    temporary = Path(temporary_name)
     try:
-        os.fsync(descriptor)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(source_content)
+            stream.flush()
+            os.fchmod(stream.fileno(), expected_mode)
+            os.fsync(stream.fileno())
+
+        current_source = safe_existing_bytes(source, codex_home)
+        current_mode = (
+            source.stat(follow_symlinks=False).st_mode & 0o777
+            if current_source is not None
+            else None
+        )
+        if (
+            current_source is None
+            or sha256_bytes(current_source) != expected_sha256
+            or current_mode != expected_mode
+        ):
+            raise InstallError(f"restore snapshot source drifted: {source}")
+        try:
+            os.link(temporary, destination)
+        except FileExistsError as error:
+            raise InstallError(
+                f"restore vault artifact appeared concurrently: {destination}"
+            ) from error
+        fsync_directory(destination.parent)
     finally:
-        os.close(descriptor)
-    fsync_directory(destination.parent)
+        if temporary.exists():
+            temporary.unlink()
+
+    snapshot = safe_existing_bytes(destination, codex_home)
+    if (
+        snapshot is None
+        or sha256_bytes(snapshot) != expected_sha256
+        or destination.stat(follow_symlinks=False).st_mode & 0o777 != expected_mode
+        or same_physical_file(source, destination)
+    ):
+        raise InstallError(f"failed to preserve independent restore snapshot: {source}")
 
 
 def journal_document(plans: list[PlannedWrite], agents_language: str) -> dict:
@@ -1869,7 +1919,7 @@ def prepare_receipt_bound_apply(
             backup_relative = str(
                 vault_relative("prior", receipt["plan_digest"], plan.relative)
             )
-            preserve_hardlink(
+            preserve_snapshot(
                 plan.path,
                 codex_home / backup_relative,
                 codex_home,
@@ -1952,6 +2002,85 @@ def validate_restore_receipt(document: object) -> dict:
     return document
 
 
+def verify_candidate_postimages(codex_home: Path, apply_document: dict) -> None:
+    for target in apply_document["restore_targets"]:
+        current = safe_existing_bytes(codex_home / target["relative"], codex_home)
+        actual_hash = sha256_bytes(current) if current is not None else None
+        actual_mode = (
+            (codex_home / target["relative"]).stat(follow_symlinks=False).st_mode
+            & 0o777
+            if current is not None
+            else None
+        )
+        if (
+            (current is not None) != target["candidate_exists"]
+            or actual_hash != target["candidate_sha256"]
+            or actual_mode != target["candidate_mode"]
+        ):
+            raise InstallError(f"candidate postimage mismatch: {target['relative']}")
+
+
+def bind_receipt_preconditions(
+    plans: list[PlannedWrite],
+    apply_document: dict,
+) -> list[PlannedWrite]:
+    """Bind recovery plans to receipt modes as well as hashes and absence."""
+    targets = {
+        target["relative"]: target for target in apply_document["restore_targets"]
+    }
+    bound = []
+    for plan in plans:
+        target = targets.get(plan.relative)
+        if target is None:
+            raise InstallError(
+                f"receipt-bound apply introduced a new target: {plan.relative}"
+            )
+        current_identity = (
+            plan.expected_prior_exists,
+            plan.expected_prior_sha256,
+        )
+        prior_identity = (target["prior_exists"], target["prior_sha256"])
+        candidate_identity = (
+            target["candidate_exists"],
+            target["candidate_sha256"],
+        )
+        if current_identity == prior_identity:
+            expected_mode = target["prior_mode"]
+        elif current_identity == candidate_identity:
+            expected_mode = target["candidate_mode"]
+        else:
+            raise InstallError(
+                f"receipt-bound target identity drifted: {plan.relative}"
+            )
+        bound.append(replace(plan, expected_prior_mode=expected_mode))
+    return bound
+
+
+def ensure_restore_receipt(
+    codex_home: Path,
+    apply_document: dict,
+    *,
+    may_create: bool,
+) -> Path:
+    restore_receipt = restore_receipt_document(apply_document)
+    receipt_path = (
+        codex_home
+        / RESTORE_RECEIPTS_RELATIVE
+        / f"{restore_receipt['receipt_digest']}.json"
+    )
+    existing = safe_existing_bytes(receipt_path, codex_home)
+    expected_bytes = (json.dumps(restore_receipt, indent=2, sort_keys=True) + "\n").encode()
+    if existing is None:
+        if not may_create:
+            raise InstallError(
+                "completed apply is missing its durable restore receipt"
+            )
+        write_new_json(receipt_path, restore_receipt)
+    elif existing != expected_bytes:
+        raise InstallError("restore receipt path collision")
+    return receipt_path
+
+
 def apply_install_with_receipt(
     codex_home: Path,
     agents_language: str,
@@ -2000,49 +2129,33 @@ def apply_install_with_receipt(
                 raise InstallError("source package drifted during apply recovery")
             if receipt["target"] != target_identity(codex_home):
                 raise InstallError("target identity changed during apply recovery")
-            if journal is None:
-                raise InstallError("receipt-bound apply transaction is missing its install journal")
-            if journal["install_contract_sha256"] != install_contract_sha256():
-                raise InstallError("unfinished apply belongs to another install contract")
-            if journal["agents_language"] != agents_language:
-                raise InstallError("unfinished apply uses a different AGENTS language")
-            status, _ = classify_journal(codex_home, journal)
-            if status == "PARTIAL_CONFLICT":
-                raise InstallError("unfinished apply has conflicting targets")
-            plans, _ = plan_install(codex_home, agents_language, journal)
-            validate_recovery_plan(plans, journal)
+            if journal is not None:
+                if journal["install_contract_sha256"] != install_contract_sha256():
+                    raise InstallError("unfinished apply belongs to another install contract")
+                if journal["agents_language"] != agents_language:
+                    raise InstallError("unfinished apply uses a different AGENTS language")
+                status, _ = classify_journal(codex_home, journal)
+                if status == "PARTIAL_CONFLICT":
+                    raise InstallError("unfinished apply has conflicting targets")
+                plans, _ = plan_install(codex_home, agents_language, journal)
+                validate_recovery_plan(plans, journal)
+            else:
+                # A durable restore receipt is written before journal cleanup. If
+                # interruption lands between the two cleanup steps, the retained
+                # receipt-bound metadata is sufficient to finish forward without
+                # mutating a managed target again.
+                plans = []
+        plans = bind_receipt_preconditions(plans, apply_document)
         verify_restore_target_backups(codex_home, apply_document["restore_targets"])
         touched = apply_plans(plans, codex_home, on_touched)
-        finish_journal(codex_home, journal)
-        for target in apply_document["restore_targets"]:
-            current = safe_existing_bytes(codex_home / target["relative"], codex_home)
-            actual_hash = sha256_bytes(current) if current is not None else None
-            actual_mode = (
-                (codex_home / target["relative"]).stat(follow_symlinks=False).st_mode
-                & 0o777
-                if current is not None
-                else None
-            )
-            if (
-                (current is not None) != target["candidate_exists"]
-                or actual_hash != target["candidate_sha256"]
-                or actual_mode != target["candidate_mode"]
-            ):
-                raise InstallError(f"candidate postimage mismatch: {target['relative']}")
-        restore_receipt = restore_receipt_document(apply_document)
-        receipt_path = (
-            codex_home
-            / RESTORE_RECEIPTS_RELATIVE
-            / f"{restore_receipt['receipt_digest']}.json"
+        verify_candidate_postimages(codex_home, apply_document)
+        receipt_path = ensure_restore_receipt(
+            codex_home,
+            apply_document,
+            may_create=journal is not None,
         )
-        existing = safe_existing_bytes(receipt_path, codex_home)
-        expected_bytes = (
-            json.dumps(restore_receipt, indent=2, sort_keys=True) + "\n"
-        ).encode()
-        if existing is None:
-            write_new_json(receipt_path, restore_receipt)
-        elif existing != expected_bytes:
-            raise InstallError("restore receipt path collision")
+        if journal is not None:
+            finish_journal(codex_home, journal)
         meta_path = codex_home / APPLY_RECEIPT_JOURNAL_RELATIVE
         current_meta = read_managed_json(
             codex_home,
@@ -2179,7 +2292,7 @@ def restore_install(
                             "candidate", receipt["receipt_digest"], target["relative"]
                         )
                     )
-                    preserve_hardlink(
+                    preserve_snapshot(
                         codex_home / target["relative"],
                         codex_home / backup_relative,
                         codex_home,
