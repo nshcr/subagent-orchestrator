@@ -32,17 +32,15 @@ Escalation receipt: <not-applicable | prior terminal line + evidence + decision>
 Artifact contract: <none | path/body + format + writer + transfer rule>
 ```
 
-All fields are typed and mandatory. Default to fresh context and `fork_turns=none`;
-full-history is never eligible. User-facing output follows the user's language; model-facing output uses English. Preserve identifiers and schemas.
-The admitted-state digest is the canonical hash of the complete transfer payload.
+Executable canonical snake-case fields are `producer`, `consumer`, `task_id`, `slice_id`, `route`, `topology`, `delegation_depth`, `input_summary`, `sampling_allowlist`, `admitted_state_digest`, `status`, `artifact_receipt_digest`, `admitted_receipt_digests`, `completion_conditions`, `forbidden_actions`, `output_audience`, `acceptance_fields`, `named_invariants`, `escalation_receipt`, and `artifact_contract`.
+Exact keys and strong types are mandatory; route, topology, and depth equal spawn, and the admitted-state digest binds every other field. Default to fresh `fork_turns=none`;
+preserve schemas, identifiers, and the user/model language contract.
+Non-sentinel escalation receipts have exact `prior_terminal_line`, `evidence`, `competing_explanations`, and `irreversible_decision` fields with at least two distinct explanations. Non-`none` artifact contracts have exact `artifact_kind`, `artifact_path`, `artifact_format`, `artifact_writer`, and `receipt_transfer_rule` fields; kind is `path` or `body`, path-kind paths are safe, and writer equals the named child.
 
 ## Materiality and primary access
 
-Explorer/worker eligibility requires a host, owner, or sealed-harness issued materiality
-manifest plus a matching host-provided authority receipt outside the trace. An agent cannot issue or proxy either. The receipt binds task, slice, child,
-issuer, canonical source identity, range count, non-padding bytes, and manifest
-payload digest. Every source range binds
-path, path hash, start/end, content hash, and non-padding bytes. Ranges are immutable,
+Explorer/worker eligibility requires host/owner/sealed-harness materiality plus authority outside the trace. Pre-index primary and every child, parent, and registered role identity, including later spawns; none may issue or proxy.
+Authority binds issuer class/identity, task, slice, child, source identity, range count, non-padding bytes, and manifest digest. Every range binds path, path hash, bounds, content hash, and non-padding bytes. Ranges are immutable,
 task-wide unique, non-overlapping, and deduplicated by content. Padding, repeated
 content, synthetic splitting, tiny leaf work, and verification-token assets fail.
 The routing validator owns route-specific minimum unique paths and bytes.
@@ -64,9 +62,8 @@ admission, and receipt state is task-wide and cannot reset in another scenario.
 
 ## Owner components, freeze, and gates
 
-Each slice permits at most one writer. It owns a task-wide canonical component. Path overlap and rename old/new,
-split, or merge union aliases permanently across slice, commit, and rollover. Reject
-overlapping active writers. Host-provided compaction receipts outside the trace bind
+Each slice permits one writer. Every writer path equals or descends from `slice_open.owner_paths`; its component connects to that slice, and path-kind artifacts stay inside writer/slice paths.
+Path overlap, rename old/new, split, or merge still unions aliases permanently across slice, commit, and rollover. Reject overlapping active writers. Host compaction receipts bind
 task, slice, child, canonical owner component, prior receipt, current count, and
 cumulative count; terminal self-reporting is not authority. Cumulative count starts
 at zero; after two, reject another writer spawn or follow-up. Never cancel an already-running

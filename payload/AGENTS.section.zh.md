@@ -1,4 +1,4 @@
 ## 子代理与并行
 
 - 默认单代理。仅当用户明确要求委派/并行，或一个经宿主/owner 准入的边界清晰子任务能替代可观的主代理工作或提供必需独立门禁时，使用 `$subagent-orchestrator`；复杂度、文件数、可拆分性或空闲并发本身不构成委派理由。
-- 委派后遵循该 skill 当前的证据总线切片、路由、拓扑、全任务所有权与账本、不可变交接、trace 外宿主受信凭据、等待、冻结、消息和门禁规则；一个唯一任务只占一个 trace scenario，rollover 不得重置全任务状态。trace 哈希只绑定 payload，不能证明发行者身份；消息 authority 必须绑定精确 purpose、规范 dependency 摘要和语义消息摘要，受限 peer 的 artifact relay 必须来自具名 producer 的终态收据。高风险最终状态必须在同一文件系统哈希上接受 fresh、独立、只读且互不重叠的门禁。主代理始终保留授权、范围、冲突处理、整合和最终验收；子代理不得扩权，治理角色保持叶子，仅同时通过能力与实质 relay 准入的受限协作代理可继续委派一层，所有必需后代在主代理结束前必须到达终态。
+- 委派后遵循该 skill 当前的证据总线切片、路由、拓扑、全任务所有权与账本、不可变交接、trace 外宿主受信凭据、等待、冻结、消息和门禁规则；一个唯一任务只占一个 trace scenario，rollover 不得重置全任务状态。slice owner paths 必须绑定每个 writer path/component 与 path artifact；每个 work transfer 使用完整、精确 key 的规范 schema，并绑定 spawn depth；materiality authority 必须绑定外部 issuer class，且拒绝 primary 或任何预索引 child、parent、role、agent 身份充当 issuer。trace 哈希只绑定 payload，不能证明发行者身份；消息 authority 必须绑定精确 purpose、规范 dependency 摘要和语义消息摘要，受限 peer 的 artifact relay 必须来自具名 producer 的终态收据。高风险最终状态必须在同一文件系统哈希上接受 fresh、独立、只读且互不重叠的门禁。主代理始终保留授权、范围、冲突处理、整合和最终验收；子代理不得扩权，治理角色保持叶子，仅同时通过能力与实质 relay 准入的受限协作代理可继续委派一层，所有必需后代在主代理结束前必须到达终态。

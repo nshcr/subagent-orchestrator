@@ -4,11 +4,11 @@
   "bounded_peer_leaf_cap": 2,
   "runtime_capacity": 16,
   "owner_hashes": {
-      "SKILL.md": "6fd3b830a80a72d2c07b89cea8a75e86560ba7a4072e3e8bafbed9270367d88c",
-      "references/routing-policy.md": "4bcceebe7e58e95ace680d45602ef9a37cc9eb936c86a6d4e55a37f52da5c517",
-      "references/delegation-contracts.md": "89e00d1000a619c4b6e33cddf65ef52d067609a9eee8a5dd605d80abcae1b764",
+      "SKILL.md": "e1fbf5508bb4491680245c21d2bf0524897e0983f35307836f91df2cf66ad61d",
+      "references/routing-policy.md": "7ad71e32f2cd794fb0371514fbb5c19c4a6df5759e54f3958a9a69d4d4c5a152",
+      "references/delegation-contracts.md": "8da7a0d23855626d53bf834f4bb2020f72c13457fc12bceefbf3f1684e271293",
       "references/evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
-      "AGENTS.md#subagent-policy": "76bafc03f3710f20b12270b2e289889092c5a0babf53b4b03a52962120d2045e",
+      "AGENTS.md#subagent-policy": "82ea8d7682749de120a9b332bfb415362a9e99bba9377e283db54711e0916894",
       "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
   },
   "scenarios": [
@@ -71,6 +71,12 @@
             "slice_id": "slice-governance",
             "route": "worker",
             "topology": "leaf",
+            "delegation_depth": 0,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "settled contract",
               "exact baseline"
@@ -78,7 +84,7 @@
             "sampling_allowlist": [
               "payload/skills/subagent-orchestrator/SKILL.md"
             ],
-            "admitted_state_digest": "ad0b67a6cffe72135d1149255b658f808a61961ab83f4a4054a1606d4339923b",
+            "admitted_state_digest": "2f551f65d741aae37125bda5b6cdf3e3243528fcb5e0fe6132184bbbee0df7ed",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -199,16 +205,16 @@
           "producer": "primary",
           "consumer": "writer-governance",
           "dependency": "installer lineage",
-          "digest": "e64491902230afe1b0fe5a7ef9f005f37c3ce8fb4a4edf28b1dda26ac12e1ba2",
+          "digest": "f7649831938fcbe6c150328f68f0843c02c159179f7a7d14832139a0e466068f",
           "purpose": "dependency_status",
           "admitted": true,
           "starts_turn": false,
           "changes_handoff": false,
           "task_id": "task-new-host-authorized",
           "slice_id": "slice-governance",
-          "scope_digest": "ad0b67a6cffe72135d1149255b658f808a61961ab83f4a4054a1606d4339923b",
+          "scope_digest": "2f551f65d741aae37125bda5b6cdf3e3243528fcb5e0fe6132184bbbee0df7ed",
           "receipt_digest": "abababababababababababababababababababababababababababababababab",
-          "admission_anchor_digest": "8c550cfe593e4dbb5bf8c7c3f9a2bed8b5d749ccda8c48af4b2e5b4569f50f42"
+          "admission_anchor_digest": "d46efd4f8f59e787adbb067841c477cc9f42c83e71f4298d06224179a8a1dbe9"
         },
         {
           "type": "spawn",
@@ -229,13 +235,19 @@
             "slice_id": "slice-governance",
             "route": "default",
             "topology": "bounded-peer",
+            "delegation_depth": 1,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "bounded producer-consumer artifact lane"
             ],
             "sampling_allowlist": [
               "externally admitted materiality only"
             ],
-            "admitted_state_digest": "0890ac13e9c57656bd002506be2f55a062a1297bc109a7a005f4e7d17b4913d3",
+            "admitted_state_digest": "782ddf2331400c65a43e372b07357824c6e934d894742441f2e63ba4d8e65838",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "admitted_receipt_digests": [],
@@ -253,7 +265,7 @@
             "materiality": null,
             "compaction_baseline": null,
             "peer_capability": "3ba21f7543dccd848ca563066f3fa3d6dc5764d4cdf574926f9f415f0bc55945",
-            "peer_relay": "1d47d772f67df8a079be4ad9caef1b7295529392766a78721162264db8b10af8"
+            "peer_relay": "994c9848bbf9a2c228231c8a1065555785d05a9091f6045f38ae5f7a279107f4"
           }
         },
         {
@@ -275,13 +287,19 @@
             "slice_id": "slice-governance",
             "route": "explorer",
             "topology": "leaf",
+            "delegation_depth": 1,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "bounded producer-consumer artifact lane"
             ],
             "sampling_allowlist": [
               "externally admitted materiality only"
             ],
-            "admitted_state_digest": "6740213e5fccfa437cc81c88a892fd16eeb38839d2063a37ecc58b407da2f7fd",
+            "admitted_state_digest": "874a9da5a8a42f3e180dda6cff854fb067c72a3b0a98564c464ce78c6b1f0899",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "admitted_receipt_digests": [],
@@ -349,13 +367,19 @@
             "slice_id": "slice-governance",
             "route": "explorer",
             "topology": "leaf",
+            "delegation_depth": 1,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "bounded producer-consumer artifact lane"
             ],
             "sampling_allowlist": [
               "externally admitted materiality only"
             ],
-            "admitted_state_digest": "4a77bf66bd9621c3c759ffcb0f9c155a736cfc7e6e3482cda55d7129380fe942",
+            "admitted_state_digest": "ec0a37abb8fdc71921f82328e6c29d254e9cdaab1a6bb55eef5ddfa0026a38c2",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "admitted_receipt_digests": [
@@ -421,15 +445,15 @@
           "consumer": "peer-consumer",
           "task_id": "task-new-host-authorized",
           "slice_id": "slice-governance",
-          "scope_digest": "4a77bf66bd9621c3c759ffcb0f9c155a736cfc7e6e3482cda55d7129380fe942",
+          "scope_digest": "ec0a37abb8fdc71921f82328e6c29d254e9cdaab1a6bb55eef5ddfa0026a38c2",
           "dependency": "producer artifact",
           "receipt_digest": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
-          "digest": "90b65ad9f4ed3a45bc88fbc13e8f7679382bb1c2647a716e5fe9c8213171f484",
+          "digest": "59d9822a54009377b765f06df1a4ed521ae14209e41f62d62e15493c20bdecd2",
           "purpose": "artifact_receipt",
           "admitted": true,
           "starts_turn": false,
           "changes_handoff": false,
-          "admission_anchor_digest": "1d47d772f67df8a079be4ad9caef1b7295529392766a78721162264db8b10af8"
+          "admission_anchor_digest": "994c9848bbf9a2c228231c8a1065555785d05a9091f6045f38ae5f7a279107f4"
         },
         {
           "type": "receipt",
@@ -498,13 +522,19 @@
             "slice_id": "slice-governance",
             "route": "evidence_tester",
             "topology": "leaf",
+            "delegation_depth": 0,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "frozen filesystem readback"
             ],
             "sampling_allowlist": [
               "test output only"
             ],
-            "admitted_state_digest": "982b913ebca85dc2c10a476f19d05fb90e79c5ff336d198532c8468c197eab35",
+            "admitted_state_digest": "83db9ce6fd3efd76ccfb9a4a736f522cb267a743a01b613b5a50d8082c281d9e",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -583,13 +613,19 @@
             "slice_id": "slice-governance",
             "route": "risk_reviewer",
             "topology": "leaf",
+            "delegation_depth": 0,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "final frozen hash"
             ],
             "sampling_allowlist": [
               "methodology invariant"
             ],
-            "admitted_state_digest": "b40b3a9ccf48f7a09446483880bfd90f42ec4851fb5a0f056fe029e2fe5db11c",
+            "admitted_state_digest": "a2b0ab6481846b35cbc3cc12440587ab5472f8d9a59acda6a0143cc9937c9d4f",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -628,13 +664,19 @@
             "slice_id": "slice-governance",
             "route": "risk_reviewer",
             "topology": "leaf",
+            "delegation_depth": 0,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "final frozen hash"
             ],
             "sampling_allowlist": [
               "efficiency invariant"
             ],
-            "admitted_state_digest": "5f4bb8261f65996ed1a539488979fff90817a570c9db9de783157cd15dba9655",
+            "admitted_state_digest": "bbf1cd464338478077650949554a841f3bb10d54718cb2de85d259f62a3f844d",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -673,13 +715,19 @@
             "slice_id": "slice-governance",
             "route": "risk_reviewer",
             "topology": "leaf",
+            "delegation_depth": 0,
+            "output_audience": "model-facing",
+            "acceptance_fields": "not-applicable",
+            "named_invariants": "not-applicable",
+            "escalation_receipt": "not-applicable",
+            "artifact_contract": "none",
             "input_summary": [
               "final frozen hash"
             ],
             "sampling_allowlist": [
               "governance invariant"
             ],
-            "admitted_state_digest": "60a51b5ed4d26c3227ae7cafd7eed2e8c7436b82e22cb542912c676aff8f3a2a",
+            "admitted_state_digest": "097decb9e0866fd5a9aef1ba77bc3056d9cb794da7a18a519edea5f45ee5fd45",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [

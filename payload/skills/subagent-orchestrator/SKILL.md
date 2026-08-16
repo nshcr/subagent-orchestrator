@@ -13,22 +13,15 @@ Keep this file as the workflow entrypoint. Detailed policy lives in references; 
    [evaluation policy](references/evaluation-policy.md) before delegation.
 2. If neither material substitution nor required independence is present, stay
    primary. Explorer and worker also require an external materiality manifest.
-3. Open one `slice_open` from [delegation contracts](references/delegation-contracts.md): bind task,
-   unique slice, one milestone, one change class, exact owner paths, required gates, and the admitted state digest.
-4. Issue each child an immutable work-transfer receipt. Use `fork_turns=none`;
-   full-history children and agent-authored materiality are ineligible.
-5. Require host-provided authority receipts in a separate document outside the lifecycle trace. Trace SHA-256 values bind payloads but never authenticate issuers; missing or unmatched materiality, compaction, message, bounded-peer, or pilot authority fails closed.
+3. Open one `slice_open` from [delegation contracts](references/delegation-contracts.md): bind task, unique slice, milestone, change class, exact owner paths, gates, and state digest. Writer paths/components and path artifacts stay within that slice scope; task-wide alias unions remain permanent.
+4. Issue each child a complete canonical-snake-case immutable work-transfer receipt whose digest binds every mandatory field and spawn route/topology/depth. Use `fork_turns=none`; full-history children are ineligible.
+5. Require host-provided authority receipts outside the trace. A materiality issuer has an externally bound host/owner/sealed-harness class and cannot equal primary, any child/parent/role participant, or another agent identity. Trace hashes bind payloads, never issuer identity; unmatched authority fails closed.
 
 ## Run, freeze, and close
 
 1. Start only qualified, independent, ownership-safe children. Preserve the
    direct-child and bounded-peer caps; capacity never creates work.
-2. Keep a task-wide primary source-access ledger. Targeted precheck and sampling
-   use one frozen denominator and must be proper subsets no larger than 10%; integration
-   consumes only admitted artifact/changed-path receipts with zero transferred source
-   ranges and bytes. A trace document has exactly one scenario per unique top-level
-   task; scenario or rollover boundaries never reset access, materiality, ownership,
-   compaction, gate, or receipt state.
+2. Keep a task-wide primary source-access ledger. Precheck/sampling use one frozen denominator and proper subsets no larger than 10%; integration consumes admitted artifact/changed-path receipts with zero transferred source ranges/bytes. One scenario represents each unique task; rollover never resets access, materiality, ownership, compaction, gate, or receipt state.
 3. Treat wait timeout as observation-only. Never interrupt for silence, elapsed
    time, token use, credits, or repeated waits; every required descendant ends terminal.
 4. Freeze only after the writer is terminal. Tester, reviewer, gate, and close

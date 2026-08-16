@@ -42,11 +42,14 @@ do not qualify a task for delegation.
 Delegation now begins with a digest-bound `slice_open`: one top-level task, one
 unique slice, one acceptance milestone, one change class, exact task-wide owner
 paths, required gate IDs, and an admitted state summary. Every child receives an
-immutable work-transfer receipt and fresh context; full-history children are never
+exact-key, strongly typed canonical-snake-case work-transfer receipt whose digest binds
+all documented fields plus spawn route/topology/depth, and fresh context; full-history children are never
 eligible. Explorer and worker additionally require a non-self-issued materiality
 manifest with canonical, deduplicated source ranges and a matching host authority
 receipt supplied in a physically separate document outside the trace. Trace SHA-256 values bind payloads but do not
-authenticate issuers. Tiny leaves, padding, repeated
+authenticate issuers. Authority binds an explicit host/owner/sealed-harness issuer class;
+primary, every pre-indexed child/parent/role participant, and other agent identities
+cannot issue or proxy materiality. Tiny leaves, padding, repeated
 content, synthetic splitting, and verification-token assets fall back to primary.
 
 Primary source access is accounted across the complete task. A targeted precheck or
@@ -57,6 +60,9 @@ scan. Canonical owner components permanently union overlap, rename, split, and m
 aliases. Trace-external cumulative compaction receipts, not terminal self-report,
 prove when two writer compactions exhaust new writer work for that task/component.
 Each slice permits at most one writer, and sampling uses one frozen task-wide denominator.
+Every writer owner path and path artifact remains within `slice_open.owner_paths`, and
+the canonical writer component must connect to that slice; task-wide rename/split/merge
+alias unions remain permanent.
 A trace document has exactly one scenario for each non-empty unique top-level task;
 rollover remains events in that scenario, so materiality, sampling, owner, compaction,
 gate, admission, and receipt state cannot reset at a scenario boundary.

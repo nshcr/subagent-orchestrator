@@ -116,14 +116,14 @@ ROLE_INSTRUCTION_SHA256 = {
     "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
 }
 REFERENCE_SHA256 = {
-    "routing-policy.md": "4bcceebe7e58e95ace680d45602ef9a37cc9eb936c86a6d4e55a37f52da5c517",
+    "routing-policy.md": "7ad71e32f2cd794fb0371514fbb5c19c4a6df5759e54f3958a9a69d4d4c5a152",
     "evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
-    "delegation-contracts.md": "89e00d1000a619c4b6e33cddf65ef52d067609a9eee8a5dd605d80abcae1b764",
+    "delegation-contracts.md": "8da7a0d23855626d53bf834f4bb2020f72c13457fc12bceefbf3f1684e271293",
 }
-SKILL_SHA256 = "6fd3b830a80a72d2c07b89cea8a75e86560ba7a4072e3e8bafbed9270367d88c"
+SKILL_SHA256 = "e1fbf5508bb4491680245c21d2bf0524897e0983f35307836f91df2cf66ad61d"
 GLOBAL_POLICY_SHA256 = {
-    "## Subagents and parallelism": "a69936c2e62ed151ec70d50f902578f8bc46134e8e4d0a19ef0f52f64c8f9081",
-    "## 子代理与并行": "76bafc03f3710f20b12270b2e289889092c5a0babf53b4b03a52962120d2045e",
+    "## Subagents and parallelism": "c8ece2451004efe55738e7763a5048a368331e5a02c2b6ad993eb5260a33e7d5",
+    "## 子代理与并行": "82ea8d7682749de120a9b332bfb415362a9e99bba9377e283db54711e0916894",
 }
 GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
@@ -132,6 +132,9 @@ GLOBAL_POLICY_MARKERS = {
         "idle capacity alone do not qualify",
         "follow the skill's current routing and evidence-bus slice, topology, task-wide ownership",
         "one unique task occupies one trace scenario and rollover cannot reset task-wide state",
+        "Slice owner paths bind every writer path/component and path artifact",
+        "Every work transfer has the complete exact-key canonical schema and binds spawn depth",
+        "Materiality authority binds an external issuer class",
         "message authority binds exact purpose plus canonical dependency and semantic-message digests",
         "bounded-peer artifact relay must come from the named producer's terminal receipt",
         "High-risk final states require fresh, independent, read-only, disjoint gates",
@@ -147,6 +150,9 @@ GLOBAL_POLICY_MARKERS = {
         "空闲并发本身不构成委派理由",
         "遵循该 skill 当前的证据总线切片、路由、拓扑、全任务所有权",
         "一个唯一任务只占一个 trace scenario，rollover 不得重置全任务状态",
+        "slice owner paths 必须绑定每个 writer path/component 与 path artifact",
+        "每个 work transfer 使用完整、精确 key 的规范 schema，并绑定 spawn depth",
+        "materiality authority 必须绑定外部 issuer class",
         "消息 authority 必须绑定精确 purpose、规范 dependency 摘要和语义消息摘要",
         "受限 peer 的 artifact relay 必须来自具名 producer 的终态收据",
         "高风险最终状态必须在同一文件系统哈希上接受 fresh、独立、只读且互不重叠的门禁",
@@ -158,9 +164,9 @@ GLOBAL_POLICY_MARKERS = {
     ),
 }
 LIFECYCLE_ASSET_SHA256 = {
-    "scripts/lifecycle_conformance.py": "5cb331a096730e13e36f23b88ef06a4a81c889ea653e0dfcef348267bf64c55c",
-    "tests/fixtures/lifecycle-trace.json": "8850e1650822c24a47e72218ea759a9a0cc4b08b732199e7ccd0eb5f92534cac",
-    "tests/fixtures/lifecycle-authority-receipts.json": "0518e099d599ef3f20a2e2e764bb50c6361261309c510d32ccecb91fc204d91b",
+    "scripts/lifecycle_conformance.py": "99ccc18991fa87281ab7656385f9b53962055f80052dc4819eccc1507222dc05",
+    "tests/fixtures/lifecycle-trace.json": "a7d4c0a095f585bf2c8e06ddac6622a4d244162511ce1a57e3e9826767480abb",
+    "tests/fixtures/lifecycle-authority-receipts.json": "f2f8ca311501ba43a7414e5c753724cd4e4792054713bddcf93cca031ee8db98",
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",

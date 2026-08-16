@@ -20,7 +20,9 @@ An artifact request, label, ordinary leaf, two tiny files, padding, duplicate ra
 synthetic split, or verification-token asset never proves materiality. Explorer needs
 at least two unique canonical source paths and 4096 non-padding bytes; worker needs
 at least three and 8192. A host, owner, or sealed harness signs the digest-bound
-manifest; an agent cannot self-issue or proxy it. Missing evidence falls back primary.
+  manifest with its explicit issuer class; pre-indexed primary, child, parent, default,
+  custom, and built-in participant identities cannot self-issue or proxy it. Missing
+  evidence falls back primary.
 
 ## Topology and ownership
 
@@ -34,6 +36,9 @@ manifest; an agent cannot self-issue or proxy it. Missing evidence falls back pr
   merge union aliases permanently. Reject overlapping writers. Two accumulated
   writer compactions, proven by trace-external host receipts rather than terminal
   self-report, exhaust new writer spawn/follow-up for that component.
+- `slice_open.owner_paths` bounds every writer owner path and path-kind artifact;
+  the canonical writer component must connect to the slice even after synchronized
+  state/transfer rehashing. Alias union semantics remain task-wide.
 - Each trace document has one scenario per non-empty unique top-level task. Scenario
   rollover remains events within that scenario and cannot reset task-wide materiality,
   sampling, ownership, compaction, gate, admission, or receipt state.
@@ -43,8 +48,11 @@ manifest; an agent cannot self-issue or proxy it. Missing evidence falls back pr
 
 ## Evidence bus and communication
 
-Open `slice_open` before spawn and use immutable work-transfer receipts with
-`fork_turns=none`. Full-history children are ineligible. The primary keeps a task-wide
+Open `slice_open` before spawn and use exact-key canonical-snake-case work-transfer
+receipts containing every documented identity, route/topology/depth, audience,
+acceptance, invariant, escalation, artifact, state, and completion field. Their digest
+binds the complete payload and spawn contract. Use `fork_turns=none`; Full-history children are ineligible.
+The primary keeps a task-wide
 access ledger and does not reconstruct transferred work. Only digest-bound targeted
 precheck and strict proper-subset sampling no larger than 10% are promotion eligible.
 

@@ -1068,7 +1068,7 @@ raise SystemExit(module.main())
         self.assertEqual(installed.returncode, 0, installed.stderr)
         state = json.loads(self.state_path().read_text())
         state["install_contract_sha256"] = (
-            "b1d3ff51829c0129efdf0f0d7a5cfb64746951d2137a575712ad1412d5c2cd46"
+            "b84916be372dc404cb58dfab7c40f7fb897d4e87c6a6655adf858d3b4126ec65"
         )
         self.state_path().write_text(
             json.dumps(state, indent=2, sort_keys=True) + "\n"
@@ -1084,7 +1084,7 @@ raise SystemExit(module.main())
         upgraded = json.loads(self.state_path().read_text())
         self.assertNotEqual(
             upgraded["install_contract_sha256"],
-            "b1d3ff51829c0129efdf0f0d7a5cfb64746951d2137a575712ad1412d5c2cd46",
+            "b84916be372dc404cb58dfab7c40f7fb897d4e87c6a6655adf858d3b4126ec65",
         )
 
     def test_all_target_recheck_rejects_drift_before_any_write(self):

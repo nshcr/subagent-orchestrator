@@ -49,6 +49,34 @@ class LifecycleConformanceTest(unittest.TestCase):
             {key: item for key, item in value.items() if key not in excluded}
         )
 
+    def reseal_transfer(self, spawn):
+        transfer = spawn["work_transfer"]
+        transfer["admitted_state_digest"] = module.canonical_digest(
+            {key: item for key, item in transfer.items() if key != "admitted_state_digest"}
+        )
+
+    def resign_materiality_as(self, trace, authority, child, issuer):
+        spawn = self.event("spawn", child=child, trace=trace)
+        manifest = spawn["materiality_manifest"]
+        manifest.update(issuer_kind="host", issued_by=issuer)
+        manifest["manifest_digest"] = module.canonical_digest(
+            {key: item for key, item in manifest.items() if key != "manifest_digest"}
+        )
+        old_anchor = spawn["authority_receipts"]["materiality"]
+        receipt = next(
+            item
+            for item in authority["materiality_receipts"]
+            if item["receipt_digest"] == old_anchor
+        )
+        receipt.update(
+            issuer_kind="host",
+            issuer=issuer,
+            manifest_digest=manifest["manifest_digest"],
+        )
+        self.reseal(receipt, excluded=("receipt_digest",))
+        spawn["authority_receipts"]["materiality"] = receipt["receipt_digest"]
+        self.reseal_transfer(spawn)
+
     def test_accepts_complete_evidence_bus_slice(self):
         self.assertEqual(self.errors(), [])
 
@@ -74,6 +102,16 @@ class LifecycleConformanceTest(unittest.TestCase):
         trace = copy.deepcopy(self.trace)
         self.event("spawn", child="writer-governance", trace=trace)["fork_context"] = "all"
         self.assert_rejected(trace, "full-history")
+
+    def test_writer_owner_paths_cannot_escape_slice_after_synchronized_rehash(self):
+        trace = copy.deepcopy(self.trace)
+        slice_open = self.event("slice_open", trace=trace)
+        slice_open["owner_paths"] = ["declared/elsewhere"]
+        slice_open["state_digest"] = module.canonical_digest(
+            {key: item for key, item in slice_open.items() if key not in {"type", "state_digest"}}
+        )
+        self.reseal_transfer(self.event("spawn", child="writer-governance", trace=trace))
+        self.assert_rejected(trace, "writer ownership exceeds slice_open owner_paths")
 
     def test_rejects_self_issued_or_token_materiality(self):
         for key, value, marker in (
@@ -223,6 +261,24 @@ class LifecycleConformanceTest(unittest.TestCase):
         )
         self.assert_rejected(trace, "not admitted by trusted authority")
 
+    def test_materiality_issuer_cannot_be_any_task_participant(self):
+        for child, issuer in (
+            ("peer-producer", "peer-coordinator"),
+            ("writer-governance", "tester"),
+            ("writer-governance", "primary"),
+        ):
+            with self.subTest(child=child, issuer=issuer):
+                trace = copy.deepcopy(self.trace)
+                authority = copy.deepcopy(self.authority)
+                self.resign_materiality_as(
+                    trace, authority, child, issuer,
+                )
+                self.assert_rejected(
+                    trace,
+                    "task participant/agent identity",
+                    authority,
+                )
+
     def test_three_writer_followups_cannot_replay_zero_compaction_receipt(self):
         trace = copy.deepcopy(self.trace)
         receipt = self.event("receipt", child="writer-governance", trace=trace)
@@ -357,6 +413,63 @@ class LifecycleConformanceTest(unittest.TestCase):
         spawn = self.event("spawn", child="writer-governance", trace=trace)
         spawn["work_transfer"]["route"] = "garbage"
         self.assert_rejected(trace, "route/topology is not bound")
+
+    def test_work_transfer_requires_complete_documented_schema(self):
+        required_fields = (
+            "delegation_depth", "output_audience", "acceptance_fields",
+            "named_invariants", "escalation_receipt", "artifact_contract",
+        )
+        for field in required_fields:
+            with self.subTest(field=field):
+                trace = copy.deepcopy(self.trace)
+                del self.event("spawn", child="writer-governance", trace=trace)["work_transfer"][field]
+                self.assert_rejected(trace, "work-transfer has unknown or missing fields")
+        trace = copy.deepcopy(self.trace)
+        self.event("spawn", child="writer-governance", trace=trace)["work_transfer"]["extra"] = True
+        self.assert_rejected(trace, "work-transfer has unknown or missing fields")
+
+    def test_work_transfer_rejects_type_and_semantic_anomalies(self):
+        mutations = (
+            ("delegation_depth", True, "delegation depth differs"),
+            ("output_audience", "broadcast", "output audience is invalid"),
+            ("acceptance_fields", [], "acceptance_fields is invalid"),
+            ("named_invariants", ["same", "same"], "named_invariants is invalid"),
+            ("escalation_receipt", {}, "escalation receipt is invalid"),
+            ("artifact_contract", {}, "artifact contract is invalid"),
+        )
+        for field, value, marker in mutations:
+            with self.subTest(field=field):
+                trace = copy.deepcopy(self.trace)
+                spawn = self.event("spawn", child="writer-governance", trace=trace)
+                spawn["work_transfer"][field] = value
+                self.reseal_transfer(spawn)
+                self.assert_rejected(trace, marker)
+
+    def test_work_transfer_new_fields_are_canonical_digest_bound(self):
+        trace = copy.deepcopy(self.trace)
+        transfer = self.event("spawn", child="writer-governance", trace=trace)["work_transfer"]
+        transfer["output_audience"] = "user-facing"
+        self.assert_rejected(trace, "admitted-state digest does not bind canonical payload")
+
+    def test_work_transfer_delegation_depth_matches_spawn_after_rehash(self):
+        trace = copy.deepcopy(self.trace)
+        spawn = self.event("spawn", child="writer-governance", trace=trace)
+        spawn["work_transfer"]["delegation_depth"] = 1
+        self.reseal_transfer(spawn)
+        self.assert_rejected(trace, "delegation depth differs")
+
+    def test_writer_artifact_path_must_stay_in_writer_and_slice_scope(self):
+        trace = copy.deepcopy(self.trace)
+        spawn = self.event("spawn", child="writer-governance", trace=trace)
+        spawn["work_transfer"]["artifact_contract"] = {
+            "artifact_kind": "path",
+            "artifact_path": "declared/elsewhere/report.json",
+            "artifact_format": "json",
+            "artifact_writer": "writer-governance",
+            "receipt_transfer_rule": "terminal-receipt",
+        }
+        self.reseal_transfer(spawn)
+        self.assert_rejected(trace, "writer artifact ownership exceeds declared writer/slice paths")
 
     def test_rejects_task_budget_denominator_laundering(self):
         trace = copy.deepcopy(self.trace)

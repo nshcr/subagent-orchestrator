@@ -85,12 +85,12 @@
       "producer": "peer-producer",
       "consumer": "peer-consumer",
       "artifact_receipt_digest": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
-      "consumer_scope_digest": "4a77bf66bd9621c3c759ffcb0f9c155a736cfc7e6e3482cda55d7129380fe942",
+      "consumer_scope_digest": "ec0a37abb8fdc71921f82328e6c29d254e9cdaab1a6bb55eef5ddfa0026a38c2",
       "purpose": "artifact_receipt",
       "dependency_digest": "36ce4a948679839e4a00fa460765ee19372e3af48365e9ea19fc9be7df4b668f",
-      "message_payload_digest": "90b65ad9f4ed3a45bc88fbc13e8f7679382bb1c2647a716e5fe9c8213171f484",
+      "message_payload_digest": "59d9822a54009377b765f06df1a4ed521ae14209e41f62d62e15493c20bdecd2",
       "removed_primary_relay": true,
-      "receipt_digest": "1d47d772f67df8a079be4ad9caef1b7295529392766a78721162264db8b10af8"
+      "receipt_digest": "994c9848bbf9a2c228231c8a1065555785d05a9091f6045f38ae5f7a279107f4"
     }
   ],
   "pilot_authorizations": [
@@ -126,12 +126,12 @@
       "task_id": "task-new-host-authorized",
       "slice_id": "slice-governance",
       "consumer": "writer-governance",
-      "scope_digest": "ad0b67a6cffe72135d1149255b658f808a61961ab83f4a4054a1606d4339923b",
+      "scope_digest": "2f551f65d741aae37125bda5b6cdf3e3243528fcb5e0fe6132184bbbee0df7ed",
       "purpose": "dependency_status",
       "payload_receipt_digest": "abababababababababababababababababababababababababababababababab",
       "dependency_digest": "00637fbfa96db75400fb32a8da0d06584f5a785114aff53f16333c726f2f0cb1",
-      "message_payload_digest": "e64491902230afe1b0fe5a7ef9f005f37c3ce8fb4a4edf28b1dda26ac12e1ba2",
-      "receipt_digest": "8c550cfe593e4dbb5bf8c7c3f9a2bed8b5d749ccda8c48af4b2e5b4569f50f42",
+      "message_payload_digest": "f7649831938fcbe6c150328f68f0843c02c159179f7a7d14832139a0e466068f",
+      "receipt_digest": "d46efd4f8f59e787adbb067841c477cc9f42c83e71f4298d06224179a8a1dbe9",
       "producer": "primary"
     }
   ]

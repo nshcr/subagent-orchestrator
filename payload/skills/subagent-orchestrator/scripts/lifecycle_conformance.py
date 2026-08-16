@@ -74,6 +74,11 @@ def overlaps(left: str, right: str) -> bool:
     return a[: len(b)] == b or b[: len(a)] == a
 
 
+def within_scope(path: str, scope: str) -> bool:
+    candidate, declared = PurePosixPath(path).parts, PurePosixPath(scope).parts
+    return candidate[: len(declared)] == declared
+
+
 def authority_index(authority: object) -> tuple[dict[str, dict[str, dict]], set[str], list[str]]:
     """Validate host-provided receipts kept outside the trace under review.
 
@@ -130,6 +135,7 @@ def validate_materiality(
     slice_id: str,
     anchor_digest: object,
     authority: dict[str, dict[str, dict]],
+    participant_identities: set[str],
 ) -> list[str]:
     if not isinstance(manifest, dict) or set(manifest) != {
         "issuer_kind", "issued_by", "task_id", "slice_id", "manifest_digest",
@@ -138,8 +144,12 @@ def validate_materiality(
     }:
         return ["materiality manifest has unknown or missing fields"]
     errors: list[str] = []
-    if manifest["issuer_kind"] not in {"host", "owner", "sealed-harness"} or manifest["issued_by"] in {child, "agent", "self"}:
-        errors.append("materiality manifest is self-issued")
+    issuer_kind = manifest["issuer_kind"]
+    issuer = manifest["issued_by"]
+    if not isinstance(issuer_kind, str) or issuer_kind not in {"host", "owner", "sealed-harness"}:
+        errors.append("materiality manifest lacks a trusted external issuer class")
+    if not isinstance(issuer, str) or not issuer or issuer in participant_identities:
+        errors.append("materiality manifest is self-issued or matches a task participant/agent identity")
     if not digest(manifest["manifest_digest"]):
         errors.append("materiality manifest digest is invalid")
     projection = {key: value for key, value in manifest.items() if key != "manifest_digest"}
@@ -205,9 +215,20 @@ def validate_materiality(
     return errors
 
 
-def validate_transfer(value: object, task_id: str, slice_id: str, child: str, route: str, topology: str, parent: str) -> list[str]:
+def validate_transfer(
+    value: object,
+    task_id: str,
+    slice_id: str,
+    child: str,
+    route: str,
+    topology: str,
+    delegation_depth: object,
+    parent: str,
+) -> list[str]:
     required = {
         "producer", "consumer", "task_id", "slice_id", "route", "topology",
+        "delegation_depth", "output_audience", "acceptance_fields", "named_invariants",
+        "escalation_receipt", "artifact_contract",
         "input_summary", "sampling_allowlist", "admitted_state_digest", "status",
         "artifact_receipt_digest", "admitted_receipt_digests", "completion_conditions", "forbidden_actions",
     }
@@ -215,22 +236,68 @@ def validate_transfer(value: object, task_id: str, slice_id: str, child: str, ro
         return ["work-transfer has unknown or missing fields"]
     errors: list[str] = []
     admitted_producers = {"primary", "host", "owner"} if parent == "primary" else {parent}
-    if value["producer"] not in admitted_producers or value["consumer"] != child or value["task_id"] != task_id or value["slice_id"] != slice_id:
+    if not isinstance(value["producer"], str) or value["producer"] not in admitted_producers or value["consumer"] != child or value["task_id"] != task_id or value["slice_id"] != slice_id:
         errors.append("work-transfer identity is invalid")
-    if value["topology"] not in {"leaf", "bounded-peer"} or not digest(value["admitted_state_digest"]):
+    if not isinstance(value["topology"], str) or value["topology"] not in {"leaf", "bounded-peer"} or not digest(value["admitted_state_digest"]):
         errors.append("work-transfer topology/state is invalid")
     projection = {key: item for key, item in value.items() if key != "admitted_state_digest"}
     if value["admitted_state_digest"] != canonical_digest(projection):
         errors.append("work-transfer admitted-state digest does not bind canonical payload")
-    if value["route"] != route or value["topology"] != topology:
-        errors.append("work-transfer route/topology is not bound to spawn")
+    if value["route"] != route or value["topology"] != topology or type(value["delegation_depth"]) is not int or value["delegation_depth"] != delegation_depth:
+        errors.append("work-transfer route/topology is not bound to spawn or delegation depth differs")
     if value["status"] != "admitted" or value["artifact_receipt_digest"] is not None:
         errors.append("new work-transfer status is invalid")
     for key in ("input_summary", "sampling_allowlist", "completion_conditions", "forbidden_actions"):
-        if not isinstance(value[key], list) or not value[key]:
-            errors.append(f"work-transfer {key} must be non-empty")
+        if not string_list(value[key]):
+            errors.append(f"work-transfer {key} must contain non-empty strings")
     if not string_list(value["admitted_receipt_digests"], nonempty=False) or not all(digest(item) for item in value["admitted_receipt_digests"]):
         errors.append("work-transfer admitted receipt digests are invalid")
+    if not isinstance(value["output_audience"], str) or value["output_audience"] not in {"user-facing", "model-facing"}:
+        errors.append("work-transfer output audience is invalid")
+    for key in ("acceptance_fields", "named_invariants"):
+        field = value[key]
+        if field != "not-applicable" and (
+            not string_list(field) or len(field) != len(set(field))
+        ):
+            errors.append(f"work-transfer {key} is invalid")
+    escalation = value["escalation_receipt"]
+    escalation_keys = {
+        "prior_terminal_line", "evidence", "competing_explanations", "irreversible_decision",
+    }
+    if escalation != "not-applicable":
+        if not isinstance(escalation, dict) or set(escalation) != escalation_keys:
+            errors.append("work-transfer escalation receipt is invalid")
+        elif (
+            not isinstance(escalation["prior_terminal_line"], str)
+            or not escalation["prior_terminal_line"]
+            or not string_list(escalation["evidence"])
+            or not string_list(escalation["competing_explanations"])
+            or len(set(escalation["competing_explanations"])) < 2
+            or not isinstance(escalation["irreversible_decision"], str)
+            or not escalation["irreversible_decision"]
+        ):
+            errors.append("work-transfer escalation receipt is invalid")
+    artifact = value["artifact_contract"]
+    artifact_keys = {
+        "artifact_kind", "artifact_path", "artifact_format", "artifact_writer",
+        "receipt_transfer_rule",
+    }
+    if artifact != "none":
+        if not isinstance(artifact, dict) or set(artifact) != artifact_keys:
+            errors.append("work-transfer artifact contract is invalid")
+        elif (
+            not isinstance(artifact["artifact_kind"], str)
+            or artifact["artifact_kind"] not in {"path", "body"}
+            or not isinstance(artifact["artifact_path"], str)
+            or not artifact["artifact_path"]
+            or (artifact["artifact_kind"] == "path" and not safe_path(artifact["artifact_path"]))
+            or not isinstance(artifact["artifact_format"], str)
+            or not artifact["artifact_format"]
+            or artifact["artifact_writer"] != child
+            or not isinstance(artifact["receipt_transfer_rule"], str)
+            or not artifact["receipt_transfer_rule"]
+        ):
+            errors.append("work-transfer artifact contract is invalid")
     return errors
 
 
@@ -295,6 +362,16 @@ def validate_scenario(
             gate["passed"] = False
 
     events = scenario["events"] if isinstance(scenario["events"], list) else []
+    participant_identities = {
+        "primary", "agent", "self", "proxy", "default", *CUSTOM, *BUILTIN,
+    }
+    for candidate in events:
+        if not isinstance(candidate, dict) or candidate.get("type") != "spawn":
+            continue
+        for key in ("child", "parent", "agent_type"):
+            identity = candidate.get(key)
+            if isinstance(identity, str) and identity:
+                participant_identities.add(identity)
     for index, event in enumerate(events):
         location = f"{scenario['name']}[{index}]"
         if not isinstance(event, dict) or not isinstance(event.get("type"), str):
@@ -383,6 +460,7 @@ def validate_scenario(
                     for item in validate_materiality(
                         event["materiality_manifest"], child, agent_type, task_id,
                         event["slice_id"], authority_refs["materiality"], authority,
+                        participant_identities,
                     )
                 )
                 manifest = event["materiality_manifest"]
@@ -436,7 +514,13 @@ def validate_scenario(
                     node["agent_type"] == "default" for node in nodes.values()
                 ):
                     errors.append(f"{location}: bounded-peer coordinator cap exceeded")
-            errors.extend(f"{location}: {item}" for item in validate_transfer(event["work_transfer"], task_id, event["slice_id"], child, agent_type, topology, parent))
+            errors.extend(
+                f"{location}: {item}"
+                for item in validate_transfer(
+                    event["work_transfer"], task_id, event["slice_id"], child,
+                    agent_type, topology, depth, parent,
+                )
+            )
             raw_component = event["owner_component"]
             component = component_root(raw_component) if isinstance(raw_component, str) and raw_component else ""
             paths = event["owner_paths"]
@@ -445,6 +529,14 @@ def validate_scenario(
                 errors.append(f"{location}: writer ownership invalid")
                 paths = []
             if agent_type == "worker":
+                slice_paths = slices[event["slice_id"]].get("owner_paths", [])
+                if not string_list(slice_paths):
+                    slice_paths = []
+                if not all(
+                    any(within_scope(path, declared) for declared in slice_paths)
+                    for path in paths
+                ):
+                    errors.append(f"{location}: writer ownership exceeds slice_open owner_paths")
                 if event["slice_id"] in writer_slices:
                     errors.append(f"{location}: each slice permits at most one writer")
                 writer_slices.add(event["slice_id"])
@@ -456,6 +548,20 @@ def validate_scenario(
                         component = union_components(component, registered)
                 component = component_root(component)
                 component_paths.setdefault(component, set()).update(paths)
+                if not any(
+                    overlaps(component_path, declared)
+                    for component_path in component_paths[component]
+                    for declared in slice_paths
+                ):
+                    errors.append(f"{location}: writer owner component is disconnected from slice ownership")
+                artifact = event["work_transfer"].get("artifact_contract") if isinstance(event["work_transfer"], dict) else None
+                if isinstance(artifact, dict) and artifact.get("artifact_kind") == "path":
+                    artifact_path = artifact.get("artifact_path")
+                    if not isinstance(artifact_path, str) or not all((
+                        any(within_scope(artifact_path, declared) for declared in slice_paths),
+                        any(within_scope(artifact_path, declared) for declared in paths),
+                    )):
+                        errors.append(f"{location}: writer artifact ownership exceeds declared writer/slice paths")
                 baseline_digest = authority_refs["compaction_baseline"]
                 baseline = authority.get("compaction_receipts", {}).get(baseline_digest) if digest(baseline_digest) else None
                 baseline_expected = {
