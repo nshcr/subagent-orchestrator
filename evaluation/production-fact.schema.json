@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/subagent-orchestrator/evaluation/production-fact.schema.json",
-  "title": "Production Fact v1",
+  "title": "Production Fact v2",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "parser", "sources", "cutoff", "source_state", "git_source", "metrics", "unsupported_event_count", "unavailable_metric_count", "completion_claim_eligible", "causal_claim_eligible", "promotion_claim_eligible"],
   "properties": {
-    "schema_version": {"const": "production-fact.v1"},
+    "schema_version": {"const": "production-fact.v2"},
     "parser": {
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "sha256"],
-      "properties": {"version": {"const": "production-fact-parser.v1"}, "sha256": {"$ref": "#/$defs/sha256"}}
+      "properties": {"version": {"const": "production-fact-parser.v2"}, "sha256": {"$ref": "#/$defs/sha256"}}
     },
     "sources": {
       "type": "object",
@@ -29,7 +29,7 @@
     "git_source": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["base_revision", "base_tree", "head_revision", "head_tree", "base_is_ancestor", "clean", "committed_path_sha256", "staged_path_sha256"],
+      "required": ["base_revision", "base_tree", "head_revision", "head_tree", "base_is_ancestor", "clean", "committed_path_sha256", "staged_path_sha256", "commit_list_sha256", "committed_numstat_sha256", "index_sha256", "staged_sha256", "staged_numstat_sha256", "status_sha256", "worktree_sha256"],
       "properties": {
         "base_revision": {"type": "string", "minLength": 1},
         "base_tree": {"type": "string", "minLength": 1},
@@ -38,7 +38,14 @@
         "base_is_ancestor": {"type": "boolean"},
         "clean": {"type": "boolean"},
         "committed_path_sha256": {"$ref": "#/$defs/sha256List"},
-        "staged_path_sha256": {"$ref": "#/$defs/sha256List"}
+        "staged_path_sha256": {"$ref": "#/$defs/sha256List"},
+        "commit_list_sha256": {"$ref": "#/$defs/sha256"},
+        "committed_numstat_sha256": {"$ref": "#/$defs/sha256"},
+        "index_sha256": {"$ref": "#/$defs/sha256"},
+        "staged_sha256": {"$ref": "#/$defs/sha256"},
+        "staged_numstat_sha256": {"$ref": "#/$defs/sha256"},
+        "status_sha256": {"$ref": "#/$defs/sha256"},
+        "worktree_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "metrics": {

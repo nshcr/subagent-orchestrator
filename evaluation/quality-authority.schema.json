@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/subagent-orchestrator/evaluation/quality-authority.schema.json",
+  "title": "Caller-trusted Quality Evidence Authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "campaign_id", "evidence_scope", "authority_id", "authority_receipt_sha256", "admissions"],
+  "properties": {
+    "schema_version": {"const": "quality-evidence-authority.v1"},
+    "campaign_id": {"$ref": "campaign.schema.json#/$defs/string"},
+    "evidence_scope": {"enum": ["development", "sealed"]},
+    "authority_id": {"$ref": "campaign.schema.json#/$defs/string"},
+    "authority_receipt_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+    "admissions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/admission"}
+    }
+  },
+  "$defs": {
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "campaign_id", "evidence_scope", "authority_receipt_sha256", "instance_id", "task_class", "fixture_sha256", "arm", "check_id", "artifact_sha256", "artifact_source_id", "grader_sha256", "quality_result", "quality_result_sha256", "grader_execution_receipt", "grader_execution_receipt_sha256"],
+      "properties": {
+        "schema_version": {"const": "quality-evidence-admission.v1"},
+        "campaign_id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "evidence_scope": {"enum": ["development", "sealed"]},
+        "authority_receipt_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "instance_id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "task_class": {"$ref": "campaign.schema.json#/$defs/string"},
+        "fixture_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "arm": {"enum": ["baseline", "custom"]},
+        "check_id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "artifact_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "artifact_source_id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "grader_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "quality_result": {"$ref": "#/$defs/qualityResult"},
+        "quality_result_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "grader_execution_receipt": {"$ref": "#/$defs/graderReceipt"},
+        "grader_execution_receipt_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"}
+      }
+    },
+    "qualityResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "artifact_sha256", "artifact_source_id", "critical", "evidence_kind", "id", "max_score", "passed", "score"],
+      "properties": {
+        "schema_version": {"const": "quality-check-result.v1"},
+        "artifact_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "artifact_source_id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "critical": {"type": "boolean"},
+        "evidence_kind": {"enum": ["behavior", "source-fact"]},
+        "id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "max_score": {"type": "integer", "minimum": 1},
+        "passed": {"type": "boolean"},
+        "score": {"type": "integer", "minimum": 0}
+      }
+    },
+    "graderReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "artifact_source_id", "authority_receipt_sha256", "evidence_artifact_sha256", "exit_code", "grader_sha256", "result_sha256"],
+      "properties": {
+        "schema_version": {"const": "grader-execution-receipt.v1"},
+        "artifact_source_id": {"$ref": "campaign.schema.json#/$defs/string"},
+        "authority_receipt_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "evidence_artifact_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "exit_code": {"const": 0},
+        "grader_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"},
+        "result_sha256": {"$ref": "campaign.schema.json#/$defs/sha256"}
+      }
+    }
+  }
+}

@@ -16,10 +16,10 @@ sys.path.insert(0, str(PACKAGE_ROOT))
 
 from evaluation import (  # noqa: E402
     EvaluationError,
-    build_report,
+    build_report as _build_report,
     canonical_digest,
     extract_production_facts,
-    validate_campaign,
+    validate_campaign as _validate_campaign,
     validate_evidence_chain,
     validate_production_fact,
 )
@@ -204,7 +204,7 @@ def campaign():
         instance("development-a", "family-a"),
     ]
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "campaign_id": "campaign-1",
         "configuration_hashes": {
             "role_instructions": DIGEST,
@@ -229,7 +229,7 @@ def campaign():
 def holdout():
     instances = [instance("sealed-c", "family-c", holdout=True)]
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "campaign_id": "campaign-1",
         "allowed_baseline_roles": ["explorer"],
         "seal": {
@@ -256,6 +256,108 @@ def holdout():
         "execution_order": freeze_order(instances),
         "instances": instances,
     }
+
+
+def authority_for(document, *, sealed=False):
+    scope = "sealed" if sealed else "development"
+    receipt = (
+        document["seal"]["receipt_sha256"]
+        if sealed
+        else document["configuration_hashes"][
+            "grader_execution_authority_receipt"
+        ]
+    )
+    admissions = []
+    for item in document["instances"]:
+        for arm in sorted(("baseline", "custom")):
+            run = item["runs"][arm]
+            for check in run["quality_checks"]:
+                evidence = check["evidence"]
+                execution = evidence["grader_execution"]
+                result = {
+                    "schema_version": "quality-check-result.v1",
+                    "artifact_sha256": evidence["artifact_sha256"],
+                    "artifact_source_id": evidence["artifact_source_id"],
+                    "critical": check["critical"],
+                    "evidence_kind": evidence["kind"],
+                    "id": check["id"],
+                    "max_score": check["max_score"],
+                    "passed": check["passed"],
+                    "score": check["score"],
+                }
+                grader_receipt = {
+                    "schema_version": "grader-execution-receipt.v1",
+                    "artifact_source_id": execution["artifact_source_id"],
+                    "authority_receipt_sha256": execution[
+                        "authority_receipt_sha256"
+                    ],
+                    "evidence_artifact_sha256": execution[
+                        "evidence_artifact_sha256"
+                    ],
+                    "exit_code": execution["exit_code"],
+                    "grader_sha256": execution["grader_sha256"],
+                    "result_sha256": execution["result_sha256"],
+                }
+                admissions.append(
+                    {
+                        "schema_version": "quality-evidence-admission.v1",
+                        "campaign_id": document["campaign_id"],
+                        "evidence_scope": scope,
+                        "authority_receipt_sha256": receipt,
+                        "instance_id": item["instance_id"],
+                        "task_class": item["task_class"],
+                        "fixture_sha256": item["fixture_sha256"],
+                        "arm": arm,
+                        "check_id": check["id"],
+                        "artifact_sha256": evidence["artifact_sha256"],
+                        "artifact_source_id": evidence["artifact_source_id"],
+                        "grader_sha256": run["grader_sha256"],
+                        "quality_result": result,
+                        "quality_result_sha256": execution["result_sha256"],
+                        "grader_execution_receipt": grader_receipt,
+                        "grader_execution_receipt_sha256": execution[
+                            "receipt_sha256"
+                        ],
+                    }
+                )
+    return {
+        "schema_version": "quality-evidence-authority.v1",
+        "campaign_id": document["campaign_id"],
+        "evidence_scope": scope,
+        "authority_id": f"trusted-{scope}-harness",
+        "authority_receipt_sha256": receipt,
+        "admissions": admissions,
+    }
+
+
+def validate_campaign(document, *, sealed_holdout=False, quality_authority=None):
+    return _validate_campaign(
+        document,
+        sealed_holdout=sealed_holdout,
+        quality_authority=(
+            authority_for(document, sealed=sealed_holdout)
+            if quality_authority is None
+            else quality_authority
+        ),
+    )
+
+
+def build_report(
+    development,
+    sealed=None,
+    *,
+    quality_authority=None,
+    sealed_quality_authority=None,
+):
+    return _build_report(
+        development,
+        sealed,
+        quality_authority=quality_authority or authority_for(development),
+        sealed_quality_authority=(
+            sealed_quality_authority
+            or (authority_for(sealed, sealed=True) if sealed is not None else None)
+        ),
+    )
 
 
 def set_run_credits(run, value):
@@ -319,6 +421,66 @@ class EvaluationCampaignTest(unittest.TestCase):
         )["arms"]["baseline"]
         self.assertEqual(measured["total_credits"], "10.5")
         self.assertEqual(measured["total_tokens"], 131)
+
+    def test_external_quality_authority_rejects_self_recomputed_campaign_forgery(self):
+        document = campaign()
+        trusted_authority = authority_for(document)
+        document["configuration_hashes"]["task_fixtures"] = "b" * 64
+        target = document["instances"][0]
+        target["fixture_sha256"] = "c" * 64
+        check = target["runs"]["custom"]["quality_checks"][0]
+        check["evidence"]["artifact_source_id"] = "sidecar://forged/source"
+        check["evidence"]["artifact_sha256"] = hashlib.sha256(
+            b"forged artifact"
+        ).hexdigest()
+        refresh_quality_binding(check, DEVELOPMENT_AUTHORITY)
+        with self.assertRaisesRegex(
+            EvaluationError, "does not admit the exact immutable campaign result"
+        ):
+            _validate_campaign(document, quality_authority=trusted_authority)
+
+        missing = campaign()
+        with self.assertRaisesRegex(EvaluationError, "requires a separate caller-supplied"):
+            _validate_campaign(missing)
+        duplicate = authority_for(campaign())
+        duplicate["admissions"].append(copy.deepcopy(duplicate["admissions"][0]))
+        with self.assertRaisesRegex(EvaluationError, "duplicate admission"):
+            _validate_campaign(campaign(), quality_authority=duplicate)
+        cross_campaign = authority_for(campaign())
+        cross_campaign["campaign_id"] = "other-campaign"
+        with self.assertRaisesRegex(EvaluationError, "does not match campaign"):
+            _validate_campaign(campaign(), quality_authority=cross_campaign)
+        type_invalid = authority_for(campaign())
+        type_invalid["admissions"][0]["grader_execution_receipt"][
+            "exit_code"
+        ] = False
+        with self.assertRaisesRegex(EvaluationError, "exit_code must be integer zero"):
+            _validate_campaign(campaign(), quality_authority=type_invalid)
+
+    def test_arm_order_balance_control_rejects_ten_to_one_skew(self):
+        skewed = campaign()
+        instances = []
+        for index in range(11):
+            item = instance(f"skew-{index}", f"family-{index}")
+            item["arm_order"] = (
+                ["custom", "baseline"]
+                if index == 10
+                else ["baseline", "custom"]
+            )
+            instances.append(item)
+        skewed["instances"] = instances
+        skewed["execution_order"] = freeze_order(instances)
+        with self.assertRaisesRegex(EvaluationError, "arm order balance control failed"):
+            _validate_campaign(skewed, quality_authority=authority_for(skewed))
+
+        positive = build_report(campaign(), holdout())
+        self.assertEqual(
+            positive["overall_order_balance_control"]["decision"], "PASS"
+        )
+        self.assertEqual(
+            positive["task_classes"][0]["order_balance_control"]["decision"],
+            "PASS",
+        )
 
     def test_execution_measurement_role_and_seal_mismatches_fail_closed(self):
         def nonterminal(document, sealed):
@@ -639,11 +801,21 @@ class EvaluationCampaignTest(unittest.TestCase):
             root = Path(temporary)
             campaign_path = root / "campaign.json"
             sealed_path = root / "private-sealed-results.json"
+            authority_path = root / "development-quality-authority.json"
+            sealed_authority_path = root / "sealed-quality-authority.json"
             report_path = root / "report.json"
-            campaign_path.write_text(json.dumps(campaign()), encoding="utf-8")
-            sealed_path.write_text(json.dumps(holdout()), encoding="utf-8")
+            development = campaign()
+            sealed = holdout()
+            campaign_path.write_text(json.dumps(development), encoding="utf-8")
+            sealed_path.write_text(json.dumps(sealed), encoding="utf-8")
+            authority_path.write_text(
+                json.dumps(authority_for(development)), encoding="utf-8"
+            )
+            sealed_authority_path.write_text(
+                json.dumps(authority_for(sealed, sealed=True)), encoding="utf-8"
+            )
             completed = subprocess.run(
-                [sys.executable, "-B", "-m", "evaluation", "report", "--campaign", str(campaign_path), "--sealed-holdout", str(sealed_path), "--output", str(report_path)],
+                [sys.executable, "-B", "-m", "evaluation", "report", "--campaign", str(campaign_path), "--quality-authority", str(authority_path), "--sealed-holdout", str(sealed_path), "--sealed-quality-authority", str(sealed_authority_path), "--output", str(report_path)],
                 cwd=PACKAGE_ROOT,
                 check=False,
                 capture_output=True,
@@ -665,14 +837,23 @@ class EvaluationCampaignTest(unittest.TestCase):
         tiers = json.loads(
             (PACKAGE_ROOT / "evaluation" / "evidence-tier.schema.json").read_text()
         )
+        authority = json.loads(
+            (PACKAGE_ROOT / "evaluation" / "quality-authority.schema.json").read_text()
+        )
         self.assertFalse(schema["additionalProperties"])
         self.assertFalse(schema["$defs"]["thread"]["additionalProperties"])
         self.assertFalse(sealed["additionalProperties"])
         self.assertFalse(production["additionalProperties"])
         self.assertFalse(production["properties"]["metrics"]["additionalProperties"])
         self.assertFalse(tiers["additionalProperties"])
-        self.assertEqual(schema["properties"]["schema_version"]["const"], 3)
-        self.assertEqual(sealed["properties"]["schema_version"]["const"], 3)
+        self.assertFalse(authority["additionalProperties"])
+        self.assertFalse(authority["$defs"]["admission"]["additionalProperties"])
+        self.assertEqual(schema["properties"]["schema_version"]["const"], 4)
+        self.assertEqual(sealed["properties"]["schema_version"]["const"], 4)
+        self.assertEqual(
+            production["properties"]["schema_version"]["const"],
+            "production-fact.v2",
+        )
         self.assertIn(
             "grader_execution_authority_receipt",
             schema["properties"]["configuration_hashes"]["required"],
@@ -697,7 +878,18 @@ class EvaluationCampaignTest(unittest.TestCase):
         examples = PACKAGE_ROOT / "evaluation" / "examples"
         development = json.loads((examples / "campaign.json").read_text())
         sealed = json.loads((examples / "sealed-holdout.json").read_text())
-        report = build_report(development, sealed)
+        development_authority = json.loads(
+            (examples / "quality-authority-development.json").read_text()
+        )
+        sealed_authority = json.loads(
+            (examples / "quality-authority-sealed.json").read_text()
+        )
+        report = build_report(
+            development,
+            sealed,
+            quality_authority=development_authority,
+            sealed_quality_authority=sealed_authority,
+        )
         self.assertEqual(report["campaign_id"], "public-smoke")
         self.assertEqual(len(report["instances"]), 2)
 
@@ -1015,7 +1207,7 @@ class ProductionFactsTest(unittest.TestCase):
 
     def test_terminal_fact_is_private_typed_and_complete(self):
         fact = self._extract()
-        self.assertEqual(fact["schema_version"], "production-fact.v1")
+        self.assertEqual(fact["schema_version"], "production-fact.v2")
         self.assertFalse(fact["completion_claim_eligible"])
         self.assertFalse(fact["causal_claim_eligible"])
         self.assertFalse(fact["promotion_claim_eligible"])
@@ -1095,7 +1287,91 @@ class ProductionFactsTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(json.loads(output.read_text())["schema_version"], "production-fact.v1")
+        self.assertEqual(json.loads(output.read_text())["schema_version"], "production-fact.v2")
+
+    def test_unrelated_supported_event_token_names_do_not_change_usage(self):
+        baseline = self._extract()
+        injected = {
+            "timestamp": self.spawn.replace(microsecond=3500).isoformat(),
+            "type": "event_msg",
+            "payload": {
+                "type": "progress",
+                "unrelated": {
+                    "input_tokens": 999999,
+                    "cached_input_tokens": 999999,
+                    "cache_write_input_tokens": 999999,
+                    "output_tokens": 999999,
+                    "reasoning_output_tokens": 999999,
+                    "total_tokens": 1999998,
+                },
+            },
+        }
+        self._write_valid_sources(extra_child=(injected,))
+        observed = self._extract()
+        self.assertEqual(
+            {
+                key: metric["value"]
+                for key, metric in baseline["metrics"]["tokens"].items()
+            },
+            {
+                key: metric["value"]
+                for key, metric in observed["metrics"]["tokens"].items()
+            },
+        )
+
+    def test_git_denominator_sources_bind_base_and_staged_state(self):
+        clean = self._extract()
+        (self.repo / "tracked.txt").write_text("base\ncommitted\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", "tracked.txt"], check=True
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "commit", "-qm", "second"], check=True
+        )
+        head = subprocess.run(
+            ["git", "-C", str(self.repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        old_base = self._extract()
+        head_base = extract_production_facts(
+            parent=self.parent,
+            children_root=self.children,
+            repo=self.repo,
+            base=head,
+            cutoff=datetime(2026, 8, 16, 2, 0, tzinfo=timezone.utc),
+            source_state="terminal",
+        )
+        self.assertEqual(old_base["git_source"]["head_revision"], head_base["git_source"]["head_revision"])
+        self.assertNotEqual(
+            old_base["metrics"]["git_denominators"]["commit_count"]["source_id"],
+            head_base["metrics"]["git_denominators"]["commit_count"]["source_id"],
+        )
+
+        (self.repo / "tracked.txt").write_text(
+            "base\ncommitted\nstaged\n", encoding="utf-8"
+        )
+        subprocess.run(
+            ["git", "-C", str(self.repo), "add", "tracked.txt"], check=True
+        )
+        staged = self._extract()
+        self.assertEqual(old_base["git_source"]["head_revision"], staged["git_source"]["head_revision"])
+        for name, metric in old_base["metrics"]["git_denominators"].items():
+            if metric["status"] == "available":
+                self.assertNotEqual(
+                    metric["source_id"],
+                    staged["metrics"]["git_denominators"][name]["source_id"],
+                    name,
+                )
+        forged = copy.deepcopy(staged)
+        forged["metrics"]["git_denominators"]["commit_count"]["source_id"] = (
+            clean["metrics"]["git_denominators"]["commit_count"]["source_id"]
+        )
+        with self.assertRaisesRegex(
+            EvaluationError, "does not bind complete Git denominator state"
+        ):
+            validate_production_fact(forged)
 
     def test_copied_history_active_dirty_unsupported_nested_and_failed_spawn(self):
         copied = {"timestamp": "2026-08-16T00:59:59+00:00", "type": "turn_context", "payload": {"role": "primary"}}

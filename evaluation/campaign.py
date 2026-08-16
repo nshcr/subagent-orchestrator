@@ -2,8 +2,8 @@
 """Validate evaluation evidence and emit deterministic policy reports.
 
 This command never invokes a model, a grader, or the network. Development
-campaign evidence and sealed-holdout evidence are separate inputs. The latter
-is injected only with ``--sealed-holdout`` after grading has completed.
+campaign evidence, caller-trusted quality authority, and sealed-holdout evidence
+are separate inputs. Sealed evidence is injected only after grading completes.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 EXAMPLES_ROOT = Path(__file__).resolve().parent / "examples"
 ARMS = {"baseline", "custom"}
 TOKEN_KEYS = {
@@ -123,6 +123,52 @@ GRADER_EXECUTION_KEYS = {
     "artifact_source_id",
     "result_sha256",
     "exit_code",
+}
+QUALITY_AUTHORITY_KEYS = {
+    "schema_version",
+    "campaign_id",
+    "evidence_scope",
+    "authority_id",
+    "authority_receipt_sha256",
+    "admissions",
+}
+QUALITY_ADMISSION_KEYS = {
+    "schema_version",
+    "campaign_id",
+    "evidence_scope",
+    "authority_receipt_sha256",
+    "instance_id",
+    "task_class",
+    "fixture_sha256",
+    "arm",
+    "check_id",
+    "artifact_sha256",
+    "artifact_source_id",
+    "grader_sha256",
+    "quality_result",
+    "quality_result_sha256",
+    "grader_execution_receipt",
+    "grader_execution_receipt_sha256",
+}
+QUALITY_RESULT_KEYS = {
+    "schema_version",
+    "artifact_sha256",
+    "artifact_source_id",
+    "critical",
+    "evidence_kind",
+    "id",
+    "max_score",
+    "passed",
+    "score",
+}
+GRADER_EXECUTION_RECEIPT_PAYLOAD_KEYS = {
+    "schema_version",
+    "artifact_source_id",
+    "authority_receipt_sha256",
+    "evidence_artifact_sha256",
+    "exit_code",
+    "grader_sha256",
+    "result_sha256",
 }
 AUDIT_KEYS = {"passed", "notes"}
 SEAL_KEYS = {
@@ -274,6 +320,169 @@ def _grader_execution_receipt_payload(execution: dict) -> dict:
         "result_sha256": execution["result_sha256"],
         "schema_version": "grader-execution-receipt.v1",
     }
+
+
+def _validate_quality_authority(
+    authority: object, document: dict, *, sealed_holdout: bool
+) -> None:
+    label = "sealed quality authority" if sealed_holdout else "development quality authority"
+    if authority is document:
+        raise EvaluationError(f"{label} must be a physically separate caller-supplied document")
+    authority = _require_exact_keys(authority, QUALITY_AUTHORITY_KEYS, label)
+    if authority["schema_version"] != "quality-evidence-authority.v1":
+        raise EvaluationError(
+            f"{label}.schema_version must be quality-evidence-authority.v1"
+        )
+    campaign_id = _require_string(authority["campaign_id"], f"{label}.campaign_id")
+    if campaign_id != document["campaign_id"]:
+        raise EvaluationError(f"{label}.campaign_id does not match campaign")
+    evidence_scope = "sealed" if sealed_holdout else "development"
+    if authority["evidence_scope"] != evidence_scope:
+        raise EvaluationError(f"{label}.evidence_scope must be {evidence_scope}")
+    _require_string(authority["authority_id"], f"{label}.authority_id")
+    authority_receipt = _require_sha256(
+        authority["authority_receipt_sha256"],
+        f"{label}.authority_receipt_sha256",
+    )
+    expected_authority_receipt = (
+        document["seal"]["receipt_sha256"]
+        if sealed_holdout
+        else document["configuration_hashes"][
+            "grader_execution_authority_receipt"
+        ]
+    )
+    if authority_receipt != expected_authority_receipt:
+        raise EvaluationError(
+            f"{label} receipt does not match the campaign digest reference"
+        )
+
+    admissions = authority["admissions"]
+    if not isinstance(admissions, list) or not admissions:
+        raise EvaluationError(f"{label}.admissions must be a non-empty list")
+    observed: dict[tuple[str, str, str], dict] = {}
+    for index, admission in enumerate(admissions):
+        location = f"{label}.admissions[{index}]"
+        admission = _require_exact_keys(admission, QUALITY_ADMISSION_KEYS, location)
+        if admission["schema_version"] != "quality-evidence-admission.v1":
+            raise EvaluationError(
+                f"{location}.schema_version must be quality-evidence-admission.v1"
+            )
+        if admission["campaign_id"] != campaign_id:
+            raise EvaluationError(f"{location} has cross-campaign authority")
+        if admission["evidence_scope"] != evidence_scope:
+            raise EvaluationError(f"{location} has cross-scope authority")
+        if admission["authority_receipt_sha256"] != authority_receipt:
+            raise EvaluationError(f"{location} has mismatched authority receipt")
+        for key in ("instance_id", "task_class", "check_id", "artifact_source_id"):
+            _require_string(admission[key], f"{location}.{key}")
+        for key in (
+            "fixture_sha256",
+            "artifact_sha256",
+            "grader_sha256",
+            "quality_result_sha256",
+            "grader_execution_receipt_sha256",
+        ):
+            _require_sha256(admission[key], f"{location}.{key}")
+        if admission["arm"] not in ARMS:
+            raise EvaluationError(f"{location}.arm is invalid")
+        result = _require_exact_keys(
+            admission["quality_result"],
+            QUALITY_RESULT_KEYS,
+            f"{location}.quality_result",
+        )
+        if result.get("schema_version") != "quality-check-result.v1":
+            raise EvaluationError(
+                f"{location}.quality_result.schema_version must be quality-check-result.v1"
+            )
+        receipt = _require_exact_keys(
+            admission["grader_execution_receipt"],
+            GRADER_EXECUTION_RECEIPT_PAYLOAD_KEYS,
+            f"{location}.grader_execution_receipt",
+        )
+        if receipt.get("schema_version") != "grader-execution-receipt.v1":
+            raise EvaluationError(
+                f"{location}.grader_execution_receipt.schema_version must be "
+                "grader-execution-receipt.v1"
+            )
+        if receipt.get("exit_code") != 0 or isinstance(receipt.get("exit_code"), bool):
+            raise EvaluationError(
+                f"{location}.grader_execution_receipt.exit_code must be integer zero"
+            )
+        if admission["quality_result_sha256"] != _canonical_sha256(result):
+            raise EvaluationError(f"{location} quality result digest is invalid")
+        if admission["grader_execution_receipt_sha256"] != _canonical_sha256(receipt):
+            raise EvaluationError(f"{location} grader receipt digest is invalid")
+        key = (admission["instance_id"], admission["arm"], admission["check_id"])
+        if key in observed:
+            raise EvaluationError(f"{label} has duplicate admission {key}")
+        observed[key] = admission
+
+    expected = {}
+    for instance in document["instances"]:
+        for arm in sorted(ARMS):
+            run = instance["runs"][arm]
+            for check in run["quality_checks"]:
+                execution = check["evidence"]["grader_execution"]
+                key = (instance["instance_id"], arm, check["id"])
+                expected[key] = {
+                    "schema_version": "quality-evidence-admission.v1",
+                    "campaign_id": document["campaign_id"],
+                    "evidence_scope": evidence_scope,
+                    "authority_receipt_sha256": authority_receipt,
+                    "instance_id": instance["instance_id"],
+                    "task_class": instance["task_class"],
+                    "fixture_sha256": instance["fixture_sha256"],
+                    "arm": arm,
+                    "check_id": check["id"],
+                    "artifact_sha256": check["evidence"]["artifact_sha256"],
+                    "artifact_source_id": check["evidence"]["artifact_source_id"],
+                    "grader_sha256": run["grader_sha256"],
+                    "quality_result": _quality_result_payload(check),
+                    "quality_result_sha256": execution["result_sha256"],
+                    "grader_execution_receipt": _grader_execution_receipt_payload(
+                        execution
+                    ),
+                    "grader_execution_receipt_sha256": execution["receipt_sha256"],
+                }
+    if set(observed) != set(expected):
+        missing = sorted(set(expected) - set(observed))
+        extra = sorted(set(observed) - set(expected))
+        raise EvaluationError(
+            f"{label} admissions do not exactly cover campaign checks; "
+            f"missing={missing}; extra={extra}"
+        )
+    for key, expected_admission in expected.items():
+        if observed[key] != expected_admission:
+            raise EvaluationError(
+                f"{label} admission {key} does not admit the exact immutable "
+                "campaign result, receipt, artifact, grader, and identity"
+            )
+
+
+def _validate_arm_order_balance(instances: list[dict], label: str) -> dict:
+    scopes = {"overall": instances}
+    for task_class in sorted({item["task_class"] for item in instances}):
+        scopes[f"task_class:{task_class}"] = [
+            item for item in instances if item["task_class"] == task_class
+        ]
+    result = {}
+    for scope, selected in scopes.items():
+        baseline_first = sum(item["arm_order"][0] == "baseline" for item in selected)
+        custom_first = len(selected) - baseline_first
+        difference = abs(baseline_first - custom_first)
+        allowed_difference = len(selected) % 2
+        passed = difference <= allowed_difference
+        result[scope] = {
+            "baseline_first": baseline_first,
+            "custom_first": custom_first,
+            "decision": "PASS" if passed else "BLOCK",
+        }
+        if not passed:
+            raise EvaluationError(
+                f"{label} arm order balance control failed for {scope}: "
+                f"baseline-first={baseline_first}, custom-first={custom_first}"
+            )
+    return result
 
 
 def _require_decimal(value: object, location: str) -> Decimal:
@@ -657,7 +866,12 @@ def _validate_instance(
     return instance_id
 
 
-def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
+def validate_campaign(
+    document: dict,
+    *,
+    sealed_holdout: bool = False,
+    quality_authority: dict | None = None,
+) -> None:
     expected_keys = HOLDOUT_KEYS if sealed_holdout else CAMPAIGN_KEYS
     label = "sealed holdout" if sealed_holdout else "campaign"
     document = _require_exact_keys(document, expected_keys, label)
@@ -842,6 +1056,7 @@ def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
         raise EvaluationError(f"{label} run execution_index values must be unique and contiguous")
     if [entry for _, entry in observed_execution] != execution_order:
         raise EvaluationError(f"{label}.execution_order drifts from recorded run indexes")
+    _validate_arm_order_balance(instances, label)
 
     if not sealed_holdout:
         task_classes = {item["task_class"] for item in instances}
@@ -865,6 +1080,11 @@ def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
                 raise EvaluationError(
                     f"{instance['instance_id']} expected_roles must exactly equal its class policy role"
                 )
+    if quality_authority is None:
+        raise EvaluationError(f"{label} requires a separate caller-supplied quality authority")
+    _validate_quality_authority(
+        quality_authority, document, sealed_holdout=sealed_holdout
+    )
 
 
 def _decimal_text(value: Decimal) -> str:
@@ -1041,8 +1261,14 @@ def _class_summary(
     families = sorted({instance["fixture_family"] for instance in instances})
     sealed_count = sum(1 for instance in instances if instance["holdout"])
     arm_orders = sorted({"/".join(instance["arm_order"]) for instance in instances})
+    order_balance = _validate_arm_order_balance(
+        instances, f"report task class {task_class}"
+    )["overall"]
     evidence_complete = (
-        len(families) >= 3 and sealed_count >= 1 and len(arm_orders) == 2
+        len(families) >= 3
+        and sealed_count >= 1
+        and len(arm_orders) == 2
+        and order_balance["decision"] == "PASS"
     )
     custom = arm_totals["custom"]
     baseline = arm_totals["baseline"]
@@ -1155,6 +1381,7 @@ def _class_summary(
     return {
         "arms": arm_totals,
         "arm_orders": arm_orders,
+        "order_balance_control": order_balance,
         "evidence_complete": evidence_complete,
         "fixture_families": families,
         "instance_count": len(instances),
@@ -1196,11 +1423,21 @@ def _class_summary(
     }
 
 
-def build_report(campaign: dict, sealed_holdout: dict | None = None) -> dict:
-    validate_campaign(campaign)
+def build_report(
+    campaign: dict,
+    sealed_holdout: dict | None = None,
+    *,
+    quality_authority: dict | None = None,
+    sealed_quality_authority: dict | None = None,
+) -> dict:
+    validate_campaign(campaign, quality_authority=quality_authority)
     all_instances = list(campaign["instances"])
     if sealed_holdout is not None:
-        validate_campaign(sealed_holdout, sealed_holdout=True)
+        validate_campaign(
+            sealed_holdout,
+            sealed_holdout=True,
+            quality_authority=sealed_quality_authority,
+        )
         if sealed_holdout["campaign_id"] != campaign["campaign_id"]:
             raise EvaluationError("sealed holdout campaign_id does not match campaign")
         if sorted(sealed_holdout["allowed_baseline_roles"]) != sorted(
@@ -1221,6 +1458,14 @@ def build_report(campaign: dict, sealed_holdout: dict | None = None) -> dict:
                 if run["grader_sha256"] != sealed_holdout["seal"]["grader_sha256"]:
                     raise EvaluationError("sealed holdout run grader does not match sealed grader")
         all_instances.extend(sealed_holdout["instances"])
+    elif sealed_quality_authority is not None:
+        raise EvaluationError(
+            "sealed quality authority cannot be supplied without a sealed holdout"
+        )
+
+    overall_order_balance = _validate_arm_order_balance(
+        all_instances, "combined development and sealed evidence"
+    )
 
     ids = [instance["instance_id"] for instance in all_instances]
     if len(ids) != len(set(ids)):
@@ -1310,6 +1555,7 @@ def build_report(campaign: dict, sealed_holdout: dict | None = None) -> dict:
         "configuration_hashes": dict(sorted(campaign["configuration_hashes"].items())),
         "development_execution_order": list(campaign["execution_order"]),
         "instances": instance_reports,
+        "overall_order_balance_control": overall_order_balance["overall"],
         "schema_version": SCHEMA_VERSION,
         "sealed_holdout_execution_order": (
             list(sealed_holdout["execution_order"])
@@ -1345,9 +1591,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--campaign", type=Path, required=True)
         subparser.add_argument(
+            "--quality-authority",
+            type=Path,
+            required=True,
+            help="caller-trusted development grader/artifact admissions document",
+        )
+        subparser.add_argument(
             "--sealed-holdout",
             type=Path,
             help="external post-grading sealed evidence; never passed to tested agents",
+        )
+        subparser.add_argument(
+            "--sealed-quality-authority",
+            type=Path,
+            help="caller-trusted sealed grader/artifact admissions document",
         )
         if command == "report":
             subparser.add_argument("--output", type=Path)
@@ -1356,7 +1613,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="validate bundled public example evidence and deterministic reporting",
     )
     facts = subparsers.add_parser(
-        "production-facts", help="extract production-fact.v1 from rollout and Git sources"
+        "production-facts", help="extract production-fact.v2 from rollout and Git sources"
     )
     facts.add_argument("--parent", type=Path, required=True)
     facts.add_argument("--children-root", type=Path, required=True)
@@ -1405,19 +1662,70 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.command == "smoke":
             campaign = load_json(EXAMPLES_ROOT / "campaign.json")
             holdout = load_json(EXAMPLES_ROOT / "sealed-holdout.json")
-            first = json.dumps(build_report(campaign, holdout), sort_keys=True)
-            second = json.dumps(build_report(campaign, holdout), sort_keys=True)
+            authority = load_json(EXAMPLES_ROOT / "quality-authority-development.json")
+            sealed_authority = load_json(EXAMPLES_ROOT / "quality-authority-sealed.json")
+            first = json.dumps(
+                build_report(
+                    campaign,
+                    holdout,
+                    quality_authority=authority,
+                    sealed_quality_authority=sealed_authority,
+                ),
+                sort_keys=True,
+            )
+            second = json.dumps(
+                build_report(
+                    campaign,
+                    holdout,
+                    quality_authority=authority,
+                    sealed_quality_authority=sealed_authority,
+                ),
+                sort_keys=True,
+            )
             if first != second:
                 raise EvaluationError("bundled smoke report is nondeterministic")
             print("PASS: bundled evaluation smoke evidence is valid and deterministic")
             return 0
         campaign = load_json(arguments.campaign)
+        authority = load_json(arguments.quality_authority)
         holdout = load_json(arguments.sealed_holdout) if arguments.sealed_holdout else None
+        sealed_authority = (
+            load_json(arguments.sealed_quality_authority)
+            if arguments.sealed_quality_authority
+            else None
+        )
+        input_paths = [arguments.campaign, arguments.quality_authority]
+        if arguments.sealed_holdout:
+            input_paths.append(arguments.sealed_holdout)
+        if arguments.sealed_quality_authority:
+            input_paths.append(arguments.sealed_quality_authority)
+        resolved_paths = [path.resolve() for path in input_paths]
+        if len(resolved_paths) != len(set(resolved_paths)):
+            raise EvaluationError(
+                "campaign, holdout, and quality authorities must be physically separate files"
+            )
+        if (holdout is None) != (sealed_authority is None):
+            raise EvaluationError(
+                "--sealed-holdout and --sealed-quality-authority must be supplied together"
+            )
         if arguments.command == "validate":
-            build_report(campaign, holdout)
+            build_report(
+                campaign,
+                holdout,
+                quality_authority=authority,
+                sealed_quality_authority=sealed_authority,
+            )
             print("PASS: evaluation campaign evidence is valid")
         else:
-            _write_report(build_report(campaign, holdout), arguments.output)
+            _write_report(
+                build_report(
+                    campaign,
+                    holdout,
+                    quality_authority=authority,
+                    sealed_quality_authority=sealed_authority,
+                ),
+                arguments.output,
+            )
     except (EvaluationError, OSError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1

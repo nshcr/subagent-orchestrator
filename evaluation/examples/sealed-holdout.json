@@ -246,7 +246,7 @@
       "task_class": "test-triage"
     }
   ],
-  "schema_version": 3,
+  "schema_version": 4,
   "seal": {
     "agent_visibility_boundary_enforced": true,
     "expected_answers_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

@@ -1,0 +1,81 @@
+{
+  "admissions": [
+    {
+      "arm": "baseline",
+      "artifact_sha256": "2494d8d42b3881b45177307b51b864a2f0be56d75fe75dec6f2b9b3c30cf0ed5",
+      "artifact_source_id": "sidecar://sealed-smoke/baseline/grounded-result",
+      "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "campaign_id": "public-smoke",
+      "check_id": "grounded-result",
+      "evidence_scope": "sealed",
+      "fixture_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "grader_execution_receipt": {
+        "artifact_source_id": "sidecar://sealed-smoke/baseline/grounded-result",
+        "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_artifact_sha256": "2494d8d42b3881b45177307b51b864a2f0be56d75fe75dec6f2b9b3c30cf0ed5",
+        "exit_code": 0,
+        "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "result_sha256": "b9d47a6beb8fea72e0c0dd2361b01652189d588926553cf82ae319ecbd161a87",
+        "schema_version": "grader-execution-receipt.v1"
+      },
+      "grader_execution_receipt_sha256": "4a3eeb2c8cc733d63f15f58f8eabeb0597b84e137c147074766e2d065477b9c6",
+      "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "instance_id": "sealed-smoke",
+      "quality_result": {
+        "artifact_sha256": "2494d8d42b3881b45177307b51b864a2f0be56d75fe75dec6f2b9b3c30cf0ed5",
+        "artifact_source_id": "sidecar://sealed-smoke/baseline/grounded-result",
+        "critical": true,
+        "evidence_kind": "behavior",
+        "id": "grounded-result",
+        "max_score": 10,
+        "passed": true,
+        "schema_version": "quality-check-result.v1",
+        "score": 10
+      },
+      "quality_result_sha256": "b9d47a6beb8fea72e0c0dd2361b01652189d588926553cf82ae319ecbd161a87",
+      "schema_version": "quality-evidence-admission.v1",
+      "task_class": "test-triage"
+    },
+    {
+      "arm": "custom",
+      "artifact_sha256": "2d998773f2ddc1338387a0a9eaf15ce9096e715d3d6abf30662df3df4a032848",
+      "artifact_source_id": "sidecar://sealed-smoke/custom/grounded-result",
+      "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "campaign_id": "public-smoke",
+      "check_id": "grounded-result",
+      "evidence_scope": "sealed",
+      "fixture_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "grader_execution_receipt": {
+        "artifact_source_id": "sidecar://sealed-smoke/custom/grounded-result",
+        "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "evidence_artifact_sha256": "2d998773f2ddc1338387a0a9eaf15ce9096e715d3d6abf30662df3df4a032848",
+        "exit_code": 0,
+        "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "result_sha256": "d0fff49b0fb44b54c65590e3390d653a73a15d748b0756f3500700330eebd1ac",
+        "schema_version": "grader-execution-receipt.v1"
+      },
+      "grader_execution_receipt_sha256": "8c713b6ea2c4b2312c2332d81b6590708f12655fd6a8ebe089e2e89fa6d120c0",
+      "grader_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "instance_id": "sealed-smoke",
+      "quality_result": {
+        "artifact_sha256": "2d998773f2ddc1338387a0a9eaf15ce9096e715d3d6abf30662df3df4a032848",
+        "artifact_source_id": "sidecar://sealed-smoke/custom/grounded-result",
+        "critical": true,
+        "evidence_kind": "behavior",
+        "id": "grounded-result",
+        "max_score": 10,
+        "passed": true,
+        "schema_version": "quality-check-result.v1",
+        "score": 10
+      },
+      "quality_result_sha256": "d0fff49b0fb44b54c65590e3390d653a73a15d748b0756f3500700330eebd1ac",
+      "schema_version": "quality-evidence-admission.v1",
+      "task_class": "test-triage"
+    }
+  ],
+  "authority_id": "trusted-sealed-harness",
+  "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "campaign_id": "public-smoke",
+  "evidence_scope": "sealed",
+  "schema_version": "quality-evidence-authority.v1"
+}

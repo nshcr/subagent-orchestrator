@@ -8,9 +8,13 @@ after external execution and grading:
 
 ```console
 python -m evaluation validate --campaign campaign.json \
-  --sealed-holdout /outside/repository/sealed-results.json
-python -m evaluation report --campaign campaign.json \
+  --quality-authority /outside/repository/development-quality-authority.json \
   --sealed-holdout /outside/repository/sealed-results.json \
+  --sealed-quality-authority /outside/repository/sealed-quality-authority.json
+python -m evaluation report --campaign campaign.json \
+  --quality-authority /outside/repository/development-quality-authority.json \
+  --sealed-holdout /outside/repository/sealed-results.json \
+  --sealed-quality-authority /outside/repository/sealed-quality-authority.json \
   --output report.json
 python -m evaluation smoke
 python -m evaluation production-facts \
@@ -29,7 +33,7 @@ to `true`. It uses the same instance shape defined in `campaign.schema.json` but
 intentionally omits campaign policy and configuration hashes.
 Development campaigns reject sealed instances, sealed inputs reject development
 instances, unknown fields are rejected, and instance identifiers cannot overlap.
-Expected answers and grader implementation are not schema fields. Every quality
+Expected answers and grader implementation are not campaign schema fields. Every quality
 check instead records a `behavior` or `source-fact` evidence artifact digest, a
 nonempty sidecar source identity, and a successful grader-execution receipt. The
 canonical check-result digest binds check ID, pass/critical flags, score and
@@ -37,15 +41,24 @@ maximum, evidence kind, artifact digest, and source identity. The canonical
 execution-receipt digest binds that result, the frozen grader, exact artifact and
 source, zero exit code, and an external authority receipt. Development authority
 is frozen in `configuration_hashes.grader_execution_authority_receipt`; sealed
-authority is the external seal receipt. Fixtures, expected answers, grader code,
+authority is the external seal receipt. Neither campaign document is an authority:
+the caller must provide a physically separate `quality-authority.schema.json`
+document whose exact, unique admissions repeat the campaign/scope, task, fixture,
+arm, check, artifact/source, grader, canonical result, canonical zero-exit receipt,
+and authority identity. Missing, duplicate, type-invalid, cross-campaign, or
+cross-scope admissions fail closed. Campaign and holdout documents contain only
+the authority receipt digest reference; their closed schemas cannot embed the
+authority admissions. Fixtures, expected answers, grader code,
 artifact sidecars, and execution-receipt sidecars must be preserved outside this
 repository and outside the tested agent's visibility boundary while their
 identities enter the report.
 
 These canonical SHA-256 checks prove deterministic payload binding, not signer
-authenticity by themselves. Authenticity depends on the stated external harness,
-seal, and sidecar custody boundary; the reporter does not claim or verify a digital
-signature beyond that boundary.
+authenticity by themselves. The caller or harness authenticates the issuing
+authority and preserves its sidecars outside the campaign; the reporter verifies
+only exact payload admission and does not claim a digital signature. Recomputing
+campaign hashes, results, receipts, artifacts, or source identities cannot update
+an unchanged authority admission.
 
 Each arm records every billed primary, child, review, repair, failed-attempt, or
 retry thread separately, including its actual model, effort, service tier, token
@@ -81,6 +94,9 @@ must match `arm_order`; the order must also exactly match the unique contiguous
 orders remain separate in the report. Process exit/completion, routing violations, scope violations,
 terminal state, role compliance, recursion, token completeness, and cost
 completeness are all reported; any defect in either arm blocks promotion.
+Baseline-first and custom-first allocation must also be deterministic and balanced
+both overall and per task class: even counts require exact balance and odd counts
+permit a difference of one. Mere presence of both orders is insufficient.
 
 Promotion is paired and Pareto-safe. Every instance freezes SHA-256 identities
 for its fixture and prompt; neither digest may be reused within or across the
@@ -128,7 +144,7 @@ retention itself.
 
 ## Production facts
 
-`production-facts` emits `production-fact.v1` from one parent rollout, its exact
+`production-facts` emits `production-fact.v2` from one parent rollout, its exact
 child rollout directory, and a Git repository at an explicit base revision and
 cutoff. All input and output paths must be absolute and existing input types are
 checked. A child must have one unambiguous parent spawn receipt and a UUIDv7
@@ -144,6 +160,16 @@ counts. Parent bytes stop at the cutoff. Child bytes start at the first admitted
 post-spawn `turn_context`, so pre-start `session_meta` and other lineage-only bytes
 remain source-bound but do not enter child or total accounting. Path strings are
 SHA-256 hashed by default.
+Token totals come only from canonical `event_msg` usage snapshots with
+`payload.type=token_count` and the exact `info.total_token_usage` decomposition.
+Token-named integers nested in unrelated supported events are ignored; malformed
+canonical snapshots are rejected.
+
+Every available Git denominator `source_id` canonically binds the metric name,
+basis and value plus base revision/tree, HEAD revision/tree, commit list and
+numstat inputs, index, staged patch, status, and worktree/untracked identities.
+Changing the base or index/worktree/staged state therefore cannot alias the same
+HEAD-based provenance.
 
 Credit availability requires exactly one explicit thread record in every admitted
 source and exactly one run record in the parent source. Records use an `event_msg`
@@ -164,6 +190,19 @@ Therefore completion, causal, and promotion claim eligibility are always false;
 unavailable metrics, active/incomplete sources, dirty or divergent Git state,
 unsupported events, failed/nested spawns, and missing terminal observations remain
 visible as additional evidence limitations.
+
+## Schema migration
+
+Campaign and sealed-holdout schema version 4 replaces version 3. Version 4 requires
+a separate caller-trusted quality-authority input; version 3 documents are rejected.
+Migration must be performed by the external grader/harness after verifying the
+preserved result, receipt, artifact, grader, and identity sidecars. Generating the
+authority from the campaign under test does not establish issuer authenticity.
+
+`production-fact.v2` and `production-fact-parser.v2` replace their v1 counterparts.
+The JSON shape adds explicit Git state digests, token snapshots use canonical event
+semantics, and every Git denominator has state-complete provenance. Consumers that
+require v1 must be updated; v1 facts are not accepted as v2.
 
 ## Evidence tiers
 

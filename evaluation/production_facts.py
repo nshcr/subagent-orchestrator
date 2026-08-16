@@ -15,8 +15,8 @@ import uuid
 from .campaign import EvaluationError, _reject_duplicate_keys
 
 
-SCHEMA_VERSION = "production-fact.v1"
-PARSER_VERSION = "production-fact-parser.v1"
+SCHEMA_VERSION = "production-fact.v2"
+PARSER_VERSION = "production-fact-parser.v2"
 SUPPORTED_EVENT_TYPES = {"session_meta", "turn_context", "response_item", "event_msg", "compacted"}
 TOKEN_NAMES = (
     "input_tokens",
@@ -229,11 +229,26 @@ def _token_totals(source_events: list[list[dict]]) -> dict[str, int | None]:
     for events in source_events:
         latest: dict[str, int] = {}
         for event in events:
-            for item in _walk_dicts(_payload(event)):
-                for key in TOKEN_NAMES:
-                    value = item.get(key)
-                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-                        latest[key] = value
+            if event.get("type") != "event_msg":
+                continue
+            payload = _payload(event)
+            if payload.get("type") != "token_count":
+                continue
+            info = payload.get("info")
+            usage = info.get("total_token_usage") if isinstance(info, dict) else None
+            if not isinstance(usage, dict) or set(usage) != set(TOKEN_NAMES):
+                raise EvaluationError(
+                    "canonical token_count event requires exact info.total_token_usage"
+                )
+            snapshot = {}
+            for key in TOKEN_NAMES:
+                value = usage[key]
+                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                    raise EvaluationError(
+                        f"canonical token_count event has invalid {key}"
+                    )
+                snapshot[key] = value
+            latest = snapshot
         if all(key in latest for key in TOKEN_NAMES):
             if (
                 latest["cached_input_tokens"]
@@ -385,6 +400,66 @@ def _git(repo: Path, *arguments: str, check: bool = True) -> str:
     if check and completed.returncode != 0:
         raise EvaluationError(f"git {' '.join(arguments)} failed: {completed.stderr.strip()}")
     return completed.stdout.strip()
+
+
+def _git_bytes(repo: Path, *arguments: str) -> bytes:
+    completed = subprocess.run(
+        ["git", "-C", str(repo), *arguments],
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        raise EvaluationError(
+            f"git {' '.join(arguments)} failed: "
+            f"{completed.stderr.decode('utf-8', errors='replace').strip()}"
+        )
+    return completed.stdout
+
+
+def _untracked_identity(repo: Path) -> str:
+    records = []
+    raw_paths = _git_bytes(repo, "ls-files", "--others", "--exclude-standard", "-z")
+    for encoded_path in sorted(item for item in raw_paths.split(b"\0") if item):
+        relative = encoded_path.decode("utf-8", errors="surrogateescape")
+        path = repo / relative
+        if path.is_symlink():
+            content = str(path.readlink()).encode("utf-8", errors="surrogateescape")
+            kind = "symlink"
+        elif path.is_file():
+            content = path.read_bytes()
+            kind = "file"
+        else:
+            content = b""
+            kind = "other"
+        records.append(
+            {
+                "content_sha256": _sha256(content),
+                "kind": kind,
+                "path_sha256": _sha256(encoded_path),
+            }
+        )
+    return _sha256(
+        json.dumps(records, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+
+
+def _git_metric_source_id(
+    git_source: dict, metric_name: str, basis: str, value: object
+) -> str:
+    return _sha256(
+        json.dumps(
+            {
+                "basis": basis,
+                "denominator_input": value,
+                "git_source": git_source,
+                "metric": metric_name,
+                "schema_version": "git-denominator-source.v2",
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    )
 
 
 def _numstat(text: str) -> tuple[int, int | None, int | None]:
@@ -548,16 +623,45 @@ def extract_production_facts(
         check=False,
         capture_output=True,
     ).returncode == 0
-    status = _git(repo, "status", "--porcelain=v1", "--untracked-files=all")
-    clean = not status
+    status_raw = _git_bytes(
+        repo, "status", "--porcelain=v1", "-z", "--untracked-files=all"
+    )
+    clean = not status_raw
     committed_paths = _git(repo, "diff", "--name-only", base_revision, head_revision).splitlines()
     committed_numstat = _git(repo, "diff", "--numstat", base_revision, head_revision)
     committed_rows, committed_add, committed_delete = _numstat(committed_numstat)
     staged_paths = _git(repo, "diff", "--cached", "--name-only").splitlines()
-    staged_rows, staged_add, staged_delete = _numstat(
-        _git(repo, "diff", "--cached", "--numstat")
-    )
+    staged_numstat = _git(repo, "diff", "--cached", "--numstat")
+    staged_rows, staged_add, staged_delete = _numstat(staged_numstat)
     commit_count_text = _git(repo, "rev-list", "--count", f"{base_revision}..{head_revision}")
+    git_source = {
+        "base_revision": base_revision,
+        "base_tree": base_tree,
+        "head_revision": head_revision,
+        "head_tree": head_tree,
+        "base_is_ancestor": ancestor,
+        "clean": clean,
+        "committed_path_sha256": sorted(
+            _sha256(path.encode("utf-8")) for path in committed_paths
+        ),
+        "staged_path_sha256": sorted(
+            _sha256(path.encode("utf-8")) for path in staged_paths
+        ),
+        "commit_list_sha256": _sha256(
+            _git_bytes(repo, "rev-list", f"{base_revision}..{head_revision}")
+        ),
+        "committed_numstat_sha256": _sha256(committed_numstat.encode("utf-8")),
+        "index_sha256": _sha256(_git_bytes(repo, "ls-files", "--stage", "-z")),
+        "staged_sha256": _sha256(
+            _git_bytes(repo, "diff", "--cached", "--binary", "--no-ext-diff")
+        ),
+        "staged_numstat_sha256": _sha256(staged_numstat.encode("utf-8")),
+        "status_sha256": _sha256(status_raw),
+        "worktree_sha256": _sha256(
+            _git_bytes(repo, "diff", "--binary", "--no-ext-diff")
+            + _untracked_identity(repo).encode("ascii")
+        ),
+    }
     combined_source_id = _sha256(
         "".join(sorted([parent_source_id, *(item[2] for item in filtered_children)])).encode("ascii")
     )
@@ -634,17 +738,30 @@ def extract_production_facts(
                 combined_source_id,
             ),
         },
-        "git_denominators": {
-            "commit_count": _metric(int(commit_count_text), "git-rev-list", _sha256(head_revision.encode())),
-            "path_count": _metric(len(committed_paths), "git-diff-name-only", _sha256(head_revision.encode())),
-            "numstat_rows": _metric(committed_rows, "git-diff-numstat", _sha256(head_revision.encode())),
-            "numstat_additions": _metric(committed_add, "git-diff-numstat" if committed_add is not None else None, _sha256(head_revision.encode()) if committed_add is not None else None),
-            "numstat_deletions": _metric(committed_delete, "git-diff-numstat" if committed_delete is not None else None, _sha256(head_revision.encode()) if committed_delete is not None else None),
-            "staged_path_count": _metric(len(staged_paths), "git-diff-cached-name-only", _sha256(head_revision.encode())),
-            "staged_numstat_rows": _metric(staged_rows, "git-diff-cached-numstat", _sha256(head_revision.encode())),
-            "staged_additions": _metric(staged_add, "git-diff-cached-numstat" if staged_add is not None else None, _sha256(head_revision.encode()) if staged_add is not None else None),
-            "staged_deletions": _metric(staged_delete, "git-diff-cached-numstat" if staged_delete is not None else None, _sha256(head_revision.encode()) if staged_delete is not None else None),
-        },
+        "git_denominators": {},
+    }
+    git_denominator_values = {
+        "commit_count": (int(commit_count_text), "git-rev-list"),
+        "path_count": (len(committed_paths), "git-diff-name-only"),
+        "numstat_rows": (committed_rows, "git-diff-numstat"),
+        "numstat_additions": (committed_add, "git-diff-numstat"),
+        "numstat_deletions": (committed_delete, "git-diff-numstat"),
+        "staged_path_count": (len(staged_paths), "git-diff-cached-name-only"),
+        "staged_numstat_rows": (staged_rows, "git-diff-cached-numstat"),
+        "staged_additions": (staged_add, "git-diff-cached-numstat"),
+        "staged_deletions": (staged_delete, "git-diff-cached-numstat"),
+    }
+    metrics["git_denominators"] = {
+        name: _metric(
+            value,
+            metric_basis if value is not None else None,
+            (
+                _git_metric_source_id(git_source, name, metric_basis, value)
+                if value is not None
+                else None
+            ),
+        )
+        for name, (value, metric_basis) in git_denominator_values.items()
     }
     unavailable_count = sum(
         1
@@ -662,16 +779,7 @@ def extract_production_facts(
         },
         "cutoff": cutoff.isoformat(),
         "source_state": source_state,
-        "git_source": {
-            "base_revision": base_revision,
-            "base_tree": base_tree,
-            "head_revision": head_revision,
-            "head_tree": head_tree,
-            "base_is_ancestor": ancestor,
-            "clean": clean,
-            "committed_path_sha256": sorted(_sha256(path.encode("utf-8")) for path in committed_paths),
-            "staged_path_sha256": sorted(_sha256(path.encode("utf-8")) for path in staged_paths),
-        },
+        "git_source": git_source,
         "metrics": metrics,
         "unsupported_event_count": _metric(unsupported, basis, combined_source_id),
         "unavailable_metric_count": _metric(
@@ -742,6 +850,13 @@ def validate_production_fact(document: dict) -> None:
         "clean",
         "committed_path_sha256",
         "staged_path_sha256",
+        "commit_list_sha256",
+        "committed_numstat_sha256",
+        "index_sha256",
+        "staged_sha256",
+        "staged_numstat_sha256",
+        "status_sha256",
+        "worktree_sha256",
     }
     git_source = document["git_source"]
     if not isinstance(git_source, dict) or set(git_source) != git_keys:
@@ -757,6 +872,19 @@ def validate_production_fact(document: dict) -> None:
         if not isinstance(values, list) or any(
             not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
             for value in values
+        ):
+            raise EvaluationError(f"production fact git_source.{key} is invalid")
+    for key in (
+        "commit_list_sha256",
+        "committed_numstat_sha256",
+        "index_sha256",
+        "staged_sha256",
+        "staged_numstat_sha256",
+        "status_sha256",
+        "worktree_sha256",
+    ):
+        if not isinstance(git_source[key], str) or not re.fullmatch(
+            r"[0-9a-f]{64}", git_source[key]
         ):
             raise EvaluationError(f"production fact git_source.{key} is invalid")
     _timestamp(document["cutoff"], "production fact cutoff")
@@ -836,6 +964,14 @@ def validate_production_fact(document: dict) -> None:
                     raise EvaluationError(f"{location} available status requires source_id SHA-256")
             else:
                 raise EvaluationError(f"{location}.status is invalid")
+            if group_name == "git_denominators" and status == "available":
+                expected_source_id = _git_metric_source_id(
+                    git_source, metric_name, metric["basis"], value
+                )
+                if metric["source_id"] != expected_source_id:
+                    raise EvaluationError(
+                        f"{location} source_id does not bind complete Git denominator state"
+                    )
     expected_unavailable = document["unavailable_metric_count"]["value"]
     if metric_count == 0 or expected_unavailable != unavailable:
         raise EvaluationError("production fact unavailable metric denominator mismatch")

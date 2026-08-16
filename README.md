@@ -254,9 +254,13 @@ bounded-peer activation uses the separate current-client capability gate:
 
 ```bash
 python3 -B -m evaluation validate --campaign campaign.json \
-  --sealed-holdout /outside/repository/sealed-results.json
-python3 -B -m evaluation report --campaign campaign.json \
+  --quality-authority /outside/repository/development-quality-authority.json \
   --sealed-holdout /outside/repository/sealed-results.json \
+  --sealed-quality-authority /outside/repository/sealed-quality-authority.json
+python3 -B -m evaluation report --campaign campaign.json \
+  --quality-authority /outside/repository/development-quality-authority.json \
+  --sealed-holdout /outside/repository/sealed-results.json \
+  --sealed-quality-authority /outside/repository/sealed-quality-authority.json \
   --output report.json
 python3 -B -m evaluation smoke
 python3 -B -m evaluation production-facts \
@@ -269,9 +273,10 @@ python3 -B -m evaluation evidence-tier \
 
 Each billed primary, child, review, repair, failed-attempt, or retry task records
 its actual model, effort, service tier, tokens, and exact credits. Reports compare
-normalized quality per pair, reject reused fixture/prompt identities, require
+normalized quality per pair, require caller-trusted external quality admissions,
+reject reused fixture/prompt identities and imbalanced arm order, require
 non-regressing pair/class/overall costs, and keep mandatory governance retention
-separate from efficiency promotion. `production-fact.v1` extracts hash-bound,
+separate from efficiency promotion. `production-fact.v2` extracts hash-bound,
 privacy-preserving rollout/Git observations and independently records only
 explicit, reconciled thread/run credits without token-based estimation, while
 the evidence-tier validator enforces an unskippable predecessor-digest chain.
