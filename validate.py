@@ -30,8 +30,8 @@ ROLE_PROFILE_POLICY = {
     "evidence_tester": {
         "class": "evidence-owning-test-or-log-analyst",
         "eligibility": (
-            "material structured test output or bounded runbook-driven logs with "
-            "explicit acceptance fields and one requested artifact"
+            "substantial noisy structured test output or bounded runbook-driven logs "
+            "isolated behind explicit acceptance fields and one requested artifact"
         ),
         "routing_markers": (
             "Structured multi-file test or bounded log evidence",
@@ -203,7 +203,11 @@ def verify_portability() -> None:
         fail("portable profile built-in routes drift from routing ownership")
     if profile.get("concurrency") != {
         "runtime_thread_cap": config["max_concurrent_threads_per_session"],
+        "default_initial_child_count": 1,
         "ordinary_first_wave_child_cap": 2,
+        "second_child_admission": (
+            "bounded-independent-ownership-safe-expected-wall-time-or-context-benefit"
+        ),
         "ordinary_first_wave_writer_cap": 1,
         "active_writer_cap": 1,
         "overlapping_write_scopes_allowed": False,

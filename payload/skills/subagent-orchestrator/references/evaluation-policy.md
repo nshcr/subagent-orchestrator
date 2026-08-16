@@ -23,6 +23,7 @@ Record, when available:
 
 - delivered outcome and correctness failures;
 - child attempts, failed or interrupted attempts, and delegation waves;
+- primary-only, one-child, and two-child route counts;
 - writer count, reviewer attempts, retries, and primary replay;
 - expansion checkpoints, user questions, and primary-only fallbacks;
 - concurrent or overlapping writers, unintegrated terminal receipts, and moving-state
@@ -31,6 +32,11 @@ Record, when available:
 - total primary and child tokens or actual credits, keeping cached raw usage distinct
   from billed credits;
 - whether the candidate was installed, loaded, and observed on the target.
+
+Treat a second first-wave child as an efficiency claim: record the independent work it
+overlapped and the wall-time or root-context benefit it was expected to provide. A
+capacity slot, multiple tool calls, or several related questions is not evidence that
+another agent was needed.
 
 Do not infer role-level or tool-level credits when the source exposes only thread or
 run totals. Do not call an offline fixture, local test, or clean archive production

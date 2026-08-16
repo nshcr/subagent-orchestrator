@@ -1,6 +1,6 @@
 ---
 name: subagent-orchestrator
-description: Route and supervise explicit subagent requests, one bounded specialist that replaces material primary work, or one required independent final gate. Use when delegation has a concrete efficiency or independence benefit; otherwise keep the primary agent. Stop unapproved delegation expansion without turning every budget boundary into a user question.
+description: Route and supervise explicit subagent requests, one bounded specialist that replaces material primary work or isolates a substantial noisy evidence stream, or one required independent final gate. Use only when delegation has a concrete efficiency, context-isolation, or independence benefit; otherwise keep the primary agent. Stop unapproved expansion without turning every budget boundary into a user question.
 ---
 
 # Subagent Orchestrator
@@ -15,9 +15,12 @@ harnesses, schemas, policy engines, installers, or more reviewers.
    material work a child would replace. Keep that outcome as the task acceptance
    anchor; passing an install, load, child, test, or review sub-boundary cannot
    substitute for it.
-2. Delegate only when one bounded child replaces substantial primary work or a
-   fresh independent gate is required. Complexity, file count, decomposability,
-   available capacity, or a desire for confidence do not qualify.
+2. Prefer direct or batched tool calls for small bounded work. Delegate only when one
+   child replaces substantial primary work, isolates a large
+   noisy evidence stream behind a compact receipt, or supplies a required fresh gate.
+   Complexity, file count, available capacity, or a desire for confidence do not
+   qualify. A single ordered reasoning chain, shared mutable state, or one slow
+   external operation stays with the primary.
 3. Keep every child a leaf. Use fresh context with `fork_turns=none` unless one
    named prior decision cannot be summarized safely.
 4. Keep the primary doing material integration or independent work. If the primary
@@ -29,9 +32,11 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 
 ## Budgets and expansion checkpoints
 
-- An ordinary first wave has at most two children and one writer. Capacity never
-  creates work. The user may explicitly authorize one final batch of up to three
-  reviewers with disjoint invariants.
+- Start one child by default. A second child in the ordinary first wave requires two
+  bounded, mutually independent, ownership-safe assignments expected to reduce wall
+  time or root-context pollution. The absolute cap remains two children and one
+  writer. Capacity never creates work. The user may explicitly authorize one final
+  batch of up to three reviewers with disjoint invariants.
 - Treat a second delegation wave, a second writer, a reviewer rerun, nested
   delegation, or scope-expanding follow-up as an expansion checkpoint. Freeze new
   spawns. Continue only when the latest explicit user instruction already authorizes
@@ -48,6 +53,8 @@ harnesses, schemas, policy engines, installers, or more reviewers.
   wait. A timeout is observation-only; terminal failure or proven stale state is
   different.
 - Do not rebuild a child's scan. Sample its cited evidence and owned artifact only.
+- Do not announce a primary-only route. When spawning, state the child goal, displaced
+  primary work, and expected receipt in one concise update.
 - After two decision-directed agent attempts leave the same uncertainty unchanged,
   do not launch a blind third variant. Rebuild the smallest discriminating observation
   in the primary; new evidence does not itself authorize another child.
@@ -88,12 +95,6 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 - Finish with the smallest coherent result. Do not add governance infrastructure
   merely because it is possible to specify or test it.
 
-Read [routing policy](references/routing-policy.md) for role selection and
-[evaluation policy](references/evaluation-policy.md) only when an efficiency claim
-or routing change needs evidence.
-
-Validate installed static configuration with:
-
-```bash
-python3 -B scripts/validate-routing-config.py
-```
+Read [routing policy](references/routing-policy.md) for role selection. Read
+[evaluation policy](references/evaluation-policy.md) only for an efficiency claim or
+routing change.

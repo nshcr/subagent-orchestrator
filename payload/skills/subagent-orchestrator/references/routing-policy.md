@@ -9,20 +9,25 @@ the primary remains the only coordinator.
 |---|---|---|
 | One material read-only codebase question | built-in `explorer` | Its focused scan replaces substantial primary exploration |
 | One settled, non-overlapping implementation slice | built-in `worker` | Exact owned paths and acceptance are already known |
-| Structured multi-file test or bounded log evidence | `evidence_tester` | A requested artifact and exact acceptance fields exist |
+| Structured multi-file test or bounded log evidence | `evidence_tester` | A noisy evidence stream is isolated behind one requested artifact and exact acceptance fields |
 | One unresolved cross-component execution boundary | `boundary_mapper` | A targeted primary check was insufficient |
 | Independent high-risk final decision | fresh `risk_reviewer` | Frozen state and exact named invariants exist |
 | Everything simple, ambiguous, open-ended, or still strategic | primary | Delegation would add coordination rather than remove work |
 
-The primary must be able to name the raw work it will not repeat. If it cannot,
-the task is not material enough to delegate. An artifact request, large repository,
-or idle concurrency slot is not admission evidence.
+The primary must be able to name the raw work it will not repeat or the substantial
+noisy evidence it will keep out of root context. If it cannot, keep the work in the
+primary. An artifact request, large repository, or idle concurrency slot is not
+admission evidence. Prefer direct or batched tool calls when the work is small.
 
 ## Topology and budget
 
 - No child delegates or messages peers. Use direct children only.
-- Start at most two children in the ordinary first wave. Keep at most one active writer
-  and never overlap write scopes; primary integration waits for writer terminal state.
+- Start one child by default. Add a second child in the ordinary first wave only when
+  both assignments are bounded, mutually independent, ownership-safe, and expected to
+  reduce wall time or root-context pollution. Never split one ordered reasoning chain,
+  shared mutable state, or one slow external operation across agents. The absolute
+  first-wave cap remains two children. Keep at most one active writer and never overlap
+  write scopes; primary integration waits for writer terminal state.
 - When the user explicitly requests independent multi-review, allow one final batch
   of at most three reviewers with disjoint invariants on one frozen state.
 - A second wave, another writer, scope expansion, or reviewer rerun opens an expansion
@@ -36,6 +41,9 @@ or idle concurrency slot is not admission evidence.
   operational capability, access, or environment blocker with its next owner or action;
   do not turn it into a preference question.
 - Use fresh context by default. Summarize only the task-local facts a child needs.
+- Use the configured medium-effort default for routine leaves. Reserve high effort for
+  difficult boundary analysis or high-risk review and `max` for the single qualified
+  irreversible-risk escalation; do not raise effort merely for confidence.
 - The primary keeps working; a plan that leaves it only waiting is over-delegated.
 
 ## Stop rules

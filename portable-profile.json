@@ -4,6 +4,7 @@
   "objective": [
     "correctness-and-user-control",
     "material-work-substitution",
+    "bounded-context-isolation",
     "end-to-end-efficiency"
   ],
   "time_policy": "telemetry-only",
@@ -22,7 +23,7 @@
   },
   "default_child": {
     "model_hint": "gpt-5.6-sol",
-    "reasoning_effort_hint": "high"
+    "reasoning_effort_hint": "medium"
   },
   "builtin_routes": [
     {
@@ -37,8 +38,10 @@
     }
   ],
   "concurrency": {
-    "runtime_thread_cap": 16,
+    "runtime_thread_cap": 3,
+    "default_initial_child_count": 1,
     "ordinary_first_wave_child_cap": 2,
+    "second_child_admission": "bounded-independent-ownership-safe-expected-wall-time-or-context-benefit",
     "ordinary_first_wave_writer_cap": 1,
     "active_writer_cap": 1,
     "overlapping_write_scopes_allowed": false,
@@ -52,9 +55,9 @@
     {
       "id": "evidence_tester",
       "class": "evidence-owning-test-or-log-analyst",
-      "eligibility": "material structured test output or bounded runbook-driven logs with explicit acceptance fields and one requested artifact",
+      "eligibility": "substantial noisy structured test output or bounded runbook-driven logs isolated behind explicit acceptance fields and one requested artifact",
       "model_hint": "gpt-5.6-luna",
-      "reasoning_effort_hint": "max",
+      "reasoning_effort_hint": "medium",
       "service_tier_hint": "default",
       "write_scope": "one assigned workspace artifact only",
       "template": "payload/agents/evidence_tester.toml"
@@ -64,7 +67,7 @@
       "class": "read-only-cross-component-boundary-analyst",
       "eligibility": "one named unresolved execution, state, or persistence boundary after a targeted primary check",
       "model_hint": "gpt-5.6-terra",
-      "reasoning_effort_hint": "max",
+      "reasoning_effort_hint": "high",
       "service_tier_hint": "default",
       "write_scope": "none",
       "template": "payload/agents/boundary_mapper.toml"
@@ -74,7 +77,7 @@
       "class": "independent-high-risk-final-gate",
       "eligibility": "required fresh independent review of named high-risk final-state or acceptance invariants",
       "model_hint": "gpt-5.6-sol",
-      "reasoning_effort_hint": "xhigh",
+      "reasoning_effort_hint": "high",
       "service_tier_hint": "default",
       "write_scope": "none",
       "template": "payload/agents/risk_reviewer.toml"

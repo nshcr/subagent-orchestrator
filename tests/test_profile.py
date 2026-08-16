@@ -105,6 +105,18 @@ class PortableProfileContractTest(unittest.TestCase):
                 ),
             ),
             (
+                "default-child-count",
+                lambda document: document["concurrency"].update(
+                    default_initial_child_count=2
+                ),
+            ),
+            (
+                "second-child-admission",
+                lambda document: document["concurrency"].update(
+                    second_child_admission="capacity-available"
+                ),
+            ),
+            (
                 "writer-cap",
                 lambda document: document["concurrency"].update(
                     ordinary_first_wave_writer_cap=2

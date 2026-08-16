@@ -2,9 +2,10 @@
 
 A quality-first subagent orchestration bundle for OpenAI Codex. It installs four
 bounded custom roles, a routing skill, and a portable client-neutral profile.
-Delegation is used only when it replaces material primary work or supplies a
-required independent gate. Built-in agents provide generic leaf work; children do
-not coordinate other children.
+Delegation is used only when it replaces material primary work, isolates a
+substantial noisy evidence stream behind a compact receipt, or supplies a required
+independent gate. Built-in agents provide generic leaf work; children do not
+coordinate other children.
 
 > [!IMPORTANT]
 > This is an unofficial community project and is not affiliated with or endorsed
@@ -29,7 +30,10 @@ do not qualify a task for delegation.
   and scoped, ownership-safe implementation.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
-- An ordinary first wave has at most two children and one writer. A second wave,
+- Start one child by default. A second child in the ordinary first wave requires two
+  bounded, mutually independent, ownership-safe assignments expected to reduce wall
+  time or root-context pollution; the absolute cap remains two children and one
+  writer. A second wave,
   another writer, scope expansion, or reviewer rerun opens an expansion checkpoint:
   no new child starts without exact current user authorization. Otherwise the primary
   continues or closes, asking one question only for a material user-owned choice.
@@ -41,7 +45,9 @@ do not qualify a task for delegation.
   returned to the user. Freeze follows writer terminal state and integration, and any
   relevant state change invalidates the previous review result.
 - If the primary would mainly coordinate, poll, or wait, it should do the work
-  directly. Prove the user-facing behavior before building supporting machinery.
+  directly. Prefer direct or batched tool calls for small bounded work, and keep one
+  ordered reasoning chain, shared mutable state, or one slow external operation with
+  the primary. Prove the user-facing behavior before building supporting machinery.
 - Child terminal state and exhausted delegation budget do not prove task completion;
   the primary still closes against the original user outcome and proportionate task
   evidence or a genuine blocker. Passing an install, load, child, test, or review
@@ -55,6 +61,13 @@ do not qualify a task for delegation.
   semantics (`renamex_np` on macOS or `renameat2` on Linux).
 - A Codex client that supports custom subagents, skills, and `[agents]` settings.
 - A trusted local Codex home.
+
+The installed runtime cap is three concurrent spawned threads so an explicitly
+requested three-reviewer gate remains possible without making spare capacity a routing
+signal. Routine built-in leaves default to GPT-5.6 Sol at medium effort; the bounded
+tester uses Luna/medium, the boundary mapper Terra/high, the reviewer Sol/high, and
+only the qualified irreversible-risk escalation uses Sol/max. These remain hints whose
+availability and effective runtime behavior must be verified in the active client.
 
 See the current official documentation for [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents),
 [skills](https://learn.chatgpt.com/docs/build-skills), and the
@@ -164,7 +177,7 @@ state, host enforcement, production efficiency, or current role quality.
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py --package-version 2026.08.14
+python3 -B build_manifest.py --package-version 2026.08.17
 python3 -B build_manifest.py --check
 python3 -B validate.py
 ```
