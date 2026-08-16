@@ -1,381 +1,524 @@
 #!/usr/bin/env python3
-"""Validate deterministic subagent lifecycle traces against the owned contract."""
+"""Validate deterministic evidence-bus orchestration lifecycle traces."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
+import hashlib
+from pathlib import Path, PurePosixPath
+import re
+from datetime import datetime
 
 
-ALLOWED_CANCELLATION_REASONS = {
-    "user_cancel",
-    "user_replace",
-    "safety_scope_violation",
-    "proven_stale_state",
-    "terminal_platform_failure",
-    "explicit_user_deadline",
-}
-ALLOWED_MESSAGE_PURPOSES = {"evidence", "dependency_status", "artifact_receipt"}
-BUILTIN_LEAF_AGENT_TYPES = {"explorer", "worker"}
-GOVERNED_CUSTOM_AGENT_TYPES = {
-    "evidence_tester",
-    "boundary_mapper",
-    "risk_reviewer",
-    "risk_reviewer_max",
-}
-PROTECTED_MESSAGE_CHANGE_FIELDS = (
-    "authorization_change",
-    "scope_change",
-    "acceptance_change",
-    "writer_ownership_change",
-    "topology_change",
-    "integration_change",
-    "final_acceptance_change",
-)
-REQUIRED_COVERAGE = {
-    "authorized_cancel_acknowledged",
-    "bounded_nested_spawn",
-    "delayed_across_multiple_waits",
-    "full_tree_terminal_collection",
-    "governed_leaf_recursion_rejected",
-    "independent_peer_concurrent",
-    "peer_message_boundary",
-    "permission_inheritance",
-    "running_replacement_rejected",
-    "unauthorized_cancel_rejected",
-}
+HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+CUSTOM = {"evidence_tester", "boundary_mapper", "risk_reviewer", "risk_reviewer_max"}
+REVIEWERS = {"risk_reviewer", "risk_reviewer_max"}
+BUILTIN = {"explorer", "worker"}
+MESSAGE_PURPOSES = {"evidence", "dependency_status", "artifact_receipt"}
+FOLLOWUP_REASONS = {"new_failure_evidence", "missing_acceptance_field", "authorized_continue"}
 
 
-def active_nodes(states: dict[str, str]) -> list[str]:
-    return [node for node, state in states.items() if state != "terminal"]
+def digest(value: object) -> bool:
+    return isinstance(value, str) and bool(HEX64.fullmatch(value))
 
 
-def active_descendants(
-    states: dict[str, str], parents: dict[str, str], ancestor: str
-) -> list[str]:
-    result = []
-    for node in active_nodes(states):
-        parent = parents.get(node)
-        while parent and parent != "primary":
-            if parent == ancestor:
-                result.append(node)
-                break
-            parent = parents.get(parent)
-    return result
+def canonical_digest(value: object) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
-def require_running(
-    errors: list[str], states: dict[str, str], child: str, location: str
-) -> bool:
-    if states.get(child) == "running":
-        return True
-    errors.append(f"{location}: {child!r} must be running")
-    return False
+def safe_path(value: object) -> bool:
+    if not isinstance(value, str) or not value or "\\" in value:
+        return False
+    path = PurePosixPath(value)
+    return not path.is_absolute() and ".." not in path.parts
 
 
-def validate_spawn(
-    event: dict,
-    states: dict[str, str],
-    parents: dict[str, str],
-    topologies: dict[str, str],
-    remaining_depth: dict[str, int],
-    routes: dict[str, str],
-    agent_types: dict[str, str],
-    coverage: set[str],
-    direct_cap: int,
-    descendant_cap: int,
-    runtime_capacity: int,
-    location: str,
-    errors: list[str],
-) -> None:
-    child = event.get("child", "")
-    parent = event.get("parent", "primary")
-    route = event.get("route")
-    agent_type = event.get("agent_type")
-    topology = event.get("topology")
-    depth = event.get("delegation_depth")
-    if not child or child in states:
-        errors.append(f"{location}: spawn child must be new and non-empty")
-        return
-    for field in ("qualified", "required", "ownership_safe"):
-        if event.get(field) is not True:
-            errors.append(f"{location}: spawn requires {field}=true")
-    if event.get("independent") is not True and event.get("preauthorized_dependency") is not True:
-        errors.append(f"{location}: spawn requires independence or a pre-authorized dependency")
-    if event.get("permission_inherited") is not True:
-        errors.append(f"{location}: spawn must prove permission inheritance")
-    else:
-        coverage.add("permission_inheritance")
-    if route not in {"custom", "built-in"}:
-        errors.append(f"{location}: route must be custom or built-in")
-    if topology not in {"leaf", "bounded-peer"} or depth not in {0, 1}:
-        errors.append(f"{location}: invalid topology or delegation depth")
-
-    if parent == "primary":
-        if route == "custom":
-            if agent_type not in GOVERNED_CUSTOM_AGENT_TYPES:
-                errors.append(f"{location}: unknown governed custom agent type")
-            if topology != "leaf" or depth != 0:
-                errors.append(f"{location}: governed custom route must remain a leaf")
-        if route == "built-in" and topology == "leaf":
-            if agent_type not in BUILTIN_LEAF_AGENT_TYPES:
-                errors.append(f"{location}: built-in leaf agent type must be explorer or worker")
-            if depth != 0:
-                errors.append(f"{location}: built-in leaf must have depth zero")
-        if route == "built-in" and topology == "bounded-peer":
-            if agent_type != "default":
-                errors.append(f"{location}: only built-in default may coordinate a bounded peer")
-            if depth != 1:
-                errors.append(f"{location}: bounded peer must have depth one")
-        direct_active = sum(
-            1 for node in active_nodes(states) if parents.get(node) == "primary"
-        )
-        if direct_active + 1 > direct_cap:
-            errors.append(f"{location}: logical direct-child cap {direct_cap} exceeded")
-        registered_peer_coordinators = sum(
-            1
-            for node in states
-            if parents.get(node) == "primary" and topologies.get(node) == "bounded-peer"
-        )
-        if topology == "bounded-peer" and registered_peer_coordinators >= 1:
-            errors.append(f"{location}: bounded-peer coordinator cap exceeded")
-    else:
-        if not require_running(errors, states, parent, location):
-            return
-        if topologies.get(parent) != "bounded-peer" or remaining_depth.get(parent) != 1:
-            errors.append(f"{location}: only a bounded peer may spawn a descendant")
-        if agent_types.get(parent) != "default":
-            errors.append(f"{location}: bounded-peer parent must be built-in default")
-        if (
-            route != "built-in"
-            or agent_type not in BUILTIN_LEAF_AGENT_TYPES
-            or topology != "leaf"
-            or depth != 0
-        ):
-            errors.append(f"{location}: bounded-peer descendants must be built-in leaves")
-        direct_descendants = sum(
-            1 for registered_parent in parents.values() if registered_parent == parent
-        )
-        if direct_descendants + 1 > descendant_cap:
-            errors.append(f"{location}: bounded-peer leaf cap {descendant_cap} exceeded")
-        coverage.add("bounded_nested_spawn")
-
-    states[child] = "running"
-    parents[child] = parent
-    topologies[child] = topology
-    remaining_depth[child] = depth
-    routes[child] = route
-    agent_types[child] = agent_type
-    if len(active_nodes(states)) > runtime_capacity:
-        errors.append(f"{location}: runtime capacity {runtime_capacity} exceeded")
-    if sum(1 for node in active_nodes(states) if parents.get(node) == "primary") >= 2:
-        coverage.add("independent_peer_concurrent")
+def string_list(value: object, *, nonempty: bool = True) -> bool:
+    return (
+        isinstance(value, list)
+        and (bool(value) or not nonempty)
+        and all(isinstance(item, str) and bool(item) for item in value)
+    )
 
 
-def validate_message(
-    event: dict,
-    states: dict[str, str],
-    parents: dict[str, str],
-    topologies: dict[str, str],
-    routes: dict[str, str],
-    agent_types: dict[str, str],
-    coverage: set[str],
-    location: str,
-    errors: list[str],
-) -> None:
-    sender = event.get("sender", "")
-    recipient = event.get("recipient", "")
-    if not require_running(errors, states, sender, location):
-        return
-    if not require_running(errors, states, recipient, location):
-        return
-    common_parent = parents.get(sender)
-    if sender == recipient or common_parent != parents.get(recipient):
-        errors.append(f"{location}: message endpoints must be registered peers")
-    if (
-        common_parent == "primary"
-        or states.get(common_parent) != "running"
-        or topologies.get(common_parent) != "bounded-peer"
-        or agent_types.get(common_parent) != "default"
-        or routes.get(sender) != "built-in"
-        or routes.get(recipient) != "built-in"
-        or topologies.get(sender) != "leaf"
-        or topologies.get(recipient) != "leaf"
-        or agent_types.get(sender) not in BUILTIN_LEAF_AGENT_TYPES
-        or agent_types.get(recipient) not in BUILTIN_LEAF_AGENT_TYPES
-    ):
-        errors.append(f"{location}: only built-in leaves under one default bounded peer may message")
-    if event.get("purpose") not in ALLOWED_MESSAGE_PURPOSES:
-        errors.append(f"{location}: message purpose exceeds the evidence boundary")
-    changed = [
-        field for field in PROTECTED_MESSAGE_CHANGE_FIELDS if event.get(field) is not False
-    ]
-    if changed:
-        errors.append(f"{location}: message cannot change protected handoff fields {changed}")
-    coverage.add("peer_message_boundary")
+def readback(value: object) -> tuple[str, str, str, str] | None:
+    keys = ("head", "index", "worktree", "changed_paths")
+    if not isinstance(value, dict) or set(value) != set(keys):
+        return None
+    return tuple(value[key] for key in keys) if all(digest(value[key]) for key in keys) else None
 
 
-def validate_cancel_request(
-    event: dict,
-    states: dict[str, str],
-    coverage: set[str],
-    location: str,
-    errors: list[str],
-) -> None:
-    child = event.get("child", "")
-    reason = event.get("reason")
-    outcome = event.get("outcome")
-    if not require_running(errors, states, child, location):
-        return
-    allowed = reason in ALLOWED_CANCELLATION_REASONS
-    if allowed and outcome == "accepted":
-        states[child] = "cancelling"
-        return
-    if not allowed and outcome == "rejected":
-        coverage.add("unauthorized_cancel_rejected")
-        return
-    errors.append(f"{location}: cancellation reason/outcome violates authority")
+def overlaps(left: str, right: str) -> bool:
+    a, b = PurePosixPath(left).parts, PurePosixPath(right).parts
+    return a[: len(b)] == b or b[: len(a)] == a
 
 
-def validate_scenario(
-    scenario: dict,
-    direct_cap: int,
-    descendant_cap: int,
-    runtime_capacity: int,
-    coverage: set[str],
-) -> list[str]:
+def validate_materiality(manifest: object, child: str, route: str) -> list[str]:
+    if not isinstance(manifest, dict) or set(manifest) != {
+        "issuer_kind", "issued_by", "manifest_digest", "asset_kind", "source_ranges"
+    }:
+        return ["materiality manifest has unknown or missing fields"]
     errors: list[str] = []
-    states: dict[str, str] = {}
-    parents: dict[str, str] = {}
-    topologies: dict[str, str] = {}
-    remaining_depth: dict[str, int] = {}
-    routes: dict[str, str] = {}
-    agent_types: dict[str, str] = {}
-    waits: dict[str, int] = {}
-    finalized = False
-    name = scenario.get("name", "unnamed")
-    for index, event in enumerate(scenario.get("events", [])):
-        location = f"{name}[{index}]"
-        kind = event.get("type")
-        child = event.get("child", "")
-        if finalized:
-            errors.append(f"{location}: event occurs after primary_finalize")
+    if manifest["issuer_kind"] not in {"host", "owner", "sealed-harness"} or manifest["issued_by"] in {child, "agent", "self"}:
+        errors.append("materiality manifest is self-issued")
+    if not digest(manifest["manifest_digest"]):
+        errors.append("materiality manifest digest is invalid")
+    projection = {key: value for key, value in manifest.items() if key != "manifest_digest"}
+    if manifest["manifest_digest"] != canonical_digest(projection):
+        errors.append("materiality manifest digest does not bind its canonical payload")
+    if manifest["asset_kind"] != "source":
+        errors.append("verification-token or synthetic asset is not material")
+    ranges = manifest["source_ranges"]
+    if not isinstance(ranges, list) or not ranges:
+        return errors + ["materiality manifest needs canonical source ranges"]
+    parsed: list[tuple[str, int, int]] = []
+    contents: set[str] = set()
+    paths: set[str] = set()
+    total = 0
+    for item in ranges:
+        required = {"path", "path_sha256", "start", "end", "content_sha256", "non_padding_bytes"}
+        if not isinstance(item, dict) or set(item) != required:
+            errors.append("materiality source range has unknown or missing fields")
             continue
-        if kind == "spawn":
-            validate_spawn(
-                event,
-                states,
-                parents,
-                topologies,
-                remaining_depth,
-                routes,
-                agent_types,
-                coverage,
-                direct_cap,
-                descendant_cap,
-                runtime_capacity,
-                location,
-                errors,
-            )
-        elif kind == "delegation_request":
-            parent = event.get("parent", "")
-            if (
-                require_running(errors, states, parent, location)
-                and topologies.get(parent) == "leaf"
-                and event.get("outcome") == "rejected"
-            ):
-                if routes.get(parent) == "custom":
-                    coverage.add("governed_leaf_recursion_rejected")
-            else:
-                errors.append(f"{location}: leaf delegation request must be rejected")
-        elif kind == "message":
-            validate_message(
-                event,
-                states,
-                parents,
-                topologies,
-                routes,
-                agent_types,
-                coverage,
-                location,
-                errors,
-            )
-        elif kind == "wait_timeout":
-            if require_running(errors, states, child, location):
-                waits[child] = waits.get(child, 0) + 1
-                if waits[child] >= 2:
-                    coverage.add("delayed_across_multiple_waits")
-        elif kind in {"receipt", "runtime_failure"}:
-            if require_running(errors, states, child, location):
-                descendants = active_descendants(states, parents, child)
-                if descendants:
-                    errors.append(f"{location}: parent terminal before descendants {descendants}")
-                else:
-                    states[child] = "terminal"
-        elif kind == "cancel_request":
-            validate_cancel_request(event, states, coverage, location, errors)
-        elif kind == "cancel_ack":
-            if states.get(child) != "cancelling":
-                errors.append(f"{location}: cancellation acknowledgement has no request")
-            else:
-                descendants = active_descendants(states, parents, child)
-                if descendants:
-                    errors.append(f"{location}: cancel acknowledged before descendants {descendants}")
-                else:
-                    states[child] = "terminal"
-                    coverage.add("authorized_cancel_acknowledged")
-        elif kind == "replacement_request":
-            original = event.get("original", "")
-            if states.get(original) in {"running", "cancelling"}:
-                if event.get("outcome") == "rejected":
-                    coverage.add("running_replacement_rejected")
-                else:
-                    errors.append(f"{location}: replacement accepted while original is active")
-            else:
-                errors.append(f"{location}: replacement check requires an active original")
-        elif kind == "primary_finalize":
-            active = active_nodes(states)
-            if active:
-                errors.append(f"{location}: primary finalized with active task tree {active}")
-            else:
-                coverage.add("full_tree_terminal_collection")
-            finalized = True
-        else:
-            errors.append(f"{location}: unsupported event type {kind!r}")
-    if not finalized:
-        errors.append(f"{name}: missing primary_finalize")
+        start, end = item["start"], item["end"]
+        non_padding = item["non_padding_bytes"]
+        if not safe_path(item["path"]) or not digest(item["path_sha256"]) or not digest(item["content_sha256"]):
+            errors.append("materiality source range identity is invalid")
+            continue
+        if not isinstance(start, int) or not isinstance(end, int) or start < 0 or end <= start:
+            errors.append("materiality source range bounds are invalid")
+            continue
+        if not isinstance(non_padding, int) or non_padding <= 0 or non_padding > end - start:
+            errors.append("materiality non-padding accounting is invalid")
+            continue
+        if any(path == item["path"] and max(start, old_start) < min(end, old_end) for path, old_start, old_end in parsed):
+            errors.append("materiality source ranges overlap")
+        if item["content_sha256"] in contents:
+            errors.append("duplicate content cannot inflate materiality")
+        parsed.append((item["path"], start, end))
+        contents.add(item["content_sha256"])
+        paths.add(item["path"])
+        total += non_padding
+    minimum_bytes, minimum_paths = ((4096, 2) if route == "explorer" else (8192, 3))
+    if total < minimum_bytes or len(paths) < minimum_paths:
+        errors.append(f"{route} materiality predicate failed")
     return errors
 
 
-def validate_trace_document(document: dict) -> list[str]:
+def validate_transfer(value: object, task_id: str, slice_id: str, child: str, route: str, topology: str) -> list[str]:
+    required = {
+        "producer", "consumer", "task_id", "slice_id", "route", "topology",
+        "input_summary", "sampling_allowlist", "admitted_state_digest", "status",
+        "artifact_receipt_digest", "completion_conditions", "forbidden_actions",
+    }
+    if not isinstance(value, dict) or set(value) != required:
+        return ["work-transfer has unknown or missing fields"]
     errors: list[str] = []
-    coverage: set[str] = set()
-    direct_cap = document.get("logical_direct_child_cap")
-    descendant_cap = document.get("bounded_peer_leaf_cap")
-    runtime_capacity = document.get("runtime_capacity")
-    if direct_cap != 3:
-        errors.append("logical_direct_child_cap must be 3")
-        direct_cap = 3
-    if descendant_cap != 2:
-        errors.append("bounded_peer_leaf_cap must be 2")
-        descendant_cap = 2
-    if runtime_capacity != 16:
-        errors.append("runtime_capacity must be 16")
-        runtime_capacity = 16
+    if value["producer"] not in {"primary", "host", "owner"} or value["consumer"] != child or value["task_id"] != task_id or value["slice_id"] != slice_id:
+        errors.append("work-transfer identity is invalid")
+    if value["topology"] not in {"leaf", "bounded-peer"} or not digest(value["admitted_state_digest"]):
+        errors.append("work-transfer topology/state is invalid")
+    projection = {key: item for key, item in value.items() if key != "admitted_state_digest"}
+    if value["admitted_state_digest"] != canonical_digest(projection):
+        errors.append("work-transfer admitted-state digest does not bind canonical payload")
+    if value["route"] != route or value["topology"] != topology:
+        errors.append("work-transfer route/topology is not bound to spawn")
+    if value["status"] != "admitted" or value["artifact_receipt_digest"] is not None:
+        errors.append("new work-transfer status is invalid")
+    for key in ("input_summary", "sampling_allowlist", "completion_conditions", "forbidden_actions"):
+        if not isinstance(value[key], list) or not value[key]:
+            errors.append(f"work-transfer {key} must be non-empty")
+    return errors
+
+
+def validate_scenario(scenario: object) -> list[str]:
+    if not isinstance(scenario, dict) or set(scenario) != {"name", "task_id", "events"}:
+        return ["scenario has unknown or missing fields"]
+    errors: list[str] = []
+    task_id = scenario["task_id"]
+    slices: dict[str, dict] = {}
+    nodes: dict[str, dict] = {}
+    parents: dict[str, str] = {}
+    components: dict[str, str] = {}
+    component_paths: dict[str, set[str]] = {}
+    compactions: dict[str, int] = {}
+    gates: dict[str, dict] = {}
+    invariant_owner: dict[str, str] = {}
+    material_ranges: list[tuple[str, int, int]] = []
+    material_contents: set[str] = set()
+    material_bytes = 0
+    sampled_ranges = 0
+    sampled_bytes = 0
+    access_denominator: tuple[int, int] | None = None
+    writer_slices: set[str] = set()
+    frozen: tuple[str, str, str, str] | None = None
+    generation = 0
+    closed = False
+    spawn_seen = False
+
+    def component_root(value: str) -> str:
+        while components.get(value, value) != value:
+            value = components[value]
+        return value
+
+    def union_components(left: str, right: str) -> str:
+        left_root, right_root = component_root(left), component_root(right)
+        if left_root == right_root:
+            return right_root
+        components[left_root] = right_root
+        component_paths.setdefault(right_root, set()).update(component_paths.pop(left_root, set()))
+        compactions[right_root] = compactions.get(right_root, 0) + compactions.pop(left_root, 0)
+        return right_root
+
+    def invalidate(candidate: tuple[str, str, str, str] | None) -> None:
+        nonlocal frozen, generation
+        frozen = candidate
+        generation += 1
+        for gate in gates.values():
+            gate["passed"] = False
+
+    events = scenario["events"] if isinstance(scenario["events"], list) else []
+    for index, event in enumerate(events):
+        location = f"{scenario['name']}[{index}]"
+        if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+            errors.append(f"{location}: malformed event")
+            continue
+        kind = event["type"]
+        if closed:
+            errors.append(f"{location}: event after close")
+            continue
+
+        if kind == "slice_open":
+            required = {"type", "task_id", "slice_id", "acceptance_milestone", "change_class", "owner_paths", "required_gate_ids", "state_summary", "state_digest"}
+            if set(event) != required or event["task_id"] != task_id:
+                errors.append(f"{location}: slice_open schema/identity mismatch")
+                continue
+            slice_id, paths = event["slice_id"], event["owner_paths"]
+            if not isinstance(slice_id, str) or not slice_id or slice_id in slices:
+                errors.append(f"{location}: slice id must be unique")
+            if not isinstance(paths, list) or not paths or len(paths) != len(set(paths)) or not all(safe_path(path) for path in paths):
+                errors.append(f"{location}: precise owner paths required")
+            if not isinstance(event["acceptance_milestone"], str) or not event["acceptance_milestone"] or not isinstance(event["change_class"], str) or not event["change_class"]:
+                errors.append(f"{location}: exactly one milestone and change class required")
+            if not string_list(event["required_gate_ids"]) or not string_list(event["state_summary"]) or not digest(event["state_digest"]):
+                errors.append(f"{location}: slice gates/state summary invalid")
+            if not string_list(event["required_gate_ids"]) or len(event["required_gate_ids"]) != 3 or (string_list(event["required_gate_ids"]) and len(set(event["required_gate_ids"])) != 3):
+                errors.append(f"{location}: slice requires exactly three unique gates")
+            projection = {key: value for key, value in event.items() if key not in {"type", "state_digest"}}
+            if event["state_digest"] != canonical_digest(projection):
+                errors.append(f"{location}: slice state digest does not bind canonical payload")
+            slices[slice_id] = event
+
+        elif kind == "owner_union":
+            required = {"type", "component", "paths", "reason", "aliases"}
+            if set(event) != required or event["reason"] not in {"overlap", "rename", "split", "merge"}:
+                errors.append(f"{location}: owner union schema invalid")
+                continue
+            component = event["component"]
+            if not isinstance(component, str) or not component or not isinstance(event["paths"], list) or not event["paths"] or not all(safe_path(path) for path in event["paths"]):
+                errors.append(f"{location}: owner union paths invalid")
+                continue
+            components.setdefault(component, component)
+            component_paths.setdefault(component_root(component), set()).update(event["paths"])
+            aliases = event["aliases"]
+            if not string_list(aliases, nonempty=False):
+                errors.append(f"{location}: owner aliases must be strings")
+                aliases = []
+            for alias in aliases:
+                components.setdefault(alias, alias)
+                union_components(alias, component)
+
+        elif kind == "spawn":
+            required = {"type", "child", "parent", "slice_id", "agent_type", "route", "topology", "delegation_depth", "fork_context", "owner_component", "owner_paths", "work_transfer", "materiality_manifest"}
+            if set(event) != required:
+                errors.append(f"{location}: spawn schema invalid")
+                continue
+            child, parent, agent_type = event["child"], event["parent"], event["agent_type"]
+            if not isinstance(child, str) or not child or child in nodes or not isinstance(event["slice_id"], str) or event["slice_id"] not in slices:
+                errors.append(f"{location}: spawn identity invalid")
+                continue
+            if event["fork_context"] != "none":
+                errors.append(f"{location}: full-history context is never eligible")
+            topology, depth = event["topology"], event["delegation_depth"]
+            known_agent = isinstance(agent_type, str) and agent_type in (CUSTOM | BUILTIN | {"default"})
+            if not known_agent:
+                errors.append(f"{location}: unknown or unregistered agent type")
+            if isinstance(agent_type, str) and agent_type in CUSTOM and (event["route"] != "custom" or topology != "leaf" or depth != 0 or parent != "primary"):
+                errors.append(f"{location}: custom roles remain primary-routed nonrecursive leaves")
+            if isinstance(agent_type, str) and agent_type in BUILTIN:
+                if event["route"] != "built-in" or topology != "leaf" or depth != 0:
+                    errors.append(f"{location}: explorer/worker must be built-in leaves")
+                errors.extend(f"{location}: {item}" for item in validate_materiality(event["materiality_manifest"], child, agent_type))
+                manifest = event["materiality_manifest"]
+                if isinstance(manifest, dict) and isinstance(manifest.get("source_ranges"), list):
+                    for item in manifest["source_ranges"]:
+                        if not isinstance(item, dict) or not safe_path(item.get("path")) or not isinstance(item.get("start"), int) or not isinstance(item.get("end"), int):
+                            continue
+                        candidate = (item["path"], item["start"], item["end"])
+                        if any(path == candidate[0] and max(candidate[1], start) < min(candidate[2], end) for path, start, end in material_ranges):
+                            errors.append(f"{location}: task-wide materiality ranges overlap")
+                        if item.get("content_sha256") in material_contents:
+                            errors.append(f"{location}: task-wide duplicate content cannot inflate materiality")
+                        material_ranges.append(candidate)
+                        material_contents.add(item.get("content_sha256"))
+                        if isinstance(item.get("non_padding_bytes"), int) and item["non_padding_bytes"] > 0:
+                            material_bytes += item["non_padding_bytes"]
+            elif event["materiality_manifest"] is not None:
+                errors.append(f"{location}: materiality manifest only applies to explorer/worker")
+            if agent_type == "default" and (event["route"] != "built-in" or topology != "bounded-peer" or depth != 1 or parent != "primary"):
+                errors.append(f"{location}: default bounded peer depth must be one")
+            if parent != "primary":
+                owner = nodes.get(parent)
+                descendants = sum(1 for value in parents.values() if value == parent)
+                if not owner or owner["state"] != "running" or owner["agent_type"] != "default" or agent_type not in BUILTIN or descendants >= 2:
+                    errors.append(f"{location}: invalid bounded-peer descendant")
+            else:
+                direct_active = sum(
+                    1 for name, node in nodes.items()
+                    if parents.get(name) == "primary" and node["state"] == "running"
+                )
+                if direct_active >= 3:
+                    errors.append(f"{location}: direct-child cap exceeded")
+                if agent_type == "default" and any(
+                    node["agent_type"] == "default" for node in nodes.values()
+                ):
+                    errors.append(f"{location}: bounded-peer coordinator cap exceeded")
+            errors.extend(f"{location}: {item}" for item in validate_transfer(event["work_transfer"], task_id, event["slice_id"], child, agent_type, topology))
+            component = component_root(event["owner_component"]) if event["owner_component"] else ""
+            paths = event["owner_paths"]
+            if agent_type == "worker":
+                if event["slice_id"] in writer_slices:
+                    errors.append(f"{location}: each slice permits at most one writer")
+                writer_slices.add(event["slice_id"])
+                if not isinstance(event["owner_component"], str) or not event["owner_component"]:
+                    errors.append(f"{location}: writer canonical owner component is required")
+                components.setdefault(component, component)
+                for registered, registered_paths in list(component_paths.items()):
+                    if any(overlaps(left, right) for left in paths for right in registered_paths):
+                        component = union_components(component, registered)
+                component = component_root(component)
+                component_paths.setdefault(component, set()).update(paths)
+                if compactions.get(component, 0) >= 2:
+                    errors.append(f"{location}: writer compaction budget exhausted")
+                if not isinstance(paths, list) or not paths or not all(safe_path(path) for path in paths):
+                    errors.append(f"{location}: writer ownership invalid")
+                for other in nodes.values():
+                    if other["state"] == "running" and other["agent_type"] == "worker" and any(overlaps(a, b) for a in paths for b in other["paths"]):
+                        errors.append(f"{location}: overlapping writer ownership")
+            if agent_type in {"evidence_tester", *REVIEWERS} and frozen is None:
+                errors.append(f"{location}: tester/reviewer requires writer-terminal freeze")
+            nodes[child] = {"state": "running", "agent_type": agent_type if isinstance(agent_type, str) else "<invalid>", "slice": event["slice_id"], "component": component, "paths": paths, "scope_digest": event["work_transfer"].get("admitted_state_digest") if isinstance(event["work_transfer"], dict) else None}
+            parents[child] = parent
+            spawn_seen = True
+
+        elif kind == "receipt":
+            required = {"type", "child", "status", "artifact_receipt_digest", "completion_digest", "writer_compactions", "safe_incomplete"}
+            node = nodes.get(event.get("child"))
+            if set(event) != required or not node or node["state"] != "running":
+                errors.append(f"{location}: receipt target/schema invalid")
+                continue
+            if not isinstance(event["status"], str) or event["status"] not in {"complete", "incomplete", "failed"} or not digest(event["artifact_receipt_digest"]) or not digest(event["completion_digest"]):
+                errors.append(f"{location}: receipt status/digest invalid")
+            if event["status"] == "incomplete" and event["safe_incomplete"] is not True:
+                errors.append(f"{location}: incomplete receipt must be safe")
+            if node["agent_type"] == "worker":
+                count = event["writer_compactions"]
+                if not isinstance(count, int) or count < 0:
+                    errors.append(f"{location}: writer compaction count invalid")
+                else:
+                    root = component_root(node["component"])
+                    compactions[root] = compactions.get(root, 0) + count
+            elif event["writer_compactions"] != 0:
+                errors.append(f"{location}: non-writer compaction invalid")
+            node["state"] = "terminal"
+            node["terminal_status"] = event["status"]
+
+        elif kind == "freeze":
+            candidate = readback(event.get("readback"))
+            writers = [node for node in nodes.values() if node["slice"] == event.get("slice_id") and node["agent_type"] == "worker"]
+            if set(event) != {"type", "slice_id", "readback"} or candidate is None:
+                errors.append(f"{location}: freeze readback invalid")
+            elif not writers or any(node["state"] != "terminal" for node in writers):
+                errors.append(f"{location}: freeze requires terminal writer")
+            else:
+                invalidate(candidate)
+
+        elif kind == "readback":
+            candidate = readback(event.get("readback"))
+            actor = nodes.get(event.get("actor"))
+            if set(event) != {"type", "actor", "readback"} or not actor or actor["state"] != "running" or actor["agent_type"] not in {"evidence_tester", *REVIEWERS} or candidate != frozen:
+                errors.append(f"{location}: stale filesystem readback")
+
+        elif kind == "primary_access":
+            required = {"type", "kind", "receipt_digest", "unique_ranges", "unique_bytes", "manifest_ranges", "manifest_bytes", "attribution"}
+            if set(event) != required or not isinstance(event["kind"], str) or event["kind"] not in {"targeted_precheck", "sampling", "integration"}:
+                errors.append(f"{location}: primary access not admitted")
+                continue
+            if event["attribution"] != "task-wide" or not digest(event["receipt_digest"]):
+                errors.append(f"{location}: opaque/unavailable primary access attribution")
+            projection = {key: value for key, value in event.items() if key not in {"type", "receipt_digest"}}
+            if event.get("receipt_digest") != canonical_digest(projection):
+                errors.append(f"{location}: primary access receipt digest does not bind canonical payload")
+            if event["kind"] == "sampling" and not spawn_seen:
+                errors.append(f"{location}: pre-spawn sampling cannot establish delegated substitution")
+            if event["kind"] != "integration":
+                values = [event[key] for key in ("unique_ranges", "unique_bytes", "manifest_ranges", "manifest_bytes")]
+                if not all(isinstance(value, int) and value >= 0 for value in values) or event["manifest_ranges"] <= 0 or event["manifest_bytes"] <= 0:
+                    errors.append(f"{location}: primary sampling counts/denominator are invalid")
+                    continue
+                denominator = (event["manifest_ranges"], event["manifest_bytes"])
+                if denominator != (len(material_ranges), material_bytes):
+                    errors.append(f"{location}: sampling denominator differs from admitted task materiality")
+                if access_denominator is None:
+                    access_denominator = denominator
+                elif denominator != access_denominator:
+                    errors.append(f"{location}: task-wide sampling denominator changed")
+                sampled_ranges += event["unique_ranges"] if isinstance(event["unique_ranges"], int) else 0
+                sampled_bytes += event["unique_bytes"] if isinstance(event["unique_bytes"], int) else 0
+                stable_ranges, stable_bytes = access_denominator
+                if sampled_ranges >= stable_ranges or sampled_ranges * 10 > stable_ranges or sampled_bytes * 10 > stable_bytes:
+                    errors.append(f"{location}: primary sampling exceeds strict 10% proper subset")
+
+        elif kind == "send_message":
+            required = {"type", "producer", "consumer", "dependency", "digest", "purpose", "admitted", "starts_turn", "changes_handoff"}
+            target = nodes.get(event.get("consumer"))
+            if set(event) != required or not target or target["state"] != "running":
+                errors.append(f"{location}: send_message target must be running")
+            if not isinstance(event.get("purpose"), str) or event.get("purpose") not in MESSAGE_PURPOSES or event.get("admitted") is not True or not digest(event.get("digest")):
+                errors.append(f"{location}: send_message payload is not admitted")
+            projection = {key: value for key, value in event.items() if key not in {"type", "digest"}}
+            if event.get("digest") != canonical_digest(projection) or not isinstance(event.get("dependency"), str) or not event["dependency"]:
+                errors.append(f"{location}: send_message digest/dependency does not bind canonical payload")
+            if event.get("starts_turn") is not False or event.get("changes_handoff") is not False:
+                errors.append(f"{location}: send_message cannot start turn/change handoff")
+            producer = nodes.get(event.get("producer"))
+            admitted_peer = bool(
+                producer
+                and target
+                and producer["state"] == "running"
+                and producer["agent_type"] in BUILTIN
+                and target["agent_type"] in BUILTIN
+                and parents.get(event["producer"]) == parents.get(event["consumer"])
+                and parents.get(event["producer"]) != "primary"
+                and nodes.get(parents.get(event["producer"]), {}).get("agent_type") == "default"
+            )
+            if target and (target["agent_type"] in CUSTOM or (event.get("producer") not in {"primary", "host", "owner"} and not admitted_peer)):
+                errors.append(f"{location}: custom-role or peer message is forbidden")
+
+        elif kind == "followup_task":
+            required = {"type", "target", "reason", "same_scope", "scope_digest", "authorized", "changes_scope", "status_poll"}
+            target = nodes.get(event.get("target"))
+            if set(event) != required or not target or target["state"] == "running":
+                errors.append(f"{location}: followup target must be idle/terminal")
+            if not isinstance(event.get("reason"), str) or event.get("reason") not in FOLLOWUP_REASONS or event.get("same_scope") is not True or event.get("authorized") is not True or event.get("changes_scope") is not False or event.get("status_poll") is not False:
+                errors.append(f"{location}: followup reason/scope invalid")
+            if target and (not digest(event.get("scope_digest")) or event["scope_digest"] != target.get("scope_digest")):
+                errors.append(f"{location}: followup scope digest does not match original work-transfer")
+            if target and target["agent_type"] in CUSTOM:
+                errors.append(f"{location}: custom/reviewer followup is forbidden")
+            if target and target["agent_type"] == "worker" and compactions.get(component_root(target["component"]), 0) >= 2:
+                errors.append(f"{location}: writer followup compaction budget exhausted")
+            if target:
+                target["state"] = "running"
+
+        elif kind == "gate_register":
+            registered = event.get("invariants")
+            gate_id = event.get("gate_id")
+            if set(event) != {"type", "gate_id", "invariants"} or not isinstance(gate_id, str) or not gate_id or gate_id in gates or not string_list(registered) or (string_list(registered) and len(registered) != len(set(registered))):
+                errors.append(f"{location}: gate registration invalid")
+                continue
+            for invariant in registered:
+                if invariant in invariant_owner:
+                    errors.append(f"{location}: duplicate invariant ownership")
+                invariant_owner[invariant] = gate_id
+            gates[gate_id] = {"invariants": set(registered), "attempt": 0, "passed": False, "generation": -1}
+
+        elif kind == "gate_result":
+            gate, node = gates.get(event.get("gate_id")), nodes.get(event.get("child"))
+            candidate = readback(event.get("readback"))
+            required = {"type", "gate_id", "child", "attempt", "result", "readback", "invariants", "artifact_receipt_digest", "completion_digest"}
+            if set(event) != required or not gate or not node or node["agent_type"] not in REVIEWERS or node["state"] != "running":
+                errors.append(f"{location}: gate result role/state/schema invalid")
+                continue
+            result_invariants = event.get("invariants")
+            if candidate != frozen or not isinstance(event["attempt"], int) or event["attempt"] != gate["attempt"] + 1 or not string_list(result_invariants) or (string_list(result_invariants) and set(result_invariants) != gate["invariants"]) or not isinstance(event["result"], str) or event["result"] not in {"PASS", "BLOCK"}:
+                errors.append(f"{location}: stale or invalid gate attempt")
+            if not digest(event.get("artifact_receipt_digest")) or not digest(event.get("completion_digest")):
+                errors.append(f"{location}: gate terminal evidence digests are invalid")
+            gate.update(attempt=event["attempt"], passed=event["result"] == "PASS", generation=generation)
+            node["state"] = "terminal"
+            node["terminal_status"] = "complete"
+
+        elif kind == "repair":
+            candidate = readback(event.get("readback"))
+            if set(event) != {"type", "readback"} or candidate is None or candidate == frozen:
+                errors.append(f"{location}: repair must change final hash")
+            else:
+                invalidate(candidate)
+
+        elif kind == "pilot_admission":
+            required = {"type", "receipt_digest", "authorization_event_digest", "grantor", "authorized_signer", "task_id", "actions", "target", "revision", "package_digest", "valid_from", "valid_until", "observed_at", "excluded_active_task_ids", "issued_by", "status"}
+            if set(event) != required or event.get("task_id") != task_id:
+                errors.append(f"{location}: pilot admission schema/task invalid")
+            issued_by = event.get("issued_by")
+            signer = event.get("authorized_signer")
+            if not all(digest(event.get(key)) for key in ("receipt_digest", "authorization_event_digest", "package_digest")) or not isinstance(issued_by, str) or not isinstance(signer, str) or issued_by in {"agent", "self", signer} or event.get("status") != "valid":
+                errors.append(f"{location}: pilot admission is self-issued/tampered/expired")
+            projection = {key: value for key, value in event.items() if key not in {"type", "receipt_digest"}}
+            if event.get("receipt_digest") != canonical_digest(projection):
+                errors.append(f"{location}: pilot receipt digest does not bind canonical payload")
+            try:
+                valid_from = datetime.fromisoformat(event["valid_from"].replace("Z", "+00:00"))
+                valid_until = datetime.fromisoformat(event["valid_until"].replace("Z", "+00:00"))
+                observed = datetime.fromisoformat(event["observed_at"].replace("Z", "+00:00"))
+                if not valid_from <= observed <= valid_until:
+                    errors.append(f"{location}: pilot admission is outside its validity window")
+            except (KeyError, TypeError, ValueError):
+                errors.append(f"{location}: pilot validity timestamps are invalid")
+            if not all(isinstance(event.get(key), str) and event[key] for key in ("grantor", "authorized_signer", "target", "revision", "issued_by")):
+                errors.append(f"{location}: pilot signer/target/revision identity is invalid")
+            excluded = event.get("excluded_active_task_ids")
+            if not isinstance(excluded, list) or not excluded or task_id in excluded or not isinstance(event.get("actions"), list) or not event["actions"] or "create_task" in event["actions"]:
+                errors.append(f"{location}: pilot admission exclusions/actions invalid")
+
+        elif kind == "close":
+            candidate, required_gates = readback(event.get("readback")), event.get("required_gate_ids")
+            if set(event) != {"type", "readback", "required_gate_ids"} or candidate != frozen:
+                errors.append(f"{location}: close readback differs from freeze")
+            if any(node["state"] != "terminal" for node in nodes.values()):
+                errors.append(f"{location}: close requires terminal tree")
+            if any(node.get("terminal_status") != "complete" for node in nodes.values()):
+                errors.append(f"{location}: successful close requires every child complete")
+            if not string_list(required_gates) or len(required_gates) != 3 or (string_list(required_gates) and len(set(required_gates)) != 3) or (string_list(required_gates) and any(gate_id not in gates or not gates[gate_id]["passed"] or gates[gate_id]["generation"] != generation for gate_id in required_gates)):
+                errors.append(f"{location}: close requires all fresh required gates PASS")
+            declared_values = [gate_id for item in slices.values() for gate_id in item["required_gate_ids"] if isinstance(gate_id, str)]
+            declared = set(declared_values)
+            if not string_list(required_gates) or set(required_gates) != declared:
+                errors.append(f"{location}: close gate registry mismatch")
+            closed = True
+        else:
+            errors.append(f"{location}: unsupported event {kind!r}")
+    if not closed:
+        errors.append(f"{scenario['name']}: missing close")
+    return errors
+
+
+def validate_trace_document(document: object) -> list[str]:
+    if not isinstance(document, dict):
+        return ["trace root must be an object"]
+    required = {"version", "logical_direct_child_cap", "bounded_peer_leaf_cap", "runtime_capacity", "owner_hashes", "scenarios"}
+    errors = [] if set(document) == required else ["trace root has unknown or missing fields"]
+    for key, expected in (("version", 3), ("logical_direct_child_cap", 3), ("bounded_peer_leaf_cap", 2), ("runtime_capacity", 16)):
+        if document.get(key) != expected:
+            errors.append(f"{key} must be {expected}")
     scenarios = document.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
         return errors + ["scenarios must be a non-empty list"]
     for scenario in scenarios:
-        errors.extend(
-            validate_scenario(
-                scenario, direct_cap, descendant_cap, runtime_capacity, coverage
-            )
-        )
-    missing = sorted(REQUIRED_COVERAGE - coverage)
-    if missing:
-        errors.append(f"missing lifecycle coverage: {missing}")
+        errors.extend(validate_scenario(scenario))
     return errors
 
 
 def load_trace(path: Path) -> dict:
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))

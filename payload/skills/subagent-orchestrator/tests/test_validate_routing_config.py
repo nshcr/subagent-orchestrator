@@ -1,6 +1,5 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-import copy
 import re
 import shutil
 import sys
@@ -9,932 +8,431 @@ import unittest
 
 
 skill_dir = Path(__file__).parents[1]
-spec = spec_from_file_location(
-    "routing_validator",
-    skill_dir / "scripts" / "validate-routing-config.py",
-)
+candidate_home = skill_dir.parents[1]
+spec = spec_from_file_location("routing_validator", skill_dir / "scripts" / "validate-routing-config.py")
 module = module_from_spec(spec)
 assert spec and spec.loader
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-codex_home = skill_dir.parents[1]
 
 
-def clone_candidate() -> tuple[tempfile.TemporaryDirectory, Path]:
+def installed_candidate() -> tuple[tempfile.TemporaryDirectory, Path]:
     temporary = tempfile.TemporaryDirectory()
-    candidate = Path(temporary.name) / "codex-home"
-    candidate.mkdir()
-    shutil.copy2(codex_home / "AGENTS.md", candidate / "AGENTS.md")
-    shutil.copy2(codex_home / "config.toml", candidate / "config.toml")
-    shutil.copytree(codex_home / "agents", candidate / "agents")
-    (candidate / "skills").mkdir()
-    shutil.copytree(skill_dir, candidate / "skills" / skill_dir.name)
-    return temporary, candidate
+    home = Path(temporary.name) / "codex-home"
+    home.mkdir()
+    if (candidate_home / "AGENTS.md").is_file():
+        shutil.copy2(candidate_home / "AGENTS.md", home / "AGENTS.md")
+        shutil.copy2(candidate_home / "config.toml", home / "config.toml")
+        shutil.copytree(candidate_home / "agents", home / "agents")
+    else:
+        shutil.copy2(candidate_home / "AGENTS.section.en.md", home / "AGENTS.md")
+        shutil.copy2(candidate_home / "config.agents.toml", home / "config.toml")
+        shutil.copytree(candidate_home / "agents", home / "agents")
+    (home / "skills").mkdir()
+    shutil.copytree(skill_dir, home / "skills" / skill_dir.name)
+    installed_skill = home / "skills" / skill_dir.name / "SKILL.md"
+    for role in (home / "agents").glob("*.toml"):
+        text = role.read_text()
+        text = text.replace("{{SKILL_PATH}}", str(installed_skill))
+        text = re.sub(
+            r'(?m)^path = ".*?/subagent-orchestrator/SKILL\.md"$',
+            f'path = "{installed_skill}"',
+            text,
+        )
+        role.write_text(text)
+    return temporary, home
 
 
 class RoutingContractTest(unittest.TestCase):
-    def validate(self, candidate: Path):
-        return module.validate(candidate, module.DEFAULT_SKILL_PATH)
+    def validate(self, home):
+        return module.validate(home, home / "skills" / skill_dir.name / "SKILL.md").errors
+
+    def mutate(self, relative, old, new):
+        temporary, home = installed_candidate()
+        with temporary:
+            path = home / relative
+            original = path.read_text()
+            self.assertIn(old, original)
+            path.write_text(original.replace(old, new, 1))
+            return self.validate(home)
+
+    def mutate_skill(self, relative, old, new):
+        return self.mutate(f"skills/{skill_dir.name}/{relative}", old, new)
+
+    def assert_error(self, errors, marker):
+        self.assertTrue(any(marker in error for error in errors), errors)
 
     def test_accepts_staged_contract(self):
-        self.assertEqual(self.validate(codex_home).errors, [])
+        temporary, home = installed_candidate()
+        with temporary:
+            self.assertEqual(self.validate(home), [])
+
+    def test_rejects_custom_role_runtime_or_instruction_drift(self):
+        for role, old, new in (
+            ("risk_reviewer", 'model_reasoning_effort = "xhigh"', 'model_reasoning_effort = "high"'),
+            ("boundary_mapper", "Do not spawn agents or widen scope.", "Spawn agents when useful."),
+        ):
+            temporary, home = installed_candidate()
+            with temporary, self.subTest(role=role):
+                path = home / "agents" / f"{role}.toml"
+                path.write_text(path.read_text().replace(old, new))
+                self.assertTrue(self.validate(home))
+
+    def test_rejects_policy_hash_drift(self):
+        for relative, marker in (
+            ("SKILL.md", "fork_turns=none"),
+            ("references/routing-policy.md", "verification-token asset never proves materiality"),
+            ("references/delegation-contracts.md", "after two, reject another writer spawn or follow-up"),
+            ("references/evaluation-policy.md", "auto-create a task"),
+        ):
+            temporary, home = installed_candidate()
+            with temporary, self.subTest(relative=relative):
+                path = home / "skills" / skill_dir.name / relative
+                self.assertIn(marker, path.read_text())
+                path.write_text(path.read_text().replace(marker, "BROKEN", 1))
+                self.assertTrue(any("integrity mismatch" in error for error in self.validate(home)))
+
+    def test_rejects_global_policy_drift(self):
+        temporary, home = installed_candidate()
+        with temporary:
+            path = home / "AGENTS.md"
+            path.write_text(path.read_text().replace("fresh", "stale", 1))
+            self.assertTrue(self.validate(home))
+
+    def test_rejects_lifecycle_asset_drift(self):
+        for relative, old, new in (
+            ("scripts/lifecycle_conformance.py", '"host", "owner", "sealed-harness"', '"agent", "owner", "sealed-harness"'),
+            ("tests/fixtures/lifecycle-trace.json", '"runtime_capacity": 16', '"runtime_capacity": 99'),
+        ):
+            temporary, home = installed_candidate()
+            with temporary, self.subTest(relative=relative):
+                path = home / "skills" / skill_dir.name / relative
+                path.write_text(path.read_text().replace(old, new, 1))
+                self.assertTrue(any("lifecycle conformance asset integrity mismatch" in error for error in self.validate(home)))
+
+    def test_rejects_context_or_gate_broadening(self):
+        for relative, old, new in (
+            ("SKILL.md", "full-history children", "full-history children may be"),
+            ("references/routing-policy.md", "Three disjoint fresh gates PASS", "One majority gate passes"),
+            ("references/delegation-contracts.md", "10% of one frozen", "all source bytes"),
+            ("references/evaluation-policy.md", "self-issued, proxied", "self-issued or proxied accepted"),
+        ):
+            temporary, home = installed_candidate()
+            with temporary, self.subTest(relative=relative):
+                path = home / "skills" / skill_dir.name / relative
+                path.write_text(path.read_text().replace(old, new, 1))
+                self.assertTrue(self.validate(home))
+
+    def test_accepts_unrelated_role_and_primary_settings(self):
+        temporary, home = installed_candidate()
+        with temporary:
+            (home / "agents" / "project-local.toml").write_text('name = "project-local"\n')
+            with (home / "config.toml").open("a") as stream:
+                stream.write('\nmodel = "gpt-5.6-terra"\nmodel_reasoning_effort = "ultra"\n')
+            self.assertEqual(self.validate(home), [])
 
     def test_rejects_missing_active_role(self):
-        temporary, candidate = clone_candidate()
+        temporary, home = installed_candidate()
         with temporary:
-            (candidate / "agents" / "evidence_tester.toml").unlink()
-            errors = self.validate(candidate).errors
-            self.assertTrue(any("agent catalog" in error for error in errors))
+            (home / "agents" / "evidence_tester.toml").unlink()
+            self.assert_error(self.validate(home), "agent catalog missing")
 
-    def test_rejects_legacy_or_extra_role(self):
-        temporary, candidate = clone_candidate()
+    def test_rejects_legacy_role_but_accepts_unrelated_role(self):
+        temporary, home = installed_candidate()
         with temporary:
-            shutil.copy2(
-                candidate / "agents" / "evidence_tester.toml",
-                candidate / "agents" / "luna_tester.toml",
-            )
-            errors = self.validate(candidate).errors
-            self.assertTrue(any("agent catalog" in error or "legacy roles" in error for error in errors))
+            shutil.copy2(home / "agents" / "evidence_tester.toml", home / "agents" / "luna_tester.toml")
+            self.assert_error(self.validate(home), "legacy roles")
+        temporary, home = installed_candidate()
+        with temporary:
+            (home / "agents" / "project-specialist.toml").write_text('name = "project-specialist"\n')
+            self.assertEqual(self.validate(home), [])
 
-    def test_accepts_unrelated_custom_role(self):
-        temporary, candidate = clone_candidate()
+    def test_accepts_unrelated_agents_markdown_sections(self):
+        temporary, home = installed_candidate()
         with temporary:
-            (candidate / "agents" / "project_specialist.toml").write_text(
-                'name = "project_specialist"\n'
-            )
-            self.assertEqual(self.validate(candidate).errors, [])
-
-    def test_ignores_unrelated_agents_sections(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "AGENTS.md"
-            path.write_text(
-                path.read_text()
-                + "\n## Project notes\n\n"
-                + "A historical luna_scout note and gpt-5.6-local example live here.\n"
-            )
-            self.assertEqual(self.validate(candidate).errors, [])
+            with (home / "AGENTS.md").open("a") as stream:
+                stream.write("\n## Project notes\n\nHistorical luna_scout text is inert here.\n")
+            self.assertEqual(self.validate(home), [])
 
     def test_rejects_role_name_mismatch(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "agents" / "boundary_mapper.toml"
-            path.write_text(
-                path.read_text().replace('name = "boundary_mapper"', 'name = "mapper"')
-            )
-            errors = self.validate(candidate).errors
-            self.assertTrue(any("name mismatch" in error for error in errors))
+        errors = self.mutate("agents/boundary_mapper.toml", 'name = "boundary_mapper"', 'name = "mapper"')
+        self.assert_error(errors, "name mismatch")
 
-    def test_rejects_reviewer_effort_inheritance_or_drift(self):
-        for replacement in ('model_reasoning_effort = "high"', ''):
-            temporary, candidate = clone_candidate()
-            with temporary:
-                path = candidate / "agents" / "risk_reviewer.toml"
-                path.write_text(path.read_text().replace(
-                    'model_reasoning_effort = "xhigh"',
-                    replacement,
-                ))
-                self.assertTrue(any(
-                    "risk_reviewer: effort must be xhigh" in error
-                    for error in self.validate(candidate).errors
-                ))
+    def test_rejects_role_model_effort_tier_and_sandbox_drift(self):
+        mutations = (
+            ('model = "gpt-5.6-sol"', 'model = "gpt-5.6-terra"', "model must be"),
+            ('model_reasoning_effort = "xhigh"', 'model_reasoning_effort = "high"', "effort must be"),
+            ('service_tier = "default"', 'service_tier = "priority"', "tier must be"),
+            ('sandbox_mode = "read-only"', 'sandbox_mode = "workspace-write"', "sandbox must be"),
+        )
+        for old, new, marker in mutations:
+            with self.subTest(field=old):
+                self.assert_error(self.mutate("agents/risk_reviewer.toml", old, new), marker)
 
-        temporary, candidate = clone_candidate()
+    def test_rejects_reviewer_indeterminate_terminal_drift(self):
+        temporary, home = installed_candidate()
         with temporary:
-            path = candidate / "agents" / "risk_reviewer_max.toml"
-            path.write_text(path.read_text().replace(
-                'model_reasoning_effort = "max"',
-                'model_reasoning_effort = "xhigh"',
-            ))
-            self.assertTrue(any(
-                "risk_reviewer_max: effort must be max" in error
-                for error in self.validate(candidate).errors
-            ))
-
-    def test_rejects_reviewer_indeterminate_contract_drift(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "agents" / "risk_reviewer.toml"
-            path.write_text(path.read_text().replace(
-                "Gate recommendation: INDETERMINATE / ESCALATE",
-                "Gate recommendation: MAYBE",
-            ))
-            self.assertTrue(any(
-                "missing receipt marker" in error or "integrity mismatch" in error
-                for error in self.validate(candidate).errors
-            ))
+            path = home / "agents" / "risk_reviewer.toml"
+            old = "`Gate recommendation: INDETERMINATE / ESCALATE`"
+            prefix, suffix = path.read_text().rsplit(old, 1)
+            path.write_text(prefix + "`Gate recommendation: MAYBE`" + suffix)
+            errors = self.validate(home)
+            self.assert_error(errors, "terminal protocol")
 
     def test_rejects_max_reviewer_recursive_escalation(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "agents" / "risk_reviewer_max.toml"
-            path.write_text(path.read_text().replace(
-                "Do not recommend another review, escalation, or higher effort.",
-                "Use `Gate recommendation: INDETERMINATE / ESCALATE` and request a fresh `max` review.",
-            ))
-            errors = self.validate(candidate).errors
-            self.assertTrue(any(
-                "must not request another max review" in error
-                for error in errors
-            ))
+        errors = self.mutate("agents/risk_reviewer_max.toml", "Do not recommend another review, escalation, or higher effort.", "Request a fresh `max` review.")
+        self.assert_error(errors, "must not request another max review")
 
     def test_rejects_non_ascii_reviewer_prompt(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "agents" / "risk_reviewer.toml"
-            path.write_text(path.read_text().replace(
-                "Review only the named final-state",
-                "审查 Review only the named final-state",
-            ))
-            self.assertTrue(any(
-                "developer_instructions must contain ASCII only" in error
-                for error in self.validate(candidate).errors
-            ))
+        errors = self.mutate("agents/risk_reviewer.toml", "Review only the named final-state", "审查 Review only the named final-state")
+        self.assert_error(errors, "ASCII only")
 
-    def test_rejects_role_output_audience_language_drift(self):
-        for role in (
-            "evidence_tester",
-            "boundary_mapper",
-            "risk_reviewer",
-            "risk_reviewer_max",
-        ):
+    def test_rejects_role_output_language_contract_drift(self):
+        for role in module.ROLE_POLICY:
             with self.subTest(role=role):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "agents" / f"{role}.toml"
-                    original = path.read_text()
-                    old = "For `model-facing` output, use English."
-                    self.assertIn(old, original)
-                    path.write_text(original.replace(
-                        old,
-                        "For `model-facing` output, use the user's preferred language.",
-                    ))
-                    self.assertTrue(any(
-                        "missing receipt marker" in error or "integrity mismatch" in error
-                        for error in self.validate(candidate).errors
-                    ))
+                errors = self.mutate(f"agents/{role}.toml", "For `model-facing` output, use English.", "For `model-facing` output, use any language.")
+                self.assert_error(errors, "missing receipt marker")
 
     def test_rejects_required_role_handoff_field_drift(self):
-        mutations = (
+        for role, old, new in (
             ("evidence_tester", "`Acceptance fields`", "`Acceptance schema`"),
             ("boundary_mapper", "`Acceptance fields`", "`Acceptance schema`"),
             ("risk_reviewer", "`Named invariants`", "`Gate checklist`"),
             ("risk_reviewer_max", "`Escalation receipt`", "`Escalation note`"),
-        )
-        for role, old, new in mutations:
-            with self.subTest(role=role):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "agents" / f"{role}.toml"
-                    original = path.read_text()
-                    self.assertIn(old, original)
-                    path.write_text(original.replace(old, new, 1))
-                    self.assertTrue(any(
-                        f"{role}: missing receipt marker" in error
-                        for error in self.validate(candidate).errors
-                    ))
-
-    def test_rejects_reviewer_terminal_line_drift(self):
-        mutations = (
-            (
-                "risk_reviewer",
-                "`Gate recommendation: PASS`",
-                "`Gate recommendation: PASS with evidence`",
-            ),
-            (
-                "risk_reviewer_max",
-                "`Gate recommendation: BLOCK / NO-GO`",
-                "`Gate recommendation: BLOCK / NO-GO because evidence is missing`",
-            ),
-        )
-        for role, old, new in mutations:
-            with self.subTest(role=role):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "agents" / f"{role}.toml"
-                    original = path.read_text()
-                    self.assertIn(old, original)
-                    path.write_text(original.replace(old, new, 1))
-                    self.assertTrue(any(
-                        f"{role}: exact terminal protocol mismatch" in error
-                        for error in self.validate(candidate).errors
-                    ))
-
-    def test_rejects_instruction_drift_or_recursive_exception(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "agents" / "boundary_mapper.toml"
-            path.write_text(path.read_text().replace(
-                "Do not spawn agents or widen scope.",
-                "Do not spawn agents unless the parent explicitly asks.",
-            ))
-            errors = self.validate(candidate).errors
-            self.assertTrue(any(
-                "recursion" in error or "integrity mismatch" in error
-                for error in errors
-            ))
-
-    def test_rejects_implicit_disable_or_duplicate(self):
-        for transform in (
-            lambda text: text.replace("allow_implicit_invocation: true", "allow_implicit_invocation: false"),
-            lambda text: text + "\nallow_implicit_invocation: true\n",
         ):
-            temporary, candidate = clone_candidate()
-            with temporary:
-                path = candidate / "skills" / skill_dir.name / "agents" / "openai.yaml"
-                path.write_text(transform(path.read_text()))
-                self.assertTrue(any("implicit invocation" in error for error in self.validate(candidate).errors))
+            with self.subTest(role=role):
+                self.assert_error(self.mutate(f"agents/{role}.toml", old, new), "missing receipt marker")
 
-    def test_rejects_legacy_name_in_active_policy(self):
-        temporary, candidate = clone_candidate()
+    def test_rejects_reviewer_standalone_terminal_line_drift(self):
+        errors = self.mutate("agents/risk_reviewer.toml", "`Gate recommendation: PASS`", "`Gate recommendation: PASS with evidence`")
+        self.assert_error(errors, "exact terminal protocol mismatch")
+
+    def test_rejects_role_recursion_or_scope_exception(self):
+        errors = self.mutate("agents/boundary_mapper.toml", "Do not spawn agents or widen scope.", "Do not spawn agents unless the parent asks.")
+        self.assertTrue(any("recursion" in error or "integrity mismatch" in error for error in errors), errors)
+
+    def test_rejects_missing_or_wrong_skill_disable_path(self):
+        for old, new in (("enabled = false", "enabled = true"), ("/subagent-orchestrator/SKILL.md", "/other/SKILL.md")):
+            with self.subTest(change=old):
+                errors = self.mutate("agents/evidence_tester.toml", old, new)
+                self.assert_error(errors, "must disable")
+
+    def test_rejects_openai_yaml_implicit_disable_or_duplicate(self):
+        errors = self.mutate_skill("agents/openai.yaml", "allow_implicit_invocation: true", "allow_implicit_invocation: false")
+        self.assert_error(errors, "implicit invocation")
+        temporary, home = installed_candidate()
         with temporary:
-            path = candidate / "skills" / skill_dir.name / "SKILL.md"
-            path.write_text(path.read_text() + "\nUse `luna_scout` for research.\n")
-            self.assertTrue(any("legacy role name" in error for error in self.validate(candidate).errors))
+            path = home / "skills" / skill_dir.name / "agents" / "openai.yaml"
+            path.write_text(path.read_text() + "\nallow_implicit_invocation: true\n")
+            self.assert_error(self.validate(home), "implicit invocation")
 
-    def test_rejects_quality_or_wall_time_drift(self):
-        mutations = (
-            (
-                "Prefer higher stable verified quality.",
-                "Prefer lower credits before quality.",
-            ),
-            (
-                "Record wall time only as\ntelemetry",
-                "Use wall time as a tie-breaker",
-            ),
-        )
-        for old, new in mutations:
-            temporary, candidate = clone_candidate()
-            with temporary:
-                path = (
-                    candidate / "skills" / skill_dir.name
-                    / "references" / "evaluation-policy.md"
-                )
-                path.write_text(path.read_text().replace(old, new))
-                self.assertTrue(self.validate(candidate).errors)
+    def test_rejects_legacy_role_name_in_active_policy(self):
+        errors = self.mutate_skill("SKILL.md", "Unsupported or capability-unverified work stays primary.", "Unsupported work uses luna_scout.")
+        self.assert_error(errors, "legacy role name")
 
-    def test_rejects_concurrency_capacity_drift(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "config.toml"
-            original = path.read_text()
-            old = "max_concurrent_threads_per_session = 16"
-            self.assertIn(old, original)
-            path.write_text(original.replace(
-                old,
-                "max_concurrent_threads_per_session = 8",
-            ))
-            self.assertTrue(any(
-                "agents.max_concurrent_threads_per_session must be 16" in error
-                for error in self.validate(candidate).errors
-            ))
-
-    def test_accepts_non_high_primary_reasoning_effort(self):
-        for model, effort in (
-            ("gpt-5.6-sol", "ultra"),
-            ("gpt-5.6-terra", "low"),
+    def test_rejects_quality_priority_or_wall_time_drift(self):
+        for old, new in (
+            ("Never trade quality\nfor cost.", "Prefer lower cost over quality."),
+            ("Wall time is telemetry only.", "Wall time breaks promotion ties."),
         ):
-            with self.subTest(model=model, effort=effort):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "config.toml"
-                    text = path.read_text()
-                    for key, value in (
-                        ("model", model),
-                        ("model_reasoning_effort", effort),
-                    ):
-                        pattern = rf"(?m)^{key}\s*=.*$"
-                        replacement = f'{key} = "{value}"'
-                        if re.search(pattern, text):
-                            text = re.sub(pattern, replacement, text, count=1)
-                        else:
-                            text = replacement + "\n" + text
-                    path.write_text(text)
-                    self.assertEqual(self.validate(candidate).errors, [])
+            with self.subTest(old=old):
+                self.assert_error(self.mutate_skill("references/evaluation-policy.md", old, new), "missing policy text")
 
-    def test_rejects_default_subagent_model_or_effort_drift(self):
-        mutations = (
-            (
-                'default_subagent_model = "gpt-5.6-sol"',
-                'default_subagent_model = "gpt-5.6-terra"',
-                "agents.default_subagent_model must be gpt-5.6-sol",
-            ),
-            (
-                'default_subagent_reasoning_effort = "high"',
-                'default_subagent_reasoning_effort = "ultra"',
-                "agents.default_subagent_reasoning_effort must be high",
-            ),
-        )
-        for old, new, expected in mutations:
-            with self.subTest(setting=old):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "config.toml"
-                    path.write_text(path.read_text().replace(old, new, 1))
-                    self.assertTrue(any(
-                        expected in error
-                        for error in self.validate(candidate).errors
-                    ))
+    def test_rejects_direct_child_or_runtime_capacity_drift(self):
+        errors = self.mutate("config.toml", "max_concurrent_threads_per_session = 16", "max_concurrent_threads_per_session = 8")
+        self.assert_error(errors, "must be 16")
+        errors = self.mutate_skill("references/routing-policy.md", "Start at most three qualified direct children", "Start unlimited direct children")
+        self.assertTrue(errors)
 
-    def test_rejects_lifecycle_or_concurrency_drift(self):
-        mutations = (
-            (
-                "skills/subagent-orchestrator/SKILL.md",
-                "Treat a wait timeout as observation-only",
-                "Treat a wait timeout as permission to interrupt",
-            ),
-            (
-                "skills/subagent-orchestrator/references/delegation-contracts.md",
-                "are non-terminal and are\nnot stale-state evidence",
-                "prove that the child is stale",
-            ),
-            (
-                "skills/subagent-orchestrator/references/routing-policy.md",
-                "Allow up to three active direct children by\n   default",
-                "Allow only one active direct child by default",
-            ),
-            (
-                "AGENTS.md",
-                "fresh",
-                "stale",
-            ),
-        )
-        for relative, old, new in mutations:
-            with self.subTest(relative=relative):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / relative
-                    original = path.read_text()
-                    self.assertIn(old, original)
-                    path.write_text(original.replace(old, new))
-                    self.assertTrue(self.validate(candidate).errors)
+    def test_accepts_unconstrained_primary_model_and_effort(self):
+        for model, effort in (("gpt-5.6-sol", "ultra"), ("gpt-5.6-terra", "low")):
+            temporary, home = installed_candidate()
+            with temporary, self.subTest(model=model, effort=effort):
+                with (home / "config.toml").open("a") as stream:
+                    stream.write(f'\nmodel = "{model}"\nmodel_reasoning_effort = "{effort}"\n')
+                self.assertEqual(self.validate(home), [])
 
-    def test_rejects_lifecycle_conformance_asset_drift(self):
-        mutations = (
-            (
-                "tests/fixtures/lifecycle-trace.json",
-                '"runtime_capacity": 16',
-                '"runtime_capacity": 8',
-            ),
-            (
-                "scripts/lifecycle_conformance.py",
-                '"user_cancel",',
-                '"wait_timeout",',
-            ),
-        )
-        for relative, old, new in mutations:
-            with self.subTest(relative=relative):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "skills" / skill_dir.name / relative
-                    original = path.read_text()
-                    self.assertIn(old, original)
-                    path.write_text(original.replace(old, new, 1))
-                    self.assertTrue(any(
-                        "lifecycle conformance asset integrity mismatch" in error
-                        for error in self.validate(candidate).errors
-                    ))
+    def test_rejects_default_child_model_or_effort_drift(self):
+        for old, new, marker in (
+            ('default_subagent_model = "gpt-5.6-sol"', 'default_subagent_model = "gpt-5.6-terra"', "default_subagent_model"),
+            ('default_subagent_reasoning_effort = "high"', 'default_subagent_reasoning_effort = "ultra"', "default_subagent_reasoning_effort"),
+        ):
+            self.assert_error(self.mutate("config.toml", old, new), marker)
 
-    def test_rejects_bounded_peer_policy_broadening(self):
-        mutations = (
-            (
-                "references/routing-policy.md",
-                "one additional level to at most two",
-                "unlimited additional levels to any number of",
-            ),
-            (
-                "references/routing-policy.md",
-                "They cannot change authorization, scope, acceptance",
-                "They may change authorization, scope, and acceptance",
-            ),
-            (
-                "references/delegation-contracts.md",
-                "Messages transfer evidence or dependency status only; they never amend a handoff.",
-                "Messages may amend the handoff.",
-            ),
-            (
-                "AGENTS.md",
-                (
-                    "only a skill-qualified bounded peer may delegate one level",
-                    "仅 skill 准入的受限协作代理可继续委派一层",
-                ),
-                "bounded peers may delegate recursively",
-            ),
-        )
-        for relative, old, new in mutations:
-            with self.subTest(relative=relative):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = (
-                        candidate / relative
-                        if relative == "AGENTS.md"
-                        else candidate / "skills" / skill_dir.name / relative
-                    )
-                    original = path.read_text()
-                    marker = (
-                        next((candidate for candidate in old if candidate in original), None)
-                        if isinstance(old, tuple)
-                        else old
-                    )
-                    self.assertIsNotNone(marker)
-                    path.write_text(original.replace(marker, new, 1))
-                    self.assertTrue(self.validate(candidate).errors)
+    def test_rejects_lifecycle_owner_hash_or_trace_drift(self):
+        errors = self.mutate_skill("tests/fixtures/lifecycle-trace.json", '"runtime_capacity": 16', '"runtime_capacity": 8')
+        self.assert_error(errors, "lifecycle conformance asset integrity mismatch")
+        errors = self.mutate_skill("SKILL.md", "Freeze only after the writer is terminal.", "Freeze before writer terminal.")
+        self.assertTrue(errors)
 
-    def test_rejects_unpromoted_role_retention_drift(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "skills" / skill_dir.name / "references" / "evaluation-policy.md"
-            path.write_text(path.read_text().replace(
-                "Retire an installed role with no promoted class.",
-                "Keep every experimental role installed.",
-            ))
-            self.assertTrue(self.validate(candidate).errors)
+    def test_rejects_bounded_peer_depth_cap_or_message_broadening(self):
+        for old, new in (
+            ("one additional level with at most two", "unlimited recursive levels"),
+            ("cannot start a turn or change authority", "may amend authorization"),
+            ("Custom-role and unregistered peer messages are hard blockers.", "All peers may message."),
+        ):
+            relative = "references/routing-policy.md" if "additional" in old else "references/delegation-contracts.md"
+            self.assertTrue(self.mutate_skill(relative, old, new))
 
-    def test_rejects_mandatory_gate_exception_broadening(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "skills" / skill_dir.name / "references" / "evaluation-policy.md"
-            path.write_text(path.read_text().replace(
-                "does not permit retention of any other unpromoted role.",
-                "permits retention of every unpromoted role.",
-            ))
-            self.assertTrue(any(
-                "missing policy text" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_governance_retention_broadening(self):
+        errors = self.mutate_skill("references/evaluation-policy.md", "Retire any other installed role with no promoted class.", "Keep every experimental role installed.")
+        self.assertTrue(errors)
 
-    def test_rejects_unbounded_or_confidence_seeking_max_escalation(self):
-        mutations = (
-            (
-                "Record the trigger and allow at most one `max` escalation.",
-                "Allow repeated `max` escalation until confidence is high.",
-            ),
-            (
-                "a desire for more confidence\n  never qualifies",
-                "a desire for more confidence always qualifies",
-            ),
-            (
-                "the `xhigh` result is explicitly indeterminate because competing "
-                "causal\n  explanations or cross-boundary reasoning remain",
-                "the `xhigh` result may be conclusive",
-            ),
-            (
-                "that ambiguity can change\n  an irreversible P0/P1, security, "
-                "authorization, or data-integrity decision",
-                "that ambiguity has no material effect",
-            ),
-            (
-                "an ordinary BLOCK",
-                "an ordinary BLOCK always qualifies",
-            ),
-            (
-                "never substitute `default` or another role for it",
-                "substitute `default` whenever convenient",
-            ),
-            (
-                "Start one fresh `risk_reviewer_max` only when the available evidence is sufficient",
-                "Start one fresh `risk_reviewer_max` even when evidence is insufficient",
-            ),
-            (
-                "For missing\n  evidence, obtain the evidence or keep the gate blocked",
-                "Missing evidence qualifies for `max`",
-            ),
-            (
-                "Complexity, file\n  count, a high-risk label, an ordinary BLOCK, or "
-                "a desire for more confidence\n  never qualifies",
-                "Complexity, file count, or a high-risk label qualifies for `max`",
-            ),
-        )
-        for old, new in mutations:
-            temporary, candidate = clone_candidate()
-            with temporary:
-                path = candidate / "skills" / skill_dir.name / "references" / "routing-policy.md"
-                original = path.read_text()
-                self.assertIn(old, original)
-                path.write_text(original.replace(old, new))
-                self.assertTrue(any(
-                    "missing policy text" in error
-                    for error in self.validate(candidate).errors
-                ))
+    def test_rejects_mandatory_gate_efficiency_conflation(self):
+        errors = self.mutate_skill("references/evaluation-policy.md", "it cannot claim efficiency success.", "it always claims efficiency success.")
+        self.assert_error(errors, "missing policy text")
 
-    def test_rejects_reviewer_effort_experiment_retirement_drift(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "skills" / skill_dir.name / "references" / "evaluation-policy.md"
-            original = path.read_text()
-            old = (
-                "A reviewer-effort\nexperiment never retires `risk_reviewer`: a failed candidate effort returns the\n"
-                "role to its last accepted fixed effort and leaves the named gate installed."
-            )
-            self.assertIn(old, original)
-            path.write_text(original.replace(
-                old,
-                "A failed reviewer-effort experiment retires the named gate.",
-            ))
-            self.assertTrue(any(
-                "missing policy text" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_unbounded_or_confidence_seeking_max(self):
+        for old, new in (
+            ("One `risk_reviewer_max`\nis allowed only", "Repeated max reviewers are allowed"),
+            ("Complexity, ordinary BLOCK, or confidence seeking never qualifies.", "Complexity always qualifies."),
+        ):
+            self.assertTrue(self.mutate_skill("references/routing-policy.md", old, new))
+
+    def test_rejects_reviewer_effort_retirement(self):
+        errors = self.mutate_skill("references/evaluation-policy.md", "Reviewer effort experiments\nnever retire the accepted named gate", "Reviewer experiments retire the named gate")
+        self.assertTrue(errors)
 
     def test_rejects_appended_contradictory_policy(self):
-        contradictions = (
-            (
-                "routing-policy.md",
-                "\nMissing evidence or task complexity qualifies for max.\n",
-            ),
-            (
-                "evaluation-policy.md",
-                "\nA failed reviewer-effort experiment retires risk_reviewer.\n",
-            ),
-            (
-                "delegation-contracts.md",
-                "\nModel-facing output may use any language selected by the child.\n",
-            ),
-            (
-                "delegation-contracts.md",
-                "\nA wait timeout authorizes interruption.\n",
-            ),
-        )
-        for relative, appended in contradictions:
-            with self.subTest(relative=relative):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "skills" / skill_dir.name / "references" / relative
-                    path.write_text(path.read_text() + appended)
-                    self.assertTrue(any(
-                        "canonical policy integrity mismatch" in error
-                        for error in self.validate(candidate).errors
-                    ))
-
-    def test_rejects_appended_skill_lifecycle_contradiction(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "skills" / skill_dir.name / "SKILL.md"
-            path.write_text(
-                path.read_text()
-                + "\nInterrupt a child after three consecutive wait timeouts.\n"
-            )
-            self.assertTrue(any(
-                "canonical workflow integrity mismatch" in error
-                for error in self.validate(candidate).errors
-            ))
-
-    def test_rejects_missing_output_audience_contract(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = (
-                candidate / "skills" / skill_dir.name
-                / "references" / "delegation-contracts.md"
-            )
-            original = path.read_text()
-            field = "Output audience: <user-facing | model-facing>\n"
-            self.assertIn(field, original)
-            path.write_text(original.replace(field, ""))
-            self.assertTrue(any(
-                "missing policy text" in error or "canonical policy integrity mismatch" in error
-                for error in self.validate(candidate).errors
-            ))
-
-    def test_rejects_missing_lifecycle_contract_fields(self):
-        fields = (
-            "Completion dependency: <required-before-integration | independent-before-final>\n",
-            "Concurrent peers: <none | non-overlapping task names>\n",
-            "User deadline: <none | explicit user condition>\n",
-            (
-                "Cancellation authority: <user cancel/replace, concrete safety/scope violation, "
-                "proven stale state, terminal platform failure, or explicit user deadline>\n"
-            ),
-        )
-        for field in fields:
-            with self.subTest(field=field):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = (
-                        candidate / "skills" / skill_dir.name
-                        / "references" / "delegation-contracts.md"
-                    )
-                    original = path.read_text()
-                    self.assertIn(field, original)
-                    path.write_text(original.replace(field, ""))
-                    self.assertTrue(self.validate(candidate).errors)
-
-    def test_rejects_missing_typed_handoff_fields(self):
-        fields = (
-            "Topology: <leaf | bounded-peer>\n",
-            "Delegation depth: <0 | 1>\n",
-            "Message peers: <none | task names + evidence/dependency purpose>\n",
-            "Context policy: <fresh | inherited + material reason>\n",
-            "Acceptance fields: <not-applicable | one or more exact output-heading labels>\n",
-            "Named invariants: <not-applicable | one or more exact gate invariants>\n",
-            (
-                "Escalation receipt: <not-applicable | prior terminal line + sufficient evidence "
-                "+ competing explanations + irreversible decision>\n"
-            ),
-            "Artifact contract: <none | path or body + format + writer + transfer rule>\n",
-        )
-        for field in fields:
-            with self.subTest(field=field):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = (
-                        candidate / "skills" / skill_dir.name
-                        / "references" / "delegation-contracts.md"
-                    )
-                    original = path.read_text()
-                    self.assertIn(field, original)
-                    path.write_text(original.replace(field, "", 1))
-                    self.assertTrue(any(
-                        "missing policy text" in error
-                        or "canonical policy integrity mismatch" in error
-                        for error in self.validate(candidate).errors
-                    ))
-
-    def test_rejects_canonical_artifact_transfer_drift(self):
-        for relative, old, new in (
-            ("skills/subagent-orchestrator/references/delegation-contracts.md", "ARTIFACT_BODY_BEGIN", "BODY_START"),
-            ("agents/boundary_mapper.toml", "ARTIFACT_BODY_BEGIN", "BODY_START"),
+        for relative, appended in (
+            ("references/routing-policy.md", "\nMissing evidence qualifies for delegation.\n"),
+            ("references/evaluation-policy.md", "\nProduction observation proves pilot-signed.\n"),
+            ("references/delegation-contracts.md", "\nWait timeout authorizes interruption.\n"),
         ):
-            with self.subTest(relative=relative):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / relative
-                    original = path.read_text()
-                    self.assertIn(old, original)
-                    path.write_text(original.replace(old, new))
-                    self.assertTrue(self.validate(candidate).errors)
+            temporary, home = installed_candidate()
+            with temporary, self.subTest(relative=relative):
+                path = home / "skills" / skill_dir.name / relative
+                path.write_text(path.read_text() + appended)
+                self.assert_error(self.validate(home), "canonical policy integrity mismatch")
 
-    def test_rejects_final_gate_or_artifact_ownership_drift(self):
-        for relative, old, new in (
-            (
-                "references/routing-policy.md",
-                "fresh `risk_reviewer`",
-                "optional reviewer",
-            ),
-            (
-                "references/delegation-contracts.md",
-                "primary samples but does not rewrite it",
-                "the primary rewrites it after sampling",
-            ),
-            (
-                "AGENTS.md",
-                "fresh",
-                "stale",
-            ),
+    def test_rejects_missing_output_audience_or_typed_transfer_fields(self):
+        for marker in ("Output audience: <user-facing | model-facing>", "Producer / consumer / task / slice", "Admitted state digest: <digest>", "Completion conditions: <exact conditions>"):
+            with self.subTest(marker=marker):
+                errors = self.mutate_skill("references/delegation-contracts.md", marker, "REMOVED")
+                self.assertTrue(errors)
+
+    def test_rejects_artifact_transfer_or_final_gate_ownership_drift(self):
+        for old, new in (
+            ("ARTIFACT_BODY_BEGIN", "BODY_START"),
+            ("Each invariant belongs to exactly one task-wide gate", "Invariants may be voted on"),
+            ("primary owns authorization, integration, conflict handling, and acceptance", "reviewer owns final acceptance"),
         ):
-            with self.subTest(relative=relative):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = (
-                        candidate / relative
-                        if relative == "AGENTS.md"
-                        else candidate / "skills" / skill_dir.name / relative
-                    )
-                    path.write_text(path.read_text().replace(old, new))
-                    self.assertTrue(self.validate(candidate).errors)
+            self.assertTrue(self.mutate_skill("references/delegation-contracts.md", old, new))
 
     def test_rejects_role_details_in_global_policy(self):
-        temporary, candidate = clone_candidate()
+        temporary, home = installed_candidate()
         with temporary:
-            path = candidate / "AGENTS.md"
+            path = home / "AGENTS.md"
             text = path.read_text()
-            heading = next(
-                heading
-                for heading in (
-                    "## Subagents and parallelism\n",
-                    "## 子代理与并行\n",
-                )
-                if heading in text
-            )
-            self.assertIn(heading, text)
-            path.write_text(text.replace(
-                heading,
-                heading + "\n- `evidence_tester` must emit `ARTIFACT_BODY_BEGIN`.\n",
-                1,
-            ))
-            errors = self.validate(candidate).errors
-            self.assertTrue(any(
-                "two bullets" in error or "leaks implementation detail" in error
-                for error in errors
-            ))
+            heading = next(item for item in ("## Subagents and parallelism\n", "## 子代理与并行\n") if item in text)
+            text = text.replace(heading, heading + "\n- `evidence_tester` emits ARTIFACT_BODY_BEGIN.\n", 1)
+            path.write_text(text)
+            errors = self.validate(home)
+            self.assertTrue(any("two bullets" in error or "leaks implementation detail" in error for error in errors), errors)
 
-    def test_rejects_reference_details_in_skill_body(self):
-        temporary, candidate = clone_candidate()
+    def test_rejects_reference_or_runtime_details_in_skill_entry(self):
+        temporary, home = installed_candidate()
         with temporary:
-            path = candidate / "skills" / skill_dir.name / "SKILL.md"
+            path = home / "skills" / skill_dir.name / "SKILL.md"
             path.write_text(path.read_text() + "\nUse gpt-5.6-luna and fsync every artifact.\n")
-            errors = self.validate(candidate).errors
-            self.assertTrue(any("duplicates reference or role detail" in error for error in errors))
+            self.assert_error(self.validate(home), "duplicates reference or role detail")
 
-    def test_rejects_evidence_contract_broadening(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = (
-                candidate / "skills" / skill_dir.name
-                / "references" / "routing-policy.md"
-            )
-            original = path.read_text()
-            bounded = (
-                "| Material bounded log corpus | `evidence_tester` | Exhaustive "
-                "multi-file or large-log scan, explicit runbook, acceptance fields, "
-                "and requested evidence artifact |"
-            )
-            self.assertIn(bounded, original)
-            path.write_text(original.replace(
-                bounded,
-                "| Any bounded log | `evidence_tester` | Artifact requested |",
-            ))
-            self.assertTrue(any(
-                "missing policy text" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_materiality_evidence_broadening(self):
+        for old, new in (
+            ("verification-token asset never proves materiality", "verification-token proves materiality"),
+            ("host, owner, or sealed harness signs", "agent self-signs"),
+            ("at least three and 8192", "one byte is sufficient"),
+        ):
+            self.assertTrue(self.mutate_skill("references/routing-policy.md", old, new))
 
-    def test_rejects_small_diagnosis_broadening(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = (
-                candidate / "skills" / skill_dir.name
-                / "references" / "routing-policy.md"
-            )
-            path.write_text(path.read_text().replace(
-                "A short single log, a small direct diagnosis, or a narrow test failure "
-                "remains\nprimary even when an artifact is requested.",
-                "Any log diagnosis may use evidence_tester.",
-            ))
-            self.assertTrue(any(
-                "missing policy text" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_small_leaf_as_material_work(self):
+        errors = self.mutate_skill("references/routing-policy.md", "ordinary leaf, two tiny files, padding, duplicate ranges", "every tiny leaf")
+        self.assertTrue(errors)
 
     def test_rejects_routing_read_precedence_drift(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = (
-                candidate / "skills" / skill_dir.name
-                / "references" / "routing-policy.md"
-            )
-            path.write_text(path.read_text().replace(
-                "Read this reference whenever delegation is being considered.",
-                "Read this reference only when routing is ambiguous.",
-            ))
-            self.assertTrue(any(
-                "missing policy text" in error
-                for error in self.validate(candidate).errors
-            ))
+        errors = self.mutate_skill("SKILL.md", "Read [routing policy](references/routing-policy.md) and\n   [evaluation policy](references/evaluation-policy.md) before delegation.", "Delegate before reading policy.")
+        self.assert_error(errors, "missing policy text")
 
-    def test_rejects_fast_tier_drift(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "agents" / "evidence_tester.toml"
-            path.write_text(path.read_text().replace(
-                'service_tier = "default"',
-                'service_tier = "fast"',
-            ))
-            self.assertTrue(any(
-                "tier must be default" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_fast_tier_as_promotion_evidence(self):
+        errors = self.mutate_skill("references/evaluation-policy.md", "exclude that experiment from quality/credits promotion", "count fast experiments as promotion")
+        self.assertTrue(errors)
 
-    def test_rejects_runtime_details_in_routing_policy(self):
-        temporary, candidate = clone_candidate()
+    def test_rejects_runtime_configuration_in_routing_policy(self):
+        temporary, home = installed_candidate()
         with temporary:
-            path = (
-                candidate / "skills" / skill_dir.name
-                / "references" / "routing-policy.md"
-            )
-            path.write_text(path.read_text() + "\nUse gpt-5.6-luna with service_tier fast.\n")
-            self.assertTrue(any(
-                "duplicates executable TOML configuration" in error
-                for error in self.validate(candidate).errors
-            ))
+            path = home / "skills" / skill_dir.name / "references" / "routing-policy.md"
+            path.write_text(path.read_text() + '\nUse service_tier="priority" and sandbox_mode="danger".\n')
+            self.assert_error(self.validate(home), "duplicates executable TOML configuration")
 
-    def test_rejects_role_behavior_in_delegation_contract(self):
-        temporary, candidate = clone_candidate()
+    def test_rejects_role_behavior_in_generic_delegation_contract(self):
+        temporary, home = installed_candidate()
         with temporary:
-            path = (
-                candidate / "skills" / skill_dir.name
-                / "references" / "delegation-contracts.md"
-            )
-            path.write_text(path.read_text() + "\n`evidence_tester` owns triage.\n")
-            self.assertTrue(any(
-                "duplicates role-specific behavior" in error
-                for error in self.validate(candidate).errors
-            ))
+            path = home / "skills" / skill_dir.name / "references" / "delegation-contracts.md"
+            path.write_text(path.read_text() + "\nrisk_reviewer owns this transfer.\n")
+            self.assert_error(self.validate(home), "duplicates role-specific behavior")
 
     def test_rejects_undeclared_python_bytecode(self):
-        temporary, candidate = clone_candidate()
+        temporary, home = installed_candidate()
         with temporary:
-            cache = candidate / "skills" / skill_dir.name / "scripts" / "__pycache__"
+            cache = home / "skills" / skill_dir.name / "scripts" / "__pycache__"
             cache.mkdir()
-            (cache / "validator.cpython-999.pyc").write_bytes(b"derived")
-            self.assertTrue(any(
-                "undeclared Python bytecode" in error
-                for error in self.validate(candidate).errors
-            ))
+            (cache / "orphan.pyc").write_bytes(b"bytecode")
+            self.assert_error(self.validate(home), "undeclared Python bytecode")
 
     def test_rejects_missing_mandatory_reviewer(self):
-        temporary, candidate = clone_candidate()
+        temporary, home = installed_candidate()
         with temporary:
-            (candidate / "agents" / "risk_reviewer.toml").unlink()
-            self.assertTrue(any(
-                "agent catalog" in error for error in self.validate(candidate).errors
-            ))
+            (home / "agents" / "risk_reviewer.toml").unlink()
+            self.assert_error(self.validate(home), "agent catalog missing")
 
-    def test_rejects_same_fixture_as_generalization_evidence(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "skills" / skill_dir.name / "references" / "evaluation-policy.md"
-            path.write_text(path.read_text().replace(
-                "Repeating one fixture measures stability only;\nit does not count as another generalization instance.",
-                "Repeating one fixture three times proves generalization.",
-            ))
-            self.assertTrue(any(
-                "missing policy text" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_repeated_fixture_as_generalization(self):
+        errors = self.mutate_skill("references/evaluation-policy.md", "Repeated fixtures measure stability, not generalization.", "Repeated fixtures prove generalization.")
+        self.assertTrue(errors)
 
     def test_rejects_holdout_freeze_or_invalidation_drift(self):
-        mutations = (
-            (
-                "Freeze the role instructions, routing policy, task fixtures, and graders",
-                "Tune roles after reading every fixture and grader",
-            ),
-            (
-                "A role instruction or eligibility\nchange invalidates prior promotion evidence",
-                "Prompt changes preserve all old promotion evidence",
-            ),
-            (
-                "requires deterministic state-machine conformance plus a current\nclient capability receipt before activation",
-                "requires no targeted conformance",
-            ),
-        )
-        for old, new in mutations:
-            with self.subTest(old=old):
-                temporary, candidate = clone_candidate()
-                with temporary:
-                    path = candidate / "skills" / skill_dir.name / "references" / "evaluation-policy.md"
-                    original = path.read_text()
-                    self.assertIn(old, original)
-                    path.write_text(original.replace(old, new))
-                    self.assertTrue(self.validate(candidate).errors)
+        for old, new in (
+            ("Freeze\nrole instructions, routing, fixtures, and graders before holdout.", "Tune against holdout."),
+            ("A changed role or\neligibility invalidates prior class evidence", "Changed roles keep old evidence"),
+        ):
+            self.assertTrue(self.mutate_skill("references/evaluation-policy.md", old, new))
 
-    def test_rejects_surface_form_scoring_drift(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "skills" / skill_dir.name / "references" / "evaluation-policy.md"
-            path.write_text(path.read_text().replace(
-                "A copied label,\nkeyword, prescribed phrase, or checklist item earns no credit",
-                "A copied keyword or checklist item earns full credit",
-            ))
-            self.assertTrue(any(
-                "missing policy text" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_surface_form_scoring(self):
+        errors = self.mutate_skill("references/evaluation-policy.md", "checklist surface form earn no\nquality credit", "checklist surface form earns quality")
+        self.assert_error(errors, "missing policy text")
 
-    def test_rejects_fixed_domain_checklist_in_routing_policy(self):
-        temporary, candidate = clone_candidate()
+    def test_rejects_fixed_domain_checklist_in_routing(self):
+        temporary, home = installed_candidate()
         with temporary:
-            path = candidate / "skills" / skill_dir.name / "references" / "routing-policy.md"
-            path.write_text(path.read_text() + "\nAlways require fsync and atomic replacement.\n")
-            errors = self.validate(candidate).errors
-            self.assertTrue(any(
-                "fixed domain checklist" in error
-                for error in errors
-            ))
+            path = home / "skills" / skill_dir.name / "references" / "routing-policy.md"
+            path.write_text(path.read_text() + "\nRequire fsync and atomic replacement for every task.\n")
+            self.assert_error(self.validate(home), "leaks a fixed domain checklist")
 
-    def test_rejects_acceptance_label_as_proof(self):
-        temporary, candidate = clone_candidate()
-        with temporary:
-            path = candidate / "agents" / "evidence_tester.toml"
-            path.write_text(path.read_text().replace(
-                "Treat each label only as schema",
-                "Treat each label as proof",
-            ))
-            self.assertTrue(any(
-                "receipt marker" in error or "integrity mismatch" in error
-                for error in self.validate(candidate).errors
-            ))
+    def test_rejects_acceptance_label_as_expected_conclusion(self):
+        errors = self.mutate_skill("references/evaluation-policy.md", "Acceptance\nlabels define evidence schema, never expected conclusions.", "Acceptance labels prove expected conclusions.")
+        self.assert_error(errors, "missing policy text")
 
     def test_managed_config_projection_tracks_only_subagent_settings(self):
-        config = module.load_toml(codex_home / "config.toml")
-        with_projects = copy.deepcopy(config)
-        with_projects["projects"] = {"/dynamic/workspace": {"trust_level": "trusted"}}
-        self.assertEqual(
-            module.managed_config_projection(config),
-            module.managed_config_projection(with_projects),
-        )
-        primary_drift = copy.deepcopy(with_projects)
-        primary_drift["model"] = "gpt-5.6-terra"
-        primary_drift["model_reasoning_effort"] = "ultra"
-        self.assertEqual(
-            module.managed_config_projection(config),
-            module.managed_config_projection(primary_drift),
-        )
-        subagent_drift = copy.deepcopy(with_projects)
-        subagent_drift["agents"]["default_subagent_reasoning_effort"] = "ultra"
-        self.assertNotEqual(
-            module.managed_config_projection(config),
-            module.managed_config_projection(subagent_drift),
-        )
+        projection = module.managed_config_projection({
+            "model": "gpt-5.6-terra",
+            "agents": {
+                "enabled": True,
+                "max_concurrent_threads_per_session": 16,
+                "interrupt_message": True,
+                "default_subagent_model": "gpt-5.6-sol",
+                "default_subagent_reasoning_effort": "high",
+                "project_extra": "preserve",
+            },
+        })
+        self.assertEqual(set(projection), {"agents"})
+        self.assertNotIn("project_extra", projection["agents"])
+
+    def test_rejects_pilot_or_evidence_tier_broadening(self):
+        for old, new in (
+            ("auto-create a task", "auto-create tasks automatically"),
+            ("Missing CI, target, or signature evidence caps the result at\n`verified-local`", "Missing evidence permits pilot-signed"),
+            ("Reject self-issued, proxied", "Accept self-issued or proxied"),
+        ):
+            self.assertTrue(self.mutate_skill("references/evaluation-policy.md", old, new))
 
 
 if __name__ == "__main__":

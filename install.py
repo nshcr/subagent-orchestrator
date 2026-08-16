@@ -57,6 +57,8 @@ AGENTS_SECTION_FILES = {
     "zh": "AGENTS.section.zh.md",
 }
 ACCEPTED_GLOBAL_POLICY_SHA256 = {
+    "14d15f56754528d65d25a2434f0dfc88587c63b533309164d83433d718295bd4",
+    "6cc3694505f0c58cc3fab99971a93aa2cf2204ebcf44963cdb039a81b60556f4",
     "57ac581a53881ce2152755d425c4e4c9e3608c29fd4257d500e1c7677aca467f",
     "37d9a41d324d5fbc259baf8f893288aaef70003b0259b6de95b6ab0a76e392e2",
     "f4bfedfca74f3c0b071329655002f788b08e0bbd8207ea549a4496d26f41068c",
@@ -64,6 +66,7 @@ ACCEPTED_GLOBAL_POLICY_SHA256 = {
 }
 ACCEPTED_STATE_MANIFESTS = {
     # Package states written by accepted predecessor bundles.
+    "9faba5962d104aa62c2b0484ba54b08856e326c1cd3d8ca74617fd1fe639738c",
     "965615dbeae99d751a6cde94544d93b36405ed79d85d4f611bc7336209b8379c",
     "20bef171c9a9e6390c9fdbdde90094497c76e8291090f736fe3ea206935bdbe2",
     "9eec02b6314206067d07b18596e9b3f9d454706652b235c827a32135bd99bce5",
@@ -73,20 +76,38 @@ ACCEPTED_STATE_MANIFESTS = {
 }
 ACCEPTED_PREDECESSORS = {
     "skills/subagent-orchestrator/SKILL.md": {
+        "99ac84463ff80ac6b5fd0131e0d36dd96efadc0484d72f975688758c44936972",
         "b8f41ceebfe3efa0aad4485bd00f058e03b04bcd9a0ad5f83825d00b668ee8b2",
     },
+    "skills/subagent-orchestrator/references/routing-policy.md": {
+        "2b50c5bedd653476710d490de5b77784d90cd6d8f0b1e90681357c657aadcde0",
+    },
+    "skills/subagent-orchestrator/references/delegation-contracts.md": {
+        "842306b06c7501bdda207ed91357e16bddf3da17a3bf83822c29977e3640867f",
+    },
+    "skills/subagent-orchestrator/references/evaluation-policy.md": {
+        "aea59b820434f7e3022aa7db93a6d13b4c5f6c7be954e5067bd4d7fd888f0173",
+    },
     "skills/subagent-orchestrator/scripts/validate-routing-config.py": {
+        "294f0e4af60aa03d417b13a5bc011bc69e36c56777cebf90c3ce1893cf4465bb",
         "8adb983c172bfdf8f839a12cd3c92b014477203a955259103eb4bda1f85b7eb3",
     },
     "skills/subagent-orchestrator/tests/test_validate_routing_config.py": {
+        "2b39e4e8cfac0fd266d1d7ed7e6de550180cfff47c071e84a2614a107d7640d6",
         "346745466fae4ab43c51560812c59df6045764dbbc7cd1d5f56f07d0cd9fb358",
     },
     "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json": {
+        "54c26f25b74909e8df7aa3aedea90926b6a0a7283bc4be8a940b6fdd018f8e42",
         "2ed78edc9d5513135fe9da271b1b5286b38d80e7e00db88d6d118e7d35f494cf",
     },
     "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": {
+        "861c386725be6c784b62e5b0c05cde4bbcdbc7a1c66416084d6bf25ff1a4910a",
+        "4f0ee07cd211e300d1a7e8403611d227bf7cc34d9143b4041201ae0f8c591add",
         "62fd8158fd9b0b2c8ac765df3f0665bf92e62e9bf3e278e0c618fd4005a7376e",
         "06cb869d981a0b76fbcd018fda95541af39b62a902fde2a2721d6743f457c2b2",
+    },
+    "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py": {
+        "e5db6b19f5de2fe41f44af5468409891f3f5aaf54563ff77dc8e03ee0c38ac0c",
     },
 }
 

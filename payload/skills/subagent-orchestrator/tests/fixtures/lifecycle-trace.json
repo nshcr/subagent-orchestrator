@@ -1,199 +1,192 @@
 {
-  "version": 2,
+  "version": 3,
   "logical_direct_child_cap": 3,
   "bounded_peer_leaf_cap": 2,
   "runtime_capacity": 16,
   "owner_hashes": {
-    "SKILL.md": "99ac84463ff80ac6b5fd0131e0d36dd96efadc0484d72f975688758c44936972",
-    "references/routing-policy.md": "2b50c5bedd653476710d490de5b77784d90cd6d8f0b1e90681357c657aadcde0",
-    "references/delegation-contracts.md": "842306b06c7501bdda207ed91357e16bddf3da17a3bf83822c29977e3640867f",
-    "references/evaluation-policy.md": "aea59b820434f7e3022aa7db93a6d13b4c5f6c7be954e5067bd4d7fd888f0173",
-    "AGENTS.md#subagent-policy": "6cc3694505f0c58cc3fab99971a93aa2cf2204ebcf44963cdb039a81b60556f4",
+    "SKILL.md": "36df8d88592525fba7749b2618254751ba0f07eec4f61d4aea2533ae2aa3d112",
+    "references/routing-policy.md": "ac944ba5ec777cd1bf187ced8347332a051b09de8ce23f4b49c4edaaccb0c1d3",
+    "references/delegation-contracts.md": "6831283a4643c1d7a538f3c02e36ee024d9188b87e6aa4042ec382cbf1635676",
+    "references/evaluation-policy.md": "59280215f90eee72eb1463d7625a034c309e6545727d3b08005a8082f3b01354",
+    "AGENTS.md#subagent-policy": "50702c458d4adf38d2b4b86d578fd5b4ef36cd43ef6dd0306640b491061e09f3",
     "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
   },
   "scenarios": [
     {
-      "name": "delayed_parallel_collection",
+      "name": "evidence_bus_delivery_slice",
+      "task_id": "task-new-host-authorized",
       "events": [
         {
+          "type": "slice_open",
+          "task_id": "task-new-host-authorized",
+          "slice_id": "slice-governance",
+          "acceptance_milestone": "validated governance package",
+          "change_class": "governance-contract",
+          "owner_paths": ["payload/skills/subagent-orchestrator", "portable-profile.json"],
+          "required_gate_ids": ["methodology", "efficiency", "governance"],
+          "state_summary": ["clean baseline", "lineage accepted"],
+          "state_digest": "40346f19afdc6c0a13a2505c0e018023a0df09336eda327f782fba6fb388044e"
+        },
+        {
+          "type": "owner_union",
+          "component": "governance-component",
+          "paths": ["payload/skills/subagent-orchestrator", "portable-profile.json"],
+          "reason": "rename",
+          "aliases": ["legacy-policy-component"]
+        },
+        {
           "type": "spawn",
-          "child": "slow_boundary",
+          "child": "writer-governance",
           "parent": "primary",
-          "route": "custom",
-          "agent_type": "boundary_mapper",
-          "topology": "leaf",
-          "delegation_depth": 0,
-          "qualified": true,
-          "required": true,
-          "independent": true,
-          "ownership_safe": true,
-          "permission_inherited": true
-        },
-        {"type": "wait_timeout", "child": "slow_boundary"},
-        {
-          "type": "spawn",
-          "child": "independent_gate",
-          "parent": "primary",
-          "route": "custom",
-          "agent_type": "risk_reviewer",
-          "topology": "leaf",
-          "delegation_depth": 0,
-          "qualified": true,
-          "required": true,
-          "independent": true,
-          "ownership_safe": true,
-          "permission_inherited": true
-        },
-        {"type": "delegation_request", "parent": "slow_boundary", "outcome": "rejected"},
-        {"type": "wait_timeout", "child": "slow_boundary"},
-        {
-          "type": "cancel_request",
-          "child": "slow_boundary",
-          "reason": "wait_timeout",
-          "outcome": "rejected"
-        },
-        {
-          "type": "replacement_request",
-          "original": "slow_boundary",
-          "replacement": "replacement_boundary",
-          "outcome": "rejected"
-        },
-        {"type": "receipt", "child": "independent_gate"},
-        {"type": "receipt", "child": "slow_boundary"},
-        {"type": "primary_finalize"}
-      ]
-    },
-    {
-      "name": "bounded_peer_tree",
-      "events": [
-        {
-          "type": "spawn",
-          "child": "peer_coordinator",
-          "parent": "primary",
-          "route": "built-in",
-          "agent_type": "default",
-          "topology": "bounded-peer",
-          "delegation_depth": 1,
-          "qualified": true,
-          "required": true,
-          "independent": true,
-          "ownership_safe": true,
-          "permission_inherited": true
-        },
-        {
-          "type": "spawn",
-          "child": "peer_leaf_a",
-          "parent": "peer_coordinator",
-          "route": "built-in",
-          "agent_type": "explorer",
-          "topology": "leaf",
-          "delegation_depth": 0,
-          "qualified": true,
-          "required": true,
-          "independent": true,
-          "ownership_safe": true,
-          "permission_inherited": true
-        },
-        {
-          "type": "spawn",
-          "child": "peer_leaf_b",
-          "parent": "peer_coordinator",
-          "route": "built-in",
+          "slice_id": "slice-governance",
           "agent_type": "worker",
+          "route": "built-in",
           "topology": "leaf",
           "delegation_depth": 0,
-          "qualified": true,
-          "required": true,
-          "preauthorized_dependency": true,
-          "ownership_safe": true,
-          "permission_inherited": true
+          "fork_context": "none",
+          "owner_component": "legacy-policy-component",
+          "owner_paths": ["payload/skills/subagent-orchestrator", "portable-profile.json"],
+          "work_transfer": {
+            "producer": "owner",
+            "consumer": "writer-governance",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "worker",
+            "topology": "leaf",
+            "input_summary": ["settled contract", "exact baseline"],
+            "sampling_allowlist": ["payload/skills/subagent-orchestrator/SKILL.md"],
+            "admitted_state_digest": "08d9c2e4305042ba8814c92ea01d22166f84c8afa880bbb70726c02fc9b2fd42",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "completion_conditions": ["tests pass", "receipt emitted"],
+            "forbidden_actions": ["scope expansion", "peer messages", "git commit"]
+          },
+          "materiality_manifest": {
+            "issuer_kind": "owner",
+            "issued_by": "primary-owner",
+            "manifest_digest": "58d0636958f928196ef8f35e6852255d1c5eda932894e20a03d1b1b5c7526172",
+            "asset_kind": "source",
+            "source_ranges": [
+              {"path": "payload/skills/subagent-orchestrator/SKILL.md", "path_sha256": "4444444444444444444444444444444444444444444444444444444444444444", "start": 0, "end": 4096, "content_sha256": "5555555555555555555555555555555555555555555555555555555555555555", "non_padding_bytes": 3000},
+              {"path": "payload/skills/subagent-orchestrator/references/delegation-contracts.md", "path_sha256": "6666666666666666666666666666666666666666666666666666666666666666", "start": 0, "end": 4096, "content_sha256": "7777777777777777777777777777777777777777777777777777777777777777", "non_padding_bytes": 3000},
+              {"path": "portable-profile.json", "path_sha256": "8888888888888888888888888888888888888888888888888888888888888888", "start": 0, "end": 4096, "content_sha256": "9999999999999999999999999999999999999999999999999999999999999999", "non_padding_bytes": 3000},
+              {"path": "extra/0", "path_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "start": 0, "end": 100, "content_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "non_padding_bytes": 100},
+              {"path": "extra/1", "path_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "start": 0, "end": 100, "content_sha256": "1111111111111111111111111111111111111111111111111111111111111111", "non_padding_bytes": 100},
+              {"path": "extra/2", "path_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "start": 0, "end": 100, "content_sha256": "2222222222222222222222222222222222222222222222222222222222222222", "non_padding_bytes": 100},
+              {"path": "extra/3", "path_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "start": 0, "end": 100, "content_sha256": "3333333333333333333333333333333333333333333333333333333333333333", "non_padding_bytes": 100},
+              {"path": "extra/4", "path_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "start": 0, "end": 100, "content_sha256": "4444444444444444444444444444444444444444444444444444444444444444", "non_padding_bytes": 100},
+              {"path": "extra/5", "path_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "start": 0, "end": 100, "content_sha256": "6666666666666666666666666666666666666666666666666666666666666666", "non_padding_bytes": 100},
+              {"path": "extra/6", "path_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "start": 0, "end": 100, "content_sha256": "8888888888888888888888888888888888888888888888888888888888888888", "non_padding_bytes": 100}
+            ]
+          }
         },
         {
-          "type": "message",
-          "sender": "peer_leaf_a",
-          "recipient": "peer_leaf_b",
-          "purpose": "evidence",
-          "authorization_change": false,
-          "scope_change": false,
-          "acceptance_change": false,
-          "writer_ownership_change": false,
-          "topology_change": false,
-          "integration_change": false,
-          "final_acceptance_change": false
+          "type": "send_message",
+          "producer": "primary",
+          "consumer": "writer-governance",
+          "dependency": "installer lineage",
+          "digest": "ac905dbdbd59fb8f5598ac0e8d75866480e109c4a3232b953a30b934a9249080",
+          "purpose": "dependency_status",
+          "admitted": true,
+          "starts_turn": false,
+          "changes_handoff": false
         },
-        {"type": "receipt", "child": "peer_leaf_a"},
-        {"type": "receipt", "child": "peer_leaf_b"},
-        {"type": "receipt", "child": "peer_coordinator"},
-        {"type": "primary_finalize"}
-      ]
-    },
-    {
-      "name": "nested_authorized_cancellation",
-      "events": [
+        {
+          "type": "primary_access",
+          "kind": "sampling",
+          "receipt_digest": "489a89cc984894eeb4cb81ecd8951ec468cf79b167f0e3c4c390788fefb09a15",
+          "unique_ranges": 1,
+          "unique_bytes": 800,
+          "manifest_ranges": 10,
+          "manifest_bytes": 9700,
+          "attribution": "task-wide"
+        },
+        {
+          "type": "receipt",
+          "child": "writer-governance",
+          "status": "complete",
+          "artifact_receipt_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "completion_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "writer_compactions": 1,
+          "safe_incomplete": false
+        },
+        {
+          "type": "freeze",
+          "slice_id": "slice-governance",
+          "readback": {
+            "head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "worktree": "1111111111111111111111111111111111111111111111111111111111111111",
+            "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        },
         {
           "type": "spawn",
-          "child": "cancelled_peer",
+          "child": "tester",
           "parent": "primary",
-          "route": "built-in",
-          "agent_type": "default",
-          "topology": "bounded-peer",
-          "delegation_depth": 1,
-          "qualified": true,
-          "required": true,
-          "independent": true,
-          "ownership_safe": true,
-          "permission_inherited": true
-        },
-        {
-          "type": "spawn",
-          "child": "cancelled_leaf",
-          "parent": "cancelled_peer",
-          "route": "built-in",
-          "agent_type": "worker",
+          "slice_id": "slice-governance",
+          "agent_type": "evidence_tester",
+          "route": "custom",
           "topology": "leaf",
           "delegation_depth": 0,
-          "qualified": true,
-          "required": true,
-          "preauthorized_dependency": true,
-          "ownership_safe": true,
-          "permission_inherited": true
+          "fork_context": "none",
+          "owner_component": "",
+          "owner_paths": [],
+          "work_transfer": {
+            "producer": "primary", "consumer": "tester", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "evidence_tester", "topology": "leaf",
+            "input_summary": ["frozen filesystem readback"], "sampling_allowlist": ["test output only"], "admitted_state_digest": "28f77e1d704ff42cce43414dff2e81736b8df3768646d57d803c630657be4177", "status": "admitted", "artifact_receipt_digest": null,
+            "completion_conditions": ["evidence receipt"], "forbidden_actions": ["source writes", "peer messages"]
+          },
+          "materiality_manifest": null
         },
         {
-          "type": "cancel_request",
-          "child": "cancelled_peer",
-          "reason": "user_cancel",
-          "outcome": "accepted"
+          "type": "readback",
+          "actor": "tester",
+          "readback": {
+            "head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "worktree": "1111111111111111111111111111111111111111111111111111111111111111",
+            "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        },
+        {"type": "receipt", "child": "tester", "status": "complete", "artifact_receipt_digest": "4444444444444444444444444444444444444444444444444444444444444444", "completion_digest": "5555555555555555555555555555555555555555555555555555555555555555", "writer_compactions": 0, "safe_incomplete": false},
+        {"type": "gate_register", "gate_id": "methodology", "invariants": ["method-validity"]},
+        {"type": "gate_register", "gate_id": "efficiency", "invariants": ["cost-integrity"]},
+        {"type": "gate_register", "gate_id": "governance", "invariants": ["install-safety"]},
+        {
+          "type": "spawn", "child": "review-method", "parent": "primary", "slice_id": "slice-governance", "agent_type": "risk_reviewer", "route": "custom", "topology": "leaf", "delegation_depth": 0, "fork_context": "none", "owner_component": "", "owner_paths": [],
+          "work_transfer": {"producer": "primary", "consumer": "review-method", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "risk_reviewer", "topology": "leaf", "input_summary": ["final frozen hash"], "sampling_allowlist": ["methodology invariant"], "admitted_state_digest": "3824045c83089344d21d2448234c17c13ab655c42390b60d0e4572f87a089ed5", "status": "admitted", "artifact_receipt_digest": null, "completion_conditions": ["fresh gate result"], "forbidden_actions": ["writes", "followup repair"]}, "materiality_manifest": null
         },
         {
-          "type": "cancel_request",
-          "child": "cancelled_leaf",
-          "reason": "user_cancel",
-          "outcome": "accepted"
+          "type": "spawn", "child": "review-efficiency", "parent": "primary", "slice_id": "slice-governance", "agent_type": "risk_reviewer", "route": "custom", "topology": "leaf", "delegation_depth": 0, "fork_context": "none", "owner_component": "", "owner_paths": [],
+          "work_transfer": {"producer": "primary", "consumer": "review-efficiency", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "risk_reviewer", "topology": "leaf", "input_summary": ["final frozen hash"], "sampling_allowlist": ["efficiency invariant"], "admitted_state_digest": "7503ed9e0a46e59349c69aa341c7338293afa61f25740b9acf2b2e905926a008", "status": "admitted", "artifact_receipt_digest": null, "completion_conditions": ["fresh gate result"], "forbidden_actions": ["writes", "followup repair"]}, "materiality_manifest": null
         },
-        {"type": "cancel_ack", "child": "cancelled_leaf"},
-        {"type": "cancel_ack", "child": "cancelled_peer"},
-        {"type": "primary_finalize"}
-      ]
-    },
-    {
-      "name": "terminal_runtime_failure_collection",
-      "events": [
         {
-          "type": "spawn",
-          "child": "failed_child",
-          "parent": "primary",
-          "route": "built-in",
-          "agent_type": "explorer",
-          "topology": "leaf",
-          "delegation_depth": 0,
-          "qualified": true,
-          "required": true,
-          "independent": true,
-          "ownership_safe": true,
-          "permission_inherited": true
+          "type": "spawn", "child": "review-governance", "parent": "primary", "slice_id": "slice-governance", "agent_type": "risk_reviewer", "route": "custom", "topology": "leaf", "delegation_depth": 0, "fork_context": "none", "owner_component": "", "owner_paths": [],
+          "work_transfer": {"producer": "primary", "consumer": "review-governance", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "risk_reviewer", "topology": "leaf", "input_summary": ["final frozen hash"], "sampling_allowlist": ["governance invariant"], "admitted_state_digest": "671b6468f714bda497ce301485a5cc3e86e0794658836e524e64eba32d840c52", "status": "admitted", "artifact_receipt_digest": null, "completion_conditions": ["fresh gate result"], "forbidden_actions": ["writes", "followup repair"]}, "materiality_manifest": null
         },
-        {"type": "runtime_failure", "child": "failed_child"},
-        {"type": "primary_finalize"}
+        {"type": "gate_result", "gate_id": "methodology", "child": "review-method", "attempt": 1, "result": "PASS", "invariants": ["method-validity"], "artifact_receipt_digest": "1111111111111111111111111111111111111111111111111111111111111111", "completion_digest": "2222222222222222222222222222222222222222222222222222222222222222", "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}},
+        {"type": "gate_result", "gate_id": "efficiency", "child": "review-efficiency", "attempt": 1, "result": "PASS", "invariants": ["cost-integrity"], "artifact_receipt_digest": "3333333333333333333333333333333333333333333333333333333333333333", "completion_digest": "4444444444444444444444444444444444444444444444444444444444444444", "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}},
+        {"type": "gate_result", "gate_id": "governance", "child": "review-governance", "attempt": 1, "result": "PASS", "invariants": ["install-safety"], "artifact_receipt_digest": "5555555555555555555555555555555555555555555555555555555555555555", "completion_digest": "6666666666666666666666666666666666666666666666666666666666666666", "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}},
+        {
+          "type": "pilot_admission",
+          "receipt_digest": "50229e2e3ea276c765100135d298cae03062e87e61e96d19f49b56d9aad3c7d4",
+          "authorization_event_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "grantor": "user",
+          "authorized_signer": "host-runtime",
+          "task_id": "task-new-host-authorized",
+          "actions": ["load-candidate", "bounded-peer-pilot"],
+          "target": "local-codex-client",
+          "revision": "candidate-final-hash",
+          "package_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "valid_from": "2026-08-16T00:00:00Z",
+          "valid_until": "2026-08-17T00:00:00Z",
+          "observed_at": "2026-08-16T12:00:00Z",
+          "excluded_active_task_ids": ["019fd4e7-e622-7891-8cbc-ea95899f7915"],
+          "issued_by": "codex-host",
+          "status": "valid"
+        },
+        {"type": "close", "required_gate_ids": ["methodology", "efficiency", "governance"], "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}}
       ]
     }
   ]

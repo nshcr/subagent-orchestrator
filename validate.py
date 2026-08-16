@@ -69,8 +69,8 @@ ROLE_PROFILE_POLICY = {
             "authorization, or data-integrity decision"
         ),
         "routing_markers": (
-            "Start one fresh `risk_reviewer_max` only",
-            "at most one `max` escalation",
+            "One `risk_reviewer_max`",
+            "only for sufficient evidence",
         ),
     },
 }
@@ -187,16 +187,16 @@ def verify_portability() -> None:
             "id": "explorer",
             "topology": "leaf",
             "eligibility": (
-                "material narrow read-only codebase question whose focused scan "
-                "replaces primary exploration"
+                "material narrow read-only question with host-owner-sealed manifest "
+                "whose scan replaces primary exploration"
             ),
         },
         {
             "id": "worker",
             "topology": "leaf",
             "eligibility": (
-                "scoped implementation or fix with settled strategy and disjoint "
-                "writer ownership"
+                "scoped implementation or fix with host-owner-sealed manifest, "
+                "settled strategy, and disjoint task-wide writer ownership"
             ),
         },
         {
@@ -286,13 +286,53 @@ def verify_portability() -> None:
         "context_default": "fresh",
         "governed_custom_roles_non_recursive": True,
         "bounded_peer_delegation_depth": 1,
-        "peer_messages": "evidence-or-dependency-only",
+        "peer_messages": "disabled-for-custom-and-unregistered-peers",
+        "fork_context": "none-only",
+        "slice_open_required": True,
+        "materiality_manifest_issuer": "host-owner-or-sealed-harness",
         "required_typed_fields": expected_typed_fields,
         "user_facing_language": "user-preferred",
         "model_facing_language": "English",
     }
     if handoff != expected_handoff:
         fail("portable profile handoff contract mismatch")
+    if profile.get("evidence_bus") != {
+        "primary_access_attribution": "task-wide",
+        "precheck_and_sampling_max_percent": 10,
+        "sampling_denominator": "frozen-task-wide",
+        "materiality_digest": "canonical-payload-bound",
+        "primary_access_receipt": "canonical-payload-bound",
+        "send_message_digest": "canonical-payload-bound-with-nonempty-dependency",
+        "followup_scope": "original-work-transfer-digest",
+        "full_history_eligible": False,
+        "send_message_purposes": ["evidence", "dependency_status", "artifact_receipt"],
+        "followup_reasons": ["new_failure_evidence", "missing_acceptance_field", "authorized_continue"],
+    }:
+        fail("portable profile evidence bus mismatch")
+    if profile.get("lifecycle") != {
+        "freeze_after_writer_terminal": True,
+        "readback_fields": ["head", "index", "worktree", "changed_paths"],
+        "writer_compaction_cap_per_task_owner_component": 2,
+        "writer_cap_per_slice": 1,
+        "owner_alias_union_reasons": ["overlap", "rename", "split", "merge"],
+        "disjoint_final_gate_count": 3,
+        "hash_change_invalidates_all_gates": True,
+        "close_requires_terminal_tree": True,
+    }:
+        fail("portable profile lifecycle mismatch")
+    if profile.get("evidence_tiers") != [
+        "implemented", "verified-local", "verified-ci", "verified-target", "pilot-signed"
+    ]:
+        fail("portable profile evidence tier chain mismatch")
+    if profile.get("pilot") != {
+        "host_issued_admission_required": True,
+        "auto_create_task": False,
+        "excluded_active_task_ids_required": True,
+        "self_issued_or_proxy_receipt": "reject",
+        "receipt_digest": "canonical-payload-bound",
+        "validity_evaluated_at": "observed_at",
+    }:
+        fail("portable profile pilot admission mismatch")
     if not (ROOT / expected_handoff["contract_reference"]).is_file():
         fail("portable profile handoff reference is missing")
     if profile.get("adapter_requirements") != ADAPTER_REQUIREMENTS:

@@ -1,78 +1,72 @@
 # Routing Policy
 
-Read this reference whenever delegation is being considered. Agent TOMLs own
-the governed custom leaf roles. Built-in agents own generic leaf work and the
-capability-gated bounded-peer lane.
+Read this reference whenever delegation is considered. Agent TOMLs own governed
+custom leaves; built-in agents own generic leaves and the capability-gated peer lane.
 
 ## Eligibility
 
 | Task class | Route | Required boundary |
 |---|---|---|
-| Material structured test-output triage | `evidence_tester` | Exhaustive multi-file or large-output scan, requested evidence artifact, and explicit acceptance fields |
-| Material bounded log corpus | `evidence_tester` | Exhaustive multi-file or large-log scan, explicit runbook, acceptance fields, and requested evidence artifact |
-| Named unresolved cross-component boundary | `boundary_mapper` | A targeted primary check still leaves one named execution/state boundary unresolved |
-| Required independent high-risk final gate | fresh `risk_reviewer` | Named final-state or acceptance invariants; mandatory named governance gate |
-| Material narrow read-only codebase question | built-in `explorer` leaf | Its focused scan replaces material primary exploration |
-| Scoped implementation or fix | built-in `worker` leaf | Strategy is settled and owned paths do not overlap another writer |
-| Material dependency graph needing direct evidence handoff | built-in `default` bounded peer | Explicit collaboration request or material primary relay avoided; current client capability receipt |
-| Any other, ambiguous, simple, resolved, mechanical, or open-ended class | Primary | No qualified delegated route |
+| Material structured test-output triage | `evidence_tester` | Exhaustive corpus, explicit acceptance fields, requested artifact |
+| Material bounded log corpus | `evidence_tester` | Exhaustive runbook-driven corpus, acceptance fields, requested artifact |
+| Named unresolved cross-component boundary | `boundary_mapper` | Targeted primary check leaves one named boundary unresolved |
+| Required independent high-risk final gate | fresh `risk_reviewer` | Named, disjoint final invariant registry |
+| Material narrow read-only codebase question | built-in `explorer` leaf | External manifest passes explorer path/byte predicate and replaces primary scan |
+| Scoped implementation or fix | built-in `worker` leaf | External manifest passes worker predicate; settled strategy; disjoint writer component |
+| Material dependency graph needing direct evidence handoff | built-in `default` bounded peer | Proven capability and material primary relay removed |
+| Any other, ambiguous, simple, resolved, mechanical, or open-ended class | Primary | No qualified route |
 
-An artifact request alone never qualifies a task. The child must replace material
-raw work or supply required independence, and the primary must not reconstruct
-the transferred work.
+An artifact request, label, ordinary leaf, two tiny files, padding, duplicate ranges,
+synthetic split, or verification-token asset never proves materiality. Explorer needs
+at least two unique canonical source paths and 4096 non-padding bytes; worker needs
+at least three and 8192. A host, owner, or sealed harness signs the digest-bound
+manifest; an agent cannot self-issue or proxy it. Missing evidence falls back primary.
 
-Acceptance fields define the evidence schema, not expected conclusions. Route by
-the unresolved work boundary and required independence; never route because a
-prompt contains words copied from a role description, checklist, or benchmark.
+## Topology and ownership
 
-A short single log, a small direct diagnosis, or a narrow test failure remains
-primary even when an artifact is requested.
+- Governed custom roles are parent-routed nonrecursive leaves: depth zero, no peer
+  message, no follow-up. Built-in `explorer` and `worker` are leaves by default.
+- Built-in `default` may coordinate one additional level with at most two registered
+  built-in leaf descendants. This bounded-peer topology has one coordinator maximum. Unproven client capability
+  fails closed to a built-in leaf or primary.
+- One writer owns each task-wide canonical component. Overlap, rename, split, and
+  merge union aliases permanently. Reject overlapping writers. Two accumulated
+  writer compactions exhaust new writer spawn/follow-up for that component.
+- Start at most three qualified direct children; a fourth needs explicit user
+  authorization. Capacity alone never qualifies delegation. Shared mutation and
+  final integration remain serial.
 
-## Topology
+## Evidence bus and communication
 
-- Governed custom roles are parent-routed leaves: depth zero, no peer messages,
-  no descendants. Their prompts and eligibility remain unchanged.
-- Built-in `explorer` and `worker` are leaves by default. Use built-in `default`
-  as a bounded peer only when direct evidence or dependency handoff replaces
-  material primary relay. It may delegate one additional level to at most two
-  registered leaf descendants.
-- Peer messages may carry only task-local evidence, dependency status, or an
-  owned-artifact receipt. They cannot change authorization, scope, acceptance,
-  writer ownership, or topology. Material decisions return to the primary.
-- If the current client cannot prove nested spawn, direct messaging, permission
-  inheritance, and full-tree terminal collection, fail closed to built-in leaves
-  or primary. Capability presence alone is not a quality claim.
+Open `slice_open` before spawn and use immutable work-transfer receipts with
+`fork_turns=none`. Full-history children are ineligible. The primary keeps a task-wide
+access ledger and does not reconstruct transferred work. Only digest-bound targeted
+precheck and strict proper-subset sampling no larger than 10% are promotion eligible.
 
-## Concurrency and escalation
+`send_message` carries admitted evidence, dependency status, or an artifact receipt
+to a running built-in target; it cannot start a turn or amend authorization, scope,
+ownership, topology, or handoff; its canonical digest binds a non-empty dependency.
+`followup_task` targets an idle/terminal built-in
+child for `new_failure_evidence`, `missing_acceptance_field`, or
+`authorized_continue`, with a scope digest equal to the original work-transfer. Polling, custom-role, peer, reviewer repair,
+self-review, and scope-changing messages are hard blockers.
 
-1. Start every already-qualified child whose bounded work is mutually independent,
-   required, and ownership-safe. Allow up to three active direct children by
-   default; a fourth requires explicit user authorization. Allow at most one
-   bounded-peer coordinator with two leaf descendants. Capacity alone never
-   justifies delegation.
-2. Keep the primary on independent work while children run. Never serialize an
-   already-qualified independent child solely because another child is slow.
-3. Add a newly discovered child only for new failure evidence, a newly unresolved
-   boundary, a pre-authorized dependency, or a required final-state gate. Shared
-   writes, migrations, dependent mutations, and final integration remain serial.
-4. Use a fresh `risk_reviewer` for independence. This installed named role is a
-   mandatory governance control because no callable built-in equivalent exists.
-   Its fixed default effort is `xhigh`, independent of primary or built-in default effort.
+Wait timeouts are observation-only. Never interrupt or replace for silence, wall
+time, tokens, credits, or repeated waits. Do not cancel a running writer when its
+component budget becomes exhausted; accept a safe incomplete receipt. Collect every
+required descendant terminal before close.
 
-### Reviewer effort escalation
+## Freeze and independent gates
 
-- Accept an `xhigh` PASS without a confidence-seeking rerun.
-- For a concrete defect, repair it and use a fresh `xhigh` recheck. For missing
-  evidence, obtain the evidence or keep the gate blocked; neither case qualifies
-  for `max`.
-- Start one fresh `risk_reviewer_max` only when the available evidence is sufficient,
-  the `xhigh` result is explicitly indeterminate because competing causal
-  explanations or cross-boundary reasoning remain, and that ambiguity can change
-  an irreversible P0/P1, security, authorization, or data-integrity decision.
-  This is the fixed-`max` runtime variant of the same governance role, not a new
-  task class; never substitute `default` or another role for it.
-- Record the trigger and allow at most one `max` escalation. Complexity, file
-  count, a high-risk label, an ordinary BLOCK, or a desire for more confidence
-  never qualifies.
+Writer terminal precedes freeze. Tester, reviewer, gate, and close independently
+read back HEAD, index, worktree, and complete changed-path digests. A hash change
+invalidates all gates. Every invariant belongs to one gate; no overlap, voting, or
+majority result. Three disjoint fresh gates PASS on the final hash. Repair reruns all
+at attempt+1. The primary retains authorization, integration, and final acceptance.
 
-Review/report/diagnosis artifacts are evidence rather than product mutations.
+The installed fresh `risk_reviewer` remains the mandatory named governance control
+when no callable built-in equivalent exists. Accept an `xhigh` PASS. Repair a defect
+then use a fresh reviewer; missing evidence remains BLOCK. One `risk_reviewer_max`
+is allowed only for sufficient evidence, explicit competing causal explanations,
+and an irreversible P0/P1, security, authorization, or data-integrity decision.
+Complexity, ordinary BLOCK, or confidence seeking never qualifies.

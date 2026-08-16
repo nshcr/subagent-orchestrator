@@ -8,50 +8,49 @@ description: Route and supervise explicit subagent requests, bounded built-in co
 Keep this file as the workflow entrypoint. Detailed policy lives in references;
 role behavior and fixed child runtime configuration live in agent TOMLs.
 
-## Route
+## Open an evidence-bus slice
 
-1. Start primary-only. Identify one bounded deliverable, owner, stop condition,
-   and the material work the primary will not repeat.
-2. If neither substitution nor required independence is present, stay primary.
-3. Read [routing policy](references/routing-policy.md) whenever delegation is
-   considered. Before selecting a custom role or bounded-peer topology, also read
-   the objective and evidence gate in
-   [evaluation policy](references/evaluation-policy.md).
-4. Keep unsupported, unstable, or capability-unverified classes on primary.
-5. Create one task-local handoff from
-   [delegation contracts](references/delegation-contracts.md).
+1. Start primary-only. Read [routing policy](references/routing-policy.md) and
+   [evaluation policy](references/evaluation-policy.md) before delegation.
+2. If neither material substitution nor required independence is present, stay
+   primary. Explorer and worker also require an external materiality manifest.
+3. Open one `slice_open` from [delegation contracts](references/delegation-contracts.md):
+   bind task, unique slice, one milestone, one change class, exact owner paths,
+   required gates, and the admitted state digest.
+4. Issue each child an immutable work-transfer receipt. Use `fork_turns=none`;
+   full-history children and agent-authored materiality are ineligible.
 
-## Run and await
+## Run, freeze, and close
 
-1. Start every already-qualified, mutually independent child allowed by the
-   routing policy; never create filler work merely to occupy capacity.
-2. Continue independent primary work while children run. Track the complete
-   task tree; if remaining work depends on it, wait for every required child and
-   descendant to reach a terminal state.
-3. Treat a wait timeout as observation-only, not as failure, a stall, or
-   permission to interrupt. If a child remains running, report useful progress,
-   optionally request status without interrupting, and wait again.
-4. Never interrupt or replace a child for silence, elapsed wall time, token or
-   credit use, or repeated wait timeouts. Interrupt only for explicit user
-   cancellation or replacement, a concrete safety/scope violation, proven stale
-   state, terminal platform failure, or expiry of an explicit user deadline.
-5. Never start a replacement while the original or a required descendant is
-   running. Accept only
-   state-bound evidence; sample it without rebuilding transferred work or
-   rewriting an owned artifact.
-6. Keep authorization, writer ownership, conflict handling, synthesis, and final
-   acceptance with the primary.
+1. Start only qualified, independent, ownership-safe children. Preserve the
+   direct-child and bounded-peer caps; capacity never creates work.
+2. Keep a task-wide primary source-access ledger. Targeted precheck and sampling
+   use one frozen denominator and must be proper subsets no larger than 10%; integration readback
+   may inspect child artifacts and changed files without replaying transferred scans.
+3. Treat wait timeout as observation-only. Never interrupt for silence, elapsed
+   time, token use, credits, or repeated waits; every required descendant ends terminal.
+4. Freeze only after the writer is terminal. Tester, reviewer, gate, and close
+   independently recompute HEAD, index, worktree, and changed-path digests.
+5. Any readback change invalidates every gate. Run three disjoint fresh final
+   gates on one hash; repair requires all gates to rerun with attempt incremented.
+6. Close only with a terminal tree, identical readback, and every required gate PASS.
 
-## Ownership
+## Ownership and control
 
-- `AGENTS.md`: stable delegation and safety invariants only.
-- This file: workflow and reference navigation only.
-- `references/routing-policy.md`: promoted classes and model escalation.
-- `references/delegation-contracts.md`: handoff and artifact formats.
-- `references/evaluation-policy.md`: promotion, retirement, credits, and history.
-- `config.toml`: default-child settings and capacity only; never constrain the
-  primary launch model or reasoning effort.
-- Agent TOMLs: role behavior, permissions, and output limits.
+- Each slice has at most one writer, which owns its task-wide canonical component. Overlap, rename,
+  split, and merge permanently union aliases across slices and commits.
+- After two writer compactions for one task and owner component, reject new writer
+  spawn/follow-up; do not cancel an active child, and accept safe incomplete receipts.
+- `send_message` carries admitted evidence, dependency status, or artifact receipt
+  to a running built-in target. `followup_task` uses only the three typed same-scope
+  reasons. Custom roles never message, recurse, repair, or review their own repair.
+- The primary retains authorization, scope, conflict handling, integration, and
+  final acceptance. Unsupported or capability-unverified work stays primary.
+
+## Ownership map
+
+- `AGENTS.md`: stable safety invariants. References: routing, transfer/lifecycle,
+  evaluation/pilot. `config.toml`: child defaults/capacity. TOMLs: role runtime.
 
 Validate the installed policy with:
 

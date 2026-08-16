@@ -26,12 +26,12 @@
     {
       "id": "explorer",
       "topology": "leaf",
-      "eligibility": "material narrow read-only codebase question whose focused scan replaces primary exploration"
+      "eligibility": "material narrow read-only question with host-owner-sealed manifest whose scan replaces primary exploration"
     },
     {
       "id": "worker",
       "topology": "leaf",
-      "eligibility": "scoped implementation or fix with settled strategy and disjoint writer ownership"
+      "eligibility": "scoped implementation or fix with host-owner-sealed manifest, settled strategy, and disjoint task-wide writer ownership"
     },
     {
       "id": "default",
@@ -97,7 +97,10 @@
     "context_default": "fresh",
     "governed_custom_roles_non_recursive": true,
     "bounded_peer_delegation_depth": 1,
-    "peer_messages": "evidence-or-dependency-only",
+    "peer_messages": "disabled-for-custom-and-unregistered-peers",
+    "fork_context": "none-only",
+    "slice_open_required": true,
+    "materiality_manifest_issuer": "host-owner-or-sealed-harness",
     "required_typed_fields": {
       "topology": "leaf-or-bounded-peer",
       "delegation_depth": "zero-or-one",
@@ -110,6 +113,51 @@
     },
     "user_facing_language": "user-preferred",
     "model_facing_language": "English"
+  },
+  "evidence_bus": {
+    "primary_access_attribution": "task-wide",
+    "precheck_and_sampling_max_percent": 10,
+    "sampling_denominator": "frozen-task-wide",
+    "materiality_digest": "canonical-payload-bound",
+    "primary_access_receipt": "canonical-payload-bound",
+    "send_message_digest": "canonical-payload-bound-with-nonempty-dependency",
+    "followup_scope": "original-work-transfer-digest",
+    "full_history_eligible": false,
+    "send_message_purposes": [
+      "evidence",
+      "dependency_status",
+      "artifact_receipt"
+    ],
+    "followup_reasons": [
+      "new_failure_evidence",
+      "missing_acceptance_field",
+      "authorized_continue"
+    ]
+  },
+  "lifecycle": {
+    "freeze_after_writer_terminal": true,
+    "readback_fields": ["head", "index", "worktree", "changed_paths"],
+    "writer_compaction_cap_per_task_owner_component": 2,
+    "writer_cap_per_slice": 1,
+    "owner_alias_union_reasons": ["overlap", "rename", "split", "merge"],
+    "disjoint_final_gate_count": 3,
+    "hash_change_invalidates_all_gates": true,
+    "close_requires_terminal_tree": true
+  },
+  "evidence_tiers": [
+    "implemented",
+    "verified-local",
+    "verified-ci",
+    "verified-target",
+    "pilot-signed"
+  ],
+  "pilot": {
+    "host_issued_admission_required": true,
+    "auto_create_task": false,
+    "excluded_active_task_ids_required": true,
+    "self_issued_or_proxy_receipt": "reject",
+    "receipt_digest": "canonical-payload-bound",
+    "validity_evaluated_at": "observed_at"
   },
   "unsupported_work_route": "primary",
   "adapter_requirements": [

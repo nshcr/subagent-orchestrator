@@ -1,105 +1,87 @@
 # Evaluation Policy
 
-## Objective
+## Objective and cost boundary
 
-Apply this lexicographic order without weighted averaging:
+Apply this lexicographic order without weighted averaging: authorization, safety,
+correctness, and evidence integrity; higher stable verified quality; then lower
+end-to-end ChatGPT credits when quality is indistinguishable. Never trade quality
+for cost. Wall time is telemetry only.
 
-1. Preserve authorization, safety, correctness, and evidence integrity.
-2. Prefer higher stable verified quality.
-3. When quality is indistinguishable, prefer lower end-to-end ChatGPT credits.
-4. When evidence is insufficient or unstable, use primary.
+Use complete paired thread/run credits for every primary, child, integration, failed
+attempt, repair, review, and retry. Do not infer role-, wait-, message-, token-, or
+tool-level credits. Raw usage tokens, especially cached input, are not billable
+credits. Missing or unavailable credits cannot aggregate or promote.
 
-Never trade verified quality for lower credits. Record wall time only as
-telemetry; never use it for routing, promotion, rejection, or tie-breaking.
+Use the Standard/default service tier for promotion. Fast mode changes latency and
+multiplies GPT-5.6 ChatGPT credits by 2.5; use it only when the user explicitly adds
+latency as an objective, and exclude that experiment from quality/credits promotion.
 
-## Cost boundary
+## Paired promotion and governance retention
 
-Price uncached input, cached input, and output using every thread's actual model
-and service tier. Include primary integration, failed attempts, repairs,
-reviews, and retries. Reasoning tokens are already part of output tokens and
-must not be counted twice.
+Use at least three materially different instances from three fixture families per
+class, paired baseline/custom with arm order alternated, plus a frozen external
+sealed holdout. Repeated fixtures measure stability, not generalization. Freeze
+role instructions, routing, fixtures, and graders before holdout. A changed role or
+eligibility invalidates prior class evidence; a topology-only change needs deterministic
+lifecycle conformance and a current client capability receipt.
 
-Use the Standard/default service tier for this objective. Fast mode changes
-latency rather than verified quality and currently multiplies GPT-5.6 ChatGPT
-credits by 2.5; use it only when the user explicitly adds latency as an
-objective, then keep that experiment outside quality/credits promotion data.
-Refresh rates before a new campaign from official
-[ChatGPT pricing](https://learn.chatgpt.com/docs/pricing) and
-[Speed](https://learn.chatgpt.com/docs/agent-configuration/speed) documentation.
+Compute normalized quality per paired instance before class or overall summaries.
+Any instance/class quality regression, escaped critical defect, authority violation,
+nonterminal tree, evidence-integrity failure, or incomplete cost blocks promotion.
+Every efficiency branch requires custom credits no worse for each pair, every class,
+and overall. Higher quality with non-regressing cost promotes. A quality tie additionally
+requires both overall paired median and overall credits at least 10% lower.
+Copied labels, keywords, prescribed phrases, and checklist surface form earn no
+quality credit without the required source fact or executable behavior. Acceptance
+labels define evidence schema, never expected conclusions.
 
-## Promotion and retirement
+Report `governance_retention` separately from `efficiency_promotion`. A mandatory
+named safety gate with no callable equivalent may be `retained-not-efficient` when
+quality, safety, independence, and integrity pass but cost regresses or is unavailable;
+it cannot claim efficiency success. Quality or integrity failure blocks retention.
+Retire any other installed role with no promoted class. Reviewer effort experiments
+never retire the accepted named gate; a failed candidate returns to the last accepted
+fixed effort.
 
-Evaluate each task class on at least three materially different task instances
-from three fixture families. Pair baseline and custom on every instance and
-alternate or randomize arm order. Repeating one fixture measures stability only;
-it does not count as another generalization instance. Include a benign or
-negative case for analytical roles and both PASS-eligible and BLOCK-eligible
-states for a gate role when those outcomes are applicable.
+## Production facts and policy promotion
 
-Freeze the role instructions, routing policy, task fixtures, and graders before
-opening at least one sealed holdout instance per class. Tested agents must not be
-able to read grader logic or expected answers. A role instruction or eligibility
-change invalidates prior promotion evidence for the affected class until a new
-sealed holdout passes; never tune against the holdout and then count it as unseen.
-A topology-only scheduling change that preserves custom role instructions,
-eligibility, evidence schemas, and scoring does not invalidate those role
-promotions. It requires deterministic state-machine conformance plus a current
-client capability receipt before activation. Cover a delayed child across
-multiple wait windows, an independent peer, bounded nested spawn and messaging,
-permission inheritance, authorized cancellation, and full-tree terminal collection.
+`production-fact.v1` binds parent rollout, child root, cutoff, repository, and base.
+Lineage begins only at the first UUIDv7 child turn context after spawn; copied parent
+history and missing/ambiguous lineage are rejected. Every metric has
+`{status,basis,source_id,value}`; only unavailable uses null and unavailable values
+never aggregate. Record tokens, exact full-run credits, Git denominators, wait/message/
+compaction events, concurrency, and log bytes separately.
 
-Score evidence-grounded capability rather than surface form. A copied label,
-keyword, prescribed phrase, or checklist item earns no credit without the
-required source fact, causal path, or executable behavior. Combine deterministic
-anchors with blinded semantic review or executable checks where practical, and
-include adversarial checks for keyword stuffing, contradiction, false blockers,
-and omitted negative evidence.
+Active, dirty, unsupported, incomplete, or observational facts cannot prove completion
+or causality. Primary access with opaque/unavailable attribution, pre-spawn scanning,
+full-manifest laundering, reconstruction replay, owner overlap, invalid message,
+nonterminal descendants, or stale gate readback blocks policy promotion.
 
-Promotion requires all of the following:
+## Evidence tiers and pilot admission
 
-- no authorization, safety, correctness, or evidence-integrity regression;
-- no escaped P0/P1 defect compared with baseline;
-- stable acceptance across distinct fixture families, including the sealed
-  holdout, with no critical false positive or false negative;
-- higher verified quality, or indistinguishable quality with median aggregate
-  custom credits at least 10% below baseline;
-- complete end-to-end credit accounting;
-- no unbounded or unauthorized recursive delegation, overlapping writers, or
-  primary reconstruction.
+Evidence advances monotonically: `implemented` -> `verified-local` -> `verified-ci`
+-> `verified-target` -> `pilot-signed`. Each receipt binds the exact predecessor digest,
+revision, package, target, evidence producer, and artifacts; narrative assertions do
+not advance a tier. Missing CI, target, or signature evidence caps the result at
+`verified-local`. Production observation never implies `pilot-signed`.
 
-The 10% credit threshold governs elective custom promotion. An explicitly
-mandatory named governance gate remains installed when no callable built-in
-equivalent exists, provided it passes sealed quality, safety, independence, and
-evidence-integrity gates. This is a safety constraint, not elective promotion,
-and does not permit retention of any other unpromoted role. A reviewer-effort
-experiment never retires `risk_reviewer`: a failed candidate effort returns the
-role to its last accepted fixed effort and leaves the named gate installed.
+Pilot requires a host-issued admission receipt binding the user's authorization event
+digest, grantor, authorized signer, task and allowed actions, target, revision, package,
+validity window, deterministic observed timestamp, and explicit excluded active task IDs.
+The canonical receipt digest binds every field. Reject self-issued, proxied,
+tampered, expired, cross-task, cross-target, or active-task admissions. The pilot must
+not auto-create a task. `pilot-signed` cites the exact admission digest and signed
+result; an active UTP task is excluded.
 
-Retire an installed role with no promoted class. Failure demotes only the
-affected class; unsupported work remains primary.
+## Provenance and registry
 
-## Promoted registry
+Preserve original runs, sidecars, canonical receipts, graders, configuration hashes,
+arm order, model/effort/tier, token categories, exact credits, retries, quality checks,
+scope violations, holdout seal, contamination audit, access receipts, lifecycle trace,
+and Git/readback hashes. Report each pair before class and overall aggregates.
 
-- `evidence_tester`: material multi-file or large-output test triage, or material
-  multi-file or large-log runbook-driven analysis, with explicit acceptance
-  fields and one requested artifact.
-- `boundary_mapper`: one named unresolved cross-component boundary after a
-  targeted primary check.
-- Fresh `risk_reviewer`: required independent high-risk final-state gate. It is
-  installed as the mandatory named governance control, not as an elective
-  cost-promoted class. `risk_reviewer_max` is only its fixed-effort escalation
-  variant and never owns an independent promoted class.
-- Built-in `explorer`, `worker`, and `default`: baseline leaf or capability-gated
-  bounded-peer routes; they are not promoted custom classes.
-- Primary: every unsupported or capability-unverified class.
-
-## Evidence and provenance
-
-Record scenario, arm order, model, effort, service tier, token categories,
-credits, wall time, child count, retries, quality checks, scope violations,
-routing decision, fixture family, holdout seal, grader hash, contamination audit,
-and configuration hashes. Report each instance before class aggregates so one
-fixture cannot hide another. Preserve original runs, sidecars, canonical
-receipts, and old role names byte-for-byte. Record renames and retirements in a
-separate migration manifest. Keep verified-local, CI, target, pilot, and
-production evidence distinct.
+Promoted custom classes remain the bounded `evidence_tester` and `boundary_mapper`;
+fresh `risk_reviewer` is the mandatory named governance gate and
+`risk_reviewer_max` only its one evidence-qualified runtime escalation. Built-in
+explorer/worker/default are baseline routes, not promoted custom classes. Unsupported
+or unstable work remains primary.

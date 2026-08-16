@@ -37,6 +37,36 @@ do not qualify a task for delegation.
   inheritance, and full-tree terminal collection, routing fails closed to leaf
   agents or the primary.
 
+## Evidence-bus delivery slices
+
+Delegation now begins with a digest-bound `slice_open`: one top-level task, one
+unique slice, one acceptance milestone, one change class, exact task-wide owner
+paths, required gate IDs, and an admitted state summary. Every child receives an
+immutable work-transfer receipt and fresh context; full-history children are never
+eligible. Explorer and worker additionally require a non-self-issued materiality
+manifest with canonical, deduplicated source ranges. Tiny leaves, padding, repeated
+content, synthetic splitting, and verification-token assets fall back to primary.
+
+Primary source access is accounted across the complete task. A targeted precheck or
+sampling receipt must be a strict proper subset no larger than 10%; integration may
+read child receipts, artifacts, and changed files, but cannot replay the transferred
+scan. Canonical owner components permanently union overlap, rename, split, and merge
+aliases. Two writer compactions exhaust new writer work for that task/component.
+Each slice permits at most one writer, and sampling uses one frozen task-wide denominator.
+
+Freeze occurs only after writer terminal. Tester, reviewer, every gate, and close
+recompute HEAD, index, worktree, and complete changed-path digests. Any hash change
+invalidates all gates. Each invariant belongs to exactly one gate, and three disjoint
+fresh gates must PASS the same final hash; repairs rerun all three at the next attempt.
+Messages and follow-ups are typed, digest-bound, same-scope control events; polling,
+custom-role messaging, reviewer self-review, unregistered peers, and scope changes
+are hard blockers. Close requires the full task tree terminal.
+
+Pilot activation requires a host-issued admission receipt for a new task. It binds
+the user authorization event, signer, actions, target, revision, package, validity,
+and excluded active task IDs; it cannot auto-create tasks. Without CI, target, and
+signed pilot evidence, the highest claim remains `verified-local`.
+
 ## Requirements
 
 - Python 3.11 or newer; no third-party Python dependencies.
@@ -181,7 +211,7 @@ client reload state, live bounded-peer capability, or current role quality.
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py --package-version 2026.08.14
+python3 -B build_manifest.py --package-version 2026.08.16
 python3 -B build_manifest.py --check
 python3 -B validate.py
 ```
