@@ -38,6 +38,7 @@ class ManifestBoundaryTest(unittest.TestCase):
 
             excluded = (
                 root / ".git" / "HEAD",
+                root / ".idea" / "workspace.xml",
                 root / ".venv" / "marker",
                 root / ".pytest_cache" / "marker",
                 root / "__pycache__" / "module.pyc",

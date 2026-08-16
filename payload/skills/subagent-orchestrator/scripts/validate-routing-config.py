@@ -54,20 +54,28 @@ GLOBAL_POLICY_MARKERS = {
         "Default to a single agent",
         "If the primary would mainly coordinate, poll, or wait",
         "ordinary first wave has at most two leaf children and one writer",
-        "without a user checkpoint",
+        "opens an expansion checkpoint and cannot spawn automatically",
+        "Proceed only under exact current user authorization",
+        "ask one recommended-default question only for a material user-owned",
         "one batch of at most three reviewers with disjoint invariants",
+        "report operational blockers instead of posing them as preferences",
         "Reviewers inspect one frozen state and only the named invariants",
-        "another BLOCK returns control to the user",
-        "static harness checks never prove host enforcement or production efficiency",
+        "another BLOCK stops further review",
+        "child terminal state or a spent delegation budget does not prove task completion",
+        "Static harness checks never prove host enforcement or production efficiency",
     ),
     "## 子代理与并行": (
         "默认单代理",
         "主代理主要只剩编排、轮询或等待",
         "普通首轮最多两个叶子子代理且只有一个写入者",
-        "未经用户检查点",
+        "进入编排扩张检查点，禁止自动派生",
+        "当前用户指令已精确授权该次扩张",
+        "用户拥有的重大取舍",
         "一批最多三个、invariant 互斥的 reviewer",
+        "不得伪装成用户偏好",
         "Reviewer 只审一个冻结状态和命名 invariant",
-        "仍有 BLOCK 就把决定权交还用户",
+        "仍有 BLOCK 就停止继续评审",
+        "子代理终态或编排预算耗尽都不证明任务完成",
         "静态 harness 检查不得冒充宿主强制或生产效率证明",
     ),
 }
@@ -186,19 +194,28 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Prove the monkey before building the pedestal",
         "Start primary-only",
         "If the primary would mostly coordinate, poll, or wait",
-        "Do not start a second delegation wave",
-        "without a user checkpoint",
+        "Treat a second delegation wave",
+        "Freeze new spawns",
+        "latest explicit user instruction already authorizes that exact expansion",
+        "Ask one question only when evidence cannot choose",
+        "do not pose them as preferences",
+        "After two decision-directed agent attempts",
         "A reviewer is a terminal gate, not a continuing designer",
         "Repair original-acceptance blockers once",
+        "stop further review",
         "Static policy tests prove only local consistency",
         "do not prove that the host enforced the policy or that production became faster",
         "A candidate is not active until the target installation and client readback prove it was loaded",
+        "A terminal child or exhausted delegation budget proves neither task completion",
     ))
     require_markers(checks, routing, "routing policy", (
         "Every child is a leaf",
         "at most two children in the ordinary first wave",
-        "reviewer rerun requires a user checkpoint",
-        "another BLOCK returns control to the user",
+        "reviewer rerun opens an expansion checkpoint",
+        "latest explicit user instruction authorizes that exact expansion",
+        "do not turn it into a preference question",
+        "another BLOCK stops further review",
+        "Child terminal state or a spent delegation budget is not task closure",
         "A reviewer finding outside the named invariants is a deferred observation",
         "Do not build a new harness, schema, authority system, installer feature, or policy engine",
     ))
@@ -207,13 +224,18 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Owned scope: <exact paths, artifact, or read-only surface>",
         "Use `followup_task` only once",
         "Never use either tool for status polling, reviewer redesign, or scope expansion",
+        "authorization must name that exact expansion",
+        "closes only the transferred work, not the user task",
     ))
     require_markers(checks, evaluation, "evaluation policy", (
         "Monkey before pedestal",
         "Routine skill use does not require a new benchmark campaign",
         "Minimal efficiency receipt",
+        "An expansion checkpoint prohibits automatic spawning",
+        "Report operational blockers with the next owner or action",
         "Reviewer scope is frozen with the named invariants",
         "Reviewer-driven redesign must not continue autonomously",
+        "is not task completion",
         "do not build another measurement framework",
     ))
 
@@ -237,7 +259,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         checks.require(len(text.splitlines()) <= 90, f"{relative} exceeds 90-line budget")
     checks.require('display_name: "Subagent Orchestrator"' in yaml_text, "openai.yaml display name mismatch")
     checks.require(
-        'short_description: "Efficient delegation with user checkpoints"' in yaml_text,
+        'short_description: "Efficient delegation with bounded expansion"' in yaml_text,
         "openai.yaml short description mismatch",
     )
     checks.require(
@@ -274,8 +296,10 @@ def main() -> int:
         return 1
     print(f"PASS: {checks.count} static routing configuration checks")
     print("- default: primary; ordinary first wave: two leaf children, one writer")
-    print("- user checkpoint: second wave, scope expansion, writer addition, or reviewer rerun")
+    print("- expansion checkpoint: no automatic second wave, writer addition, scope growth, or reviewer rerun")
+    print("- user question: one recommended default for a material user-owned choice only")
     print("- reviewer boundary: one frozen scope, one repair batch, one fresh recheck")
+    print("- closure boundary: child terminal state and spent budget are not task completion")
     print("- evidence boundary: static consistency only; no host or production-efficiency claim")
     return 0
 

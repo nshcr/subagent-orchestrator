@@ -1,6 +1,6 @@
 ---
 name: subagent-orchestrator
-description: Route and supervise explicit subagent requests, one bounded specialist that replaces material primary work, or one required independent final gate. Use when delegation has a concrete efficiency or independence benefit; otherwise keep the primary agent. Keep users in control before a second delegation wave, scope expansion, or reviewer rerun.
+description: Route and supervise explicit subagent requests, one bounded specialist that replaces material primary work, or one required independent final gate. Use when delegation has a concrete efficiency or independence benefit; otherwise keep the primary agent. Stop unapproved delegation expansion without turning every budget boundary into a user question.
 ---
 
 # Subagent Orchestrator
@@ -24,18 +24,27 @@ harnesses, schemas, policy engines, installers, or more reviewers.
    [delegation contracts](references/delegation-contracts.md). One task has at most
    one writer; the primary owns authorization, scope, integration, and acceptance.
 
-## Budgets and user checkpoints
+## Budgets and expansion checkpoints
 
 - An ordinary first wave has at most two children and one writer. Capacity never
   creates work. The user may explicitly authorize one final batch of up to three
   reviewers with disjoint invariants.
-- Do not start a second delegation wave, a second writer, a reviewer rerun, nested
-  delegation, or scope-expanding follow-up without a user checkpoint. Report the
-  attempts already used, concrete remaining value, and the smallest alternative.
+- Treat a second delegation wave, a second writer, a reviewer rerun, nested
+  delegation, or scope-expanding follow-up as an expansion checkpoint. Freeze new
+  spawns. Continue only when the latest explicit user instruction already authorizes
+  that exact expansion; otherwise use the primary or close without another child.
+- Ask one question only when evidence cannot choose among materially different
+  acceptable outcomes and expansion changes outcome, scope, meaningful cost, risk,
+  or acceptance. State the boundary and evidence, recommend one default with its
+  tradeoff, and ask one action-selecting question. Report capability, access, or
+  environment blockers with the next owner or action; do not pose them as preferences.
 - Do not poll children with follow-ups. Continue useful primary work or use a long
   wait. A timeout is observation-only; terminal failure or proven stale state is
   different.
 - Do not rebuild a child's scan. Sample its cited evidence and owned artifact only.
+- After two decision-directed agent attempts leave the same uncertainty unchanged,
+  do not launch a blind third variant. Rebuild the smallest discriminating observation
+  in the primary; new evidence does not itself authorize another child.
 
 ## Review without whack-a-mole
 
@@ -44,8 +53,10 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 2. Collect the complete first review batch before changing files. Triage findings
    against the original user goal; defer improvements and out-of-scope risks.
 3. Repair original-acceptance blockers once, then run one fresh bounded recheck.
-   If that recheck still blocks, stop and return the decision to the user. Do not
-   open an autonomous sequence of reviewer-driven redesign rounds.
+   If that recheck still blocks, stop further review. Ask the user only when a named
+   invariant exposes a material outcome, risk, or acceptance choice; otherwise report
+   the operational blocker and next owner or action. Never open an autonomous sequence
+   of reviewer-driven redesign rounds.
 4. Use `risk_reviewer_max` only for one evidence-qualified indeterminate decision
    that can change an irreversible high-risk outcome, never for confidence seeking.
 
@@ -60,6 +71,10 @@ harnesses, schemas, policy engines, installers, or more reviewers.
   enforced the policy or that production became faster.
 - A candidate is not active until the target installation and client readback prove
   it was loaded. Label source-only evidence `verified-local`.
+- A terminal child or exhausted delegation budget proves neither task completion nor
+  a user blocker. Continue safe authorized primary work while it can proportionately
+  reduce task-relevant uncertainty; close only on evidenced outcomes, explicit
+  abandonment or supersession, or a genuine user-owned blocker.
 - Finish with the smallest coherent result. Do not add governance infrastructure
   merely because it is possible to specify or test it.
 

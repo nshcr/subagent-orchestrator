@@ -88,9 +88,9 @@ class PortableProfileContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "model_hint mismatch"):
             self.validate()
 
-    def test_rejects_user_checkpoint_drift(self):
+    def test_rejects_expansion_checkpoint_drift(self):
         document = self.profile()
-        document["handoff"]["later_wave_requires_user_checkpoint"] = False
+        document["handoff"]["later_wave_requires_expansion_checkpoint"] = False
         self.write_profile(document)
         with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
             self.validate()

@@ -24,6 +24,7 @@ Record, when available:
 - delivered outcome and correctness failures;
 - child attempts, failed or interrupted attempts, and delegation waves;
 - writer count, reviewer attempts, retries, and primary replay;
+- expansion checkpoints, user questions, and primary-only fallbacks;
 - wait timeouts as telemetry, not failure;
 - total primary and child tokens or actual credits, keeping cached raw usage distinct
   from billed credits;
@@ -37,14 +38,22 @@ evidence.
 
 - Keep primary when quality evidence is incomplete or delegation does not replace
   material work.
+- An expansion checkpoint prohibits automatic spawning; it is not an automatic user
+  question. Without exact prior authorization, prefer primary-only work or closure.
+  Ask only when evidence leaves a material user-owned outcome, scope, cost, risk, or
+  acceptance choice. Report operational blockers with the next owner or action.
 - Prefer a candidate only when quality does not regress and end-to-end overhead is
   meaningfully lower on the decision-relevant task.
 - A mandatory independent safety gate may remain even when it is not an efficiency
   win; label that as governance retention, not optimization success.
 - Reviewer scope is frozen with the named invariants. New ideas and non-blocking
   hardening are deferred.
-- After one repair batch and one fresh recheck, return any remaining BLOCK to the user.
-  Reviewer-driven redesign must not continue autonomously.
+- After one repair batch and one fresh recheck, stop further review. Ask the user only
+  for a named material acceptance choice; otherwise report the blocker and next owner
+  or action. Reviewer-driven redesign must not continue autonomously.
+- Child completion, a review terminal line, or exhausted delegation budget is not task
+  completion. Closure still requires claim-matched evidence or a genuine user-owned
+  blocker.
 
 Use the repository campaign evaluator only when a real comparison decision requires
 it. Preserve raw observations and state the evidence boundary; do not build another

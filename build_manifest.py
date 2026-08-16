@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent
 MANIFEST = ROOT / "manifest.json"
 EXCLUDED_PARTS = {
     ".git",
+    ".idea",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
@@ -26,6 +27,7 @@ EXCLUDED_PARTS = {
 EXCLUDED_NAMES = {".coverage", ".DS_Store"}
 EXCLUDED_DERIVED_PATHS = [
     ".git",
+    ".idea",
     ".DS_Store",
     ".venv",
     "__pycache__",

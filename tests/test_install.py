@@ -214,7 +214,10 @@ raise SystemExit(module.main())
                         result = self.run_installer("--apply", language)
                         self.assertEqual(result.returncode, 0, result.stderr)
                         installed = (self.codex_home / "AGENTS.md").read_text()
-                        self.assertIn("user checkpoint" if language == "en" else "用户检查点", installed)
+                        self.assertIn(
+                            "expansion checkpoint" if language == "en" else "编排扩张检查点",
+                            installed,
+                        )
                     finally:
                         self.codex_home = original_home
 
@@ -249,7 +252,7 @@ raise SystemExit(module.main())
 
         self.assertEqual(result.returncode, 0, result.stderr)
         installed = (self.codex_home / "AGENTS.md").read_text()
-        self.assertIn("user checkpoint", installed)
+        self.assertIn("expansion checkpoint", installed)
         self.assertNotIn("Start the narrowest already-qualified roles", installed)
 
     def test_preserves_unrelated_personal_configuration_and_extra_agent(self):

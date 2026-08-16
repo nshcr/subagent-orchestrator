@@ -15,7 +15,7 @@
       "scope",
       "single-writer-integration",
       "conflict-handling",
-      "user-checkpoints",
+      "delegation-expansion-checkpoints",
       "final-acceptance"
     ]
   },
@@ -39,7 +39,9 @@
     "runtime_thread_cap": 16,
     "ordinary_first_wave_child_cap": 2,
     "ordinary_first_wave_writer_cap": 1,
-    "later_wave_requires_user_checkpoint": true,
+    "later_wave_requires_expansion_checkpoint": true,
+    "unapproved_expansion_route": "primary-or-close",
+    "checkpoint_question_scope": "material-user-owned-choice-only",
     "explicit_final_review_cap": 3
   },
   "roles": [
@@ -90,7 +92,8 @@
     "context_default": "fresh",
     "children_are_leaves": true,
     "peer_messages": "none",
-    "later_wave_requires_user_checkpoint": true,
+    "later_wave_requires_expansion_checkpoint": true,
+    "operational_blocker_route": "report-next-owner-or-action",
     "user_facing_language": "user-preferred",
     "model_facing_language": "English"
   },
@@ -99,7 +102,7 @@
     "preserve-role-eligibility",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
-    "preserve-user-checkpoints",
+    "preserve-expansion-checkpoints",
     "preserve-terminal-collection",
     "preserve-output-language-contract",
     "treat-model-and-effort-values-as-client-specific-hints"

@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent
 MANIFEST = ROOT / "manifest.json"
 EXCLUDED_PARTS = {
     ".git",
+    ".idea",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
@@ -75,7 +76,7 @@ ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
-    "preserve-user-checkpoints",
+    "preserve-expansion-checkpoints",
     "preserve-terminal-collection",
     "preserve-output-language-contract",
     "treat-model-and-effort-values-as-client-specific-hints",
@@ -164,7 +165,7 @@ def verify_portability() -> None:
             "scope",
             "single-writer-integration",
             "conflict-handling",
-            "user-checkpoints",
+            "delegation-expansion-checkpoints",
             "final-acceptance",
         ],
     }:
@@ -203,7 +204,9 @@ def verify_portability() -> None:
         "runtime_thread_cap": config["max_concurrent_threads_per_session"],
         "ordinary_first_wave_child_cap": 2,
         "ordinary_first_wave_writer_cap": 1,
-        "later_wave_requires_user_checkpoint": True,
+        "later_wave_requires_expansion_checkpoint": True,
+        "unapproved_expansion_route": "primary-or-close",
+        "checkpoint_question_scope": "material-user-owned-choice-only",
         "explicit_final_review_cap": 3,
     }:
         fail("portable profile concurrency drifts from routing/config ownership")
@@ -259,7 +262,8 @@ def verify_portability() -> None:
         "context_default": "fresh",
         "children_are_leaves": True,
         "peer_messages": "none",
-        "later_wave_requires_user_checkpoint": True,
+        "later_wave_requires_expansion_checkpoint": True,
+        "operational_blocker_route": "report-next-owner-or-action",
         "user_facing_language": "user-preferred",
         "model_facing_language": "English",
     }

@@ -1,7 +1,7 @@
 interface:
   display_name: "Subagent Orchestrator"
-  short_description: "Efficient delegation with user checkpoints"
-  default_prompt: "Use $subagent-orchestrator to delegate only material work, stop reviewer-driven scope growth, and checkpoint with me before another wave."
+  short_description: "Efficient delegation with bounded expansion"
+  default_prompt: "Use $subagent-orchestrator to delegate only material work, stop unapproved expansion and reviewer-driven redesign, and keep task closure evidence-based."
 
 policy:
   allow_implicit_invocation: true

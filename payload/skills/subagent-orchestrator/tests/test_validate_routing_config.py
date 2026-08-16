@@ -84,13 +84,29 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("monkey" in error.lower() for error in self.errors()))
 
-    def test_rejects_user_checkpoint_removal(self):
+    def test_rejects_expansion_checkpoint_removal(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "without a user checkpoint",
-            "without consulting the user",
+            "that exact expansion; otherwise use the primary or close without another child",
+            "any expansion; start another child automatically",
         )
-        self.assertTrue(any("user checkpoint" in error for error in self.errors()))
+        self.assertTrue(any("exact expansion" in error for error in self.errors()))
+
+    def test_rejects_operational_blocker_as_preference(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "do not pose them as preferences",
+            "ask the user to choose how to fix every blocker",
+        )
+        self.assertTrue(any("preferences" in error for error in self.errors()))
+
+    def test_rejects_child_terminal_as_task_completion(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "proves neither task completion nor",
+            "proves task completion and",
+        )
+        self.assertTrue(any("task completion" in error for error in self.errors()))
 
     def test_rejects_reviewer_designer_drift(self):
         self.mutate(
@@ -111,7 +127,7 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_global_policy_boundary_removal(self):
         self.mutate(
             "AGENTS.md",
-            "仍有 BLOCK 就把决定权交还用户" if "## 子代理与并行" in (self.codex_home / "AGENTS.md").read_text() else "another BLOCK returns control to the user",
+            "仍有 BLOCK 就停止继续评审" if "## 子代理与并行" in (self.codex_home / "AGENTS.md").read_text() else "another BLOCK stops further review",
             "continue until every reviewer passes",
         )
         self.assertTrue(any("BLOCK" in error for error in self.errors()))

@@ -30,12 +30,17 @@ do not qualify a task for delegation.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
 - An ordinary first wave has at most two children and one writer. A second wave,
-  another writer, scope expansion, or reviewer rerun requires a user checkpoint.
+  another writer, scope expansion, or reviewer rerun opens an expansion checkpoint:
+  no new child starts without exact current user authorization. Otherwise the primary
+  continues or closes, asking one question only for a material user-owned choice.
 - Reviewers inspect one frozen state and named invariants. After one repair and one
-  fresh recheck, another BLOCK returns control to the user instead of extending the
-  design autonomously.
+  fresh recheck, another BLOCK stops further review. Operational blockers are reported,
+  out-of-scope ideas are deferred, and only a named material acceptance choice is
+  returned to the user.
 - If the primary would mainly coordinate, poll, or wait, it should do the work
   directly. Prove the user-facing behavior before building supporting machinery.
+- Child terminal state and exhausted delegation budget do not prove task completion;
+  the primary still closes against proportionate task evidence or a genuine blocker.
 
 ## Requirements
 
