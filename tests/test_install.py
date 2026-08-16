@@ -464,9 +464,9 @@ raise SystemExit(module.main())
         original_remove = INSTALL_MODULE.remove_verified_cleanup_file
         interrupted = False
 
-        def remove_then_interrupt(path):
+        def remove_then_interrupt(codex_home, entry, path):
             nonlocal interrupted
-            original_remove(path)
+            original_remove(codex_home, entry, path)
             if not interrupted:
                 interrupted = True
                 raise OSError("injected write cleanup interruption")
@@ -510,6 +510,53 @@ raise SystemExit(module.main())
         self.assertEqual(agents.read_bytes(), prior)
         self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
         self.assertFalse((self.codex_home / "config.toml").exists())
+
+    def test_write_cleanup_claim_interruption_is_doctor_visible_and_resumable(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# prior across claimed cleanup window\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        original_remove = INSTALL_MODULE.remove_claimed_cleanup_file
+        interrupted = False
+
+        def interrupt_after_claim(path):
+            nonlocal interrupted
+            if not interrupted:
+                interrupted = True
+                raise OSError("injected after cleanup claim")
+            return original_remove(path)
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "remove_claimed_cleanup_file",
+            side_effect=interrupt_after_claim,
+        ):
+            with self.assertRaisesRegex(OSError, "after cleanup claim"):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+        self.assertFalse(report["healthy"])
+        self.assertEqual(report["status"], "WRITE_CLEANUP_PENDING")
+        self.assertTrue(any(target["state"] == "CLAIMED" for target in report["targets"]))
+
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+
+        self.assertEqual(touched, [])
+        self.assertTrue(receipt_path.is_file())
+        self.assertFalse(
+            (self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE).exists()
+        )
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_RECOVERY_RELATIVE).exists())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_RELATIVE).exists())
+        INSTALL_MODULE.restore_install(self.codex_home, receipt_path)
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
 
     def test_cleanup_journal_resumes_after_install_journal_is_durably_removed(self):
         self.codex_home.mkdir()
@@ -619,6 +666,80 @@ raise SystemExit(module.main())
         self.assertEqual(staged_preimage.read_bytes(), b"tampered staged preimage\n")
         self.assertTrue(
             (self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE).is_file()
+        )
+
+    def test_write_cleanup_namespace_swap_after_verification_is_preserved(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# cleanup claim prior\n"
+        foreign = b"# concurrent cleanup replacement\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "run_write_cleanup",
+            side_effect=OSError("injected before write cleanup"),
+        ):
+            with self.assertRaisesRegex(OSError, "before write cleanup"):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        cleanup_document = INSTALL_MODULE.validate_write_cleanup_journal(
+            INSTALL_MODULE.read_managed_json(
+                self.codex_home,
+                INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE,
+                "write cleanup transaction",
+            )
+        )
+        entry = cleanup_document["entries"][0]
+        cleanup_path = (self.codex_home / entry["cleanup_relative"]).resolve()
+        claim_path = INSTALL_MODULE.cleanup_claim_path(cleanup_path)
+        original_verify = INSTALL_MODULE.verify_cleanup_entry
+        replaced = False
+
+        def verify_then_replace(codex_home, cleanup_entry, path):
+            nonlocal replaced
+            original_verify(codex_home, cleanup_entry, path)
+            if path == cleanup_path and not replaced:
+                replaced = True
+                path.unlink()
+                path.write_bytes(foreign)
+                path.chmod(entry["prior_mode"])
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "verify_cleanup_entry",
+            side_effect=verify_then_replace,
+        ):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError,
+                "write cleanup preimage changed while being claimed",
+            ):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        self.assertTrue(replaced)
+        self.assertEqual(cleanup_path.read_bytes(), foreign)
+        self.assertEqual(cleanup_path.stat().st_mode & 0o777, entry["prior_mode"])
+        self.assertFalse(claim_path.exists())
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+        self.assertFalse(report["healthy"])
+        self.assertEqual(report["status"], "WRITE_CLEANUP_CONFLICT")
+        self.assertTrue(any(target["state"] == "MISMATCH" for target in report["targets"]))
+        with self.assertRaisesRegex(
+            INSTALL_MODULE.InstallError, "conflicting or tampered"
+        ):
+            INSTALL_MODULE.apply_install_with_receipt(self.codex_home, "en", plan)
+        self.assertEqual(cleanup_path.read_bytes(), foreign)
+        self.assertTrue(
+            (self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE).is_file()
+        )
+        self.assertTrue(
+            (self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE).is_file()
         )
 
     def test_doctor_reports_orphan_write_recovery(self):

@@ -2711,8 +2711,16 @@ def inspect_write_cleanup_tree(
         (codex_home / entry[entry_key]).relative_to(root): entry
         for entry in document["entries"]
     }
+    expected_claims = (
+        {
+            cleanup_claim_path(codex_home / entry[entry_key]).relative_to(root): entry
+            for entry in document["entries"]
+        }
+        if root_key == "cleanup_relative"
+        else {}
+    )
     expected_dirs = set()
-    for relative in expected_files:
+    for relative in {*expected_files, *expected_claims}:
         expected_dirs.update(parent for parent in relative.parents if parent != Path("."))
     states = []
     valid = True
@@ -2726,7 +2734,7 @@ def inspect_write_cleanup_tree(
                 states.append((str(path.relative_to(codex_home)), "UNEXPECTED_DIRECTORY"))
                 valid = False
         elif path.is_file():
-            if relative not in expected_files:
+            if relative not in expected_files and relative not in expected_claims:
                 states.append((str(path.relative_to(codex_home)), "UNEXPECTED_FILE"))
                 valid = False
         else:
@@ -2735,10 +2743,18 @@ def inspect_write_cleanup_tree(
     for relative, entry in expected_files.items():
         path = root / relative
         state = file_state(path, codex_home)
+        claim_state = (
+            file_state(root / cleanup_claim_path(path).relative_to(root), codex_home)
+            if root_key == "cleanup_relative"
+            else (False, None, None)
+        )
         expected = (True, entry["prior_sha256"], entry["prior_mode"])
-        if state == expected:
+        absent = (False, None, None)
+        if state == expected and claim_state == absent:
             states.append((entry["relative"], "PENDING"))
-        elif allow_missing and state == (False, None, None):
+        elif state == absent and claim_state == expected:
+            states.append((entry["relative"], "CLAIMED"))
+        elif allow_missing and state == absent and claim_state == absent:
             states.append((entry["relative"], "CLEANED"))
         else:
             states.append((entry["relative"], "MISMATCH"))
@@ -2829,7 +2845,11 @@ def verify_write_cleanup_binding(
         raise InstallError("write cleanup transaction install-journal mismatch")
 
 
-def remove_verified_cleanup_file(path: Path) -> None:
+def cleanup_claim_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.claimed")
+
+
+def remove_claimed_cleanup_file(path: Path) -> None:
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
     try:
         os.fsync(descriptor)
@@ -2837,6 +2857,26 @@ def remove_verified_cleanup_file(path: Path) -> None:
         os.close(descriptor)
     path.unlink()
     fsync_directory(path.parent)
+
+
+def remove_verified_cleanup_file(codex_home: Path, entry: dict, path: Path) -> None:
+    claim = cleanup_claim_path(path)
+    absent = (False, None, None)
+    if file_state(claim, codex_home) == absent:
+        verify_cleanup_entry(codex_home, entry, path)
+        rename_noreplace(path, claim)
+        fsync_directory(path.parent)
+    elif file_state(path, codex_home) != absent:
+        raise InstallError(f"write cleanup claim collision: {entry['relative']}")
+    try:
+        verify_cleanup_entry(codex_home, entry, claim)
+    except InstallError as error:
+        preserved = return_claimed_path(claim, path)
+        raise InstallError(
+            f"write cleanup preimage changed while being claimed: "
+            f"{entry['relative']}; preserved at {preserved}"
+        ) from error
+    remove_claimed_cleanup_file(claim)
 
 
 def remove_empty_directory(path: Path) -> None:
@@ -2875,9 +2915,10 @@ def run_write_cleanup(codex_home: Path, document: dict) -> None:
         for entry in document["entries"]:
             path = codex_home / entry["cleanup_relative"]
             if file_state(path, codex_home) == (False, None, None):
-                continue
-            verify_cleanup_entry(codex_home, entry, path)
-            remove_verified_cleanup_file(path)
+                claim = cleanup_claim_path(path)
+                if file_state(claim, codex_home) == (False, None, None):
+                    continue
+            remove_verified_cleanup_file(codex_home, entry, path)
         directories = [path for path in cleanup_root.rglob("*") if path.is_dir()]
         for directory in sorted(
             directories, key=lambda value: len(value.parts), reverse=True

@@ -212,8 +212,10 @@ is retained through exact candidate postimage validation and durable receipt
 creation. Only then does a durable cleanup journal bind the install transaction,
 plan and restore receipt, source/target identity, prior vault paths, and every
 transaction-owned `.write-recovery/` path. Cleanup atomically claims only that
-transaction subtree, verifies each exact staged byte sequence and mode against
-its independent prior-vault snapshot, and removes it. The install journal is
+transaction subtree, then atomically claims and re-verifies each staged entry
+against its independent prior-vault snapshot before removing the claimed name.
+A replacement observed at either claim boundary is preserved and blocks the
+same receipt from continuing silently. The install journal is
 removed only after staging cleanup completes; the cleanup journal is removed
 only after the install journal is durably gone. Cleanup interruptions therefore
 remain doctor-visible and resume with the same receipt, while a mismatch,
