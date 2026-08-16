@@ -279,6 +279,54 @@ raise SystemExit(module.main())
                     )
             path.unlink()
 
+    def test_state_manifest_and_catalog_reject_duplicate_keys_before_mutation(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state_path = self.state_path()
+        state_path.write_text(
+            state_path.read_text().replace(
+                '  "managed_hashes": {',
+                '  "managed_hashes": {},\n  "managed_hashes": {',
+                1,
+            )
+        )
+        agents_before = (self.codex_home / "AGENTS.md").read_bytes()
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "duplicate key"):
+            INSTALL_MODULE.plan_install(self.codex_home, "en")
+        self.assertEqual((self.codex_home / "AGENTS.md").read_bytes(), agents_before)
+        self.assertFalse((self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE).exists())
+
+        clean_home = Path(self.temporary.name) / "duplicate-input-home"
+        self.test_manifest.write_text(
+            self.test_manifest.read_text().replace(
+                "{", '{"files": [],', 1
+            )
+        )
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "duplicate key"):
+            INSTALL_MODULE.plan_install(clean_home, "en")
+        self.assertFalse(clean_home.exists())
+
+        manifest = json.loads((PACKAGE_ROOT / "manifest.json").read_text())
+        declared = {item["path"]: item for item in manifest["files"]}
+        for relative, item in declared.items():
+            content = (PACKAGE_ROOT / relative).read_bytes()
+            item["sha256"] = hashlib.sha256(content).hexdigest()
+            item["size"] = len(content)
+        self.test_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        catalog = Path(self.temporary.name) / "duplicate-catalog.json"
+        catalog.write_text(
+            (PACKAGE_ROOT / "install-migrations.json").read_text().replace(
+                "{", '{"retired_paths": [],', 1
+            )
+        )
+        with mock.patch.object(INSTALL_MODULE, "MIGRATION_CATALOG_PATH", catalog):
+            with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "duplicate key"):
+                INSTALL_MODULE.plan_install(clean_home, "en")
+        self.assertFalse(clean_home.exists())
+
+        installer_source = INSTALLER.read_text()
+        self.assertEqual(installer_source.count("json.loads("), 1)
+
     def test_apply_cli_requires_a_plan_receipt(self):
         result = subprocess.run(
             [
@@ -481,7 +529,7 @@ raise SystemExit(module.main())
         self.assertFalse(INSTALL_MODULE.same_physical_file(agents, backup))
 
         with self.assertRaisesRegex(
-            INSTALL_MODULE.InstallError, "target drifted after preflight: AGENTS.md"
+            INSTALL_MODULE.InstallError, "conflicting targets"
         ):
             INSTALL_MODULE.apply_install_with_receipt(
                 self.codex_home, "en", plan
@@ -774,12 +822,12 @@ raise SystemExit(module.main())
         original_restore = INSTALL_MODULE.atomic_restore_prior
         calls = 0
 
-        def fail_second(codex_home, target):
+        def fail_second(codex_home, target, candidate_staging):
             nonlocal calls
             calls += 1
             if calls == 2:
                 raise OSError("injected restore failure")
-            return original_restore(codex_home, target)
+            return original_restore(codex_home, target, candidate_staging)
 
         with mock.patch.object(
             INSTALL_MODULE, "atomic_restore_prior", side_effect=fail_second
@@ -797,6 +845,62 @@ raise SystemExit(module.main())
             (self.codex_home / INSTALL_MODULE.RESTORE_JOURNAL_RELATIVE).exists()
         )
         self.assertTrue(receipt_path.is_file())
+
+    def test_restore_namespace_swap_after_second_observation_is_preserved(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# prior personal policy\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        _, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        receipt = INSTALL_MODULE.read_restore_receipt(receipt_path)
+        foreign = b"# concurrent foreign replacement\n"
+        original_file_state = INSTALL_MODULE.file_state
+        observations = 0
+
+        def swap_after_second_observation(path, codex_home):
+            nonlocal observations
+            state = original_file_state(path, codex_home)
+            if path.resolve(strict=False) == agents.resolve(strict=False):
+                observations += 1
+                if observations == 2:
+                    replacement = agents.with_name(".concurrent-agents")
+                    replacement.write_bytes(foreign)
+                    replacement.chmod(0o640)
+                    INSTALL_MODULE.os.replace(replacement, agents)
+            return state
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "file_state",
+            side_effect=swap_after_second_observation,
+        ):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "changed while being claimed"
+            ):
+                INSTALL_MODULE.restore_install(self.codex_home, receipt)
+
+        self.assertEqual(agents.read_bytes(), foreign)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o640)
+        restore_journal = self.codex_home / INSTALL_MODULE.RESTORE_JOURNAL_RELATIVE
+        self.assertTrue(restore_journal.is_file())
+        journal = INSTALL_MODULE.validate_restore_journal(
+            INSTALL_MODULE.read_managed_json(
+                self.codex_home,
+                INSTALL_MODULE.RESTORE_JOURNAL_RELATIVE,
+                "restore transaction",
+            )
+        )
+        candidate_backup = journal["candidate_backups"]["AGENTS.md"]
+        self.assertTrue((self.codex_home / candidate_backup).is_file())
+        with self.assertRaisesRegex(
+            INSTALL_MODULE.InstallError, "restore target drifted"
+        ):
+            INSTALL_MODULE.restore_install(self.codex_home, receipt)
+        self.assertEqual(agents.read_bytes(), foreign)
 
     def test_restore_uses_the_same_target_lock(self):
         plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
@@ -1736,6 +1840,123 @@ raise SystemExit(module.main())
         )
         self.assertFalse((self.codex_home / "agents").exists())
         self.assertFalse((self.codex_home / "skills").exists())
+
+    def test_write_namespace_collision_preserves_foreign_and_claimed_prior(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# original personal policy\n"
+        foreign = b"# concurrent replacement\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        original_rename = INSTALL_MODULE.rename_noreplace
+        injected = False
+
+        def collide_before_candidate(source, destination):
+            nonlocal injected
+            if (
+                destination.resolve(strict=False) == agents.resolve(strict=False)
+                and not injected
+            ):
+                injected = True
+                agents.write_bytes(foreign)
+                agents.chmod(0o640)
+            return original_rename(source, destination)
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "rename_noreplace",
+            side_effect=collide_before_candidate,
+        ):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "staging destination already exists"
+            ):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        self.assertEqual(agents.read_bytes(), foreign)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o640)
+        install_journal = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+        apply_journal = self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE
+        self.assertTrue(install_journal.is_file())
+        self.assertTrue(apply_journal.is_file())
+        journal = INSTALL_MODULE.read_journal(self.codex_home)
+        target = next(
+            item for item in journal["targets"] if item["relative"] == "AGENTS.md"
+        )
+        recovery = self.codex_home / target["write_recovery_relative"]
+        self.assertEqual(recovery.read_bytes(), prior)
+        self.assertEqual(recovery.stat().st_mode & 0o777, 0o600)
+
+        agents.unlink()
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        self.assertTrue(touched)
+        self.assertTrue(receipt_path.is_file())
+        self.assertFalse(install_journal.exists())
+        self.assertFalse(apply_journal.exists())
+        INSTALL_MODULE.restore_install(self.codex_home, receipt_path)
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
+
+    def test_write_source_swap_after_precondition_is_returned_without_overwrite(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# original before namespace swap\n"
+        foreign = b"# swapped after precondition\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        original_rename = INSTALL_MODULE.rename_noreplace
+        injected = False
+
+        def swap_source_before_claim(source, destination):
+            nonlocal injected
+            if (
+                source.resolve(strict=False) == agents.resolve(strict=False)
+                and INSTALL_MODULE.WRITE_RECOVERY_RELATIVE
+                in destination.relative_to(self.codex_home.resolve()).parents
+                and not injected
+            ):
+                injected = True
+                replacement = agents.with_name(".swapped-agents")
+                replacement.write_bytes(foreign)
+                replacement.chmod(0o640)
+                INSTALL_MODULE.os.replace(replacement, agents)
+            return original_rename(source, destination)
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "rename_noreplace",
+            side_effect=swap_source_before_claim,
+        ):
+            with self.assertRaisesRegex(
+                INSTALL_MODULE.InstallError, "changed while being claimed"
+            ):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        self.assertEqual(agents.read_bytes(), foreign)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o640)
+        self.assertTrue((self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE).is_file())
+        apply_document = INSTALL_MODULE.validate_apply_receipt_journal(
+            INSTALL_MODULE.read_managed_json(
+                self.codex_home,
+                INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE,
+                "receipt-bound apply transaction",
+            )
+        )
+        target = next(
+            item
+            for item in apply_document["restore_targets"]
+            if item["relative"] == "AGENTS.md"
+        )
+        prior_backup = self.codex_home / target["prior_backup_relative"]
+        self.assertEqual(prior_backup.read_bytes(), prior)
+        self.assertEqual(prior_backup.stat().st_mode & 0o777, 0o600)
 
 
 if __name__ == "__main__":

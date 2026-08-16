@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
@@ -50,6 +51,7 @@ RESTORE_VAULT_RELATIVE = Path("skills") / SKILL_NAME / ".restore-vault"
 RESTORE_RECEIPTS_RELATIVE = Path("skills") / SKILL_NAME / ".restore-receipts"
 QUARANTINE_RELATIVE = Path("skills") / SKILL_NAME / ".retired"
 STAGING_RELATIVE = Path("skills") / SKILL_NAME / ".retirement-receipts"
+WRITE_RECOVERY_RELATIVE = Path("skills") / SKILL_NAME / ".write-recovery"
 AGENTS_HEADING = "## Subagents and parallelism"
 LEGACY_AGENTS_HEADING = "## 子代理与并行"
 AGENTS_SECTION_FILES = {
@@ -183,6 +185,7 @@ class PlannedWrite:
     managed_key: str | None = None
     quarantine_path: Path | None = None
     staging_path: Path | None = None
+    write_recovery_path: Path | None = None
 
     @property
     def operation(self) -> str:
@@ -193,6 +196,12 @@ class PlannedWrite:
     @property
     def desired_sha256(self) -> str | None:
         return sha256_bytes(self.content) if self.content is not None else None
+
+    @property
+    def desired_mode(self) -> int | None:
+        if self.content is None:
+            return None
+        return self.expected_prior_mode if self.expected_prior_exists else 0o644
 
 
 def sha256_bytes(content: bytes) -> str:
@@ -267,9 +276,12 @@ def strict_json_loads(content: str, label: str) -> object:
 
 def load_manifest() -> dict:
     try:
-        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
+        content = MANIFEST_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
         raise InstallError(f"package manifest is unreadable: {error}") from error
+    manifest = strict_json_loads(content, "package manifest")
+    if not isinstance(manifest, dict):
+        raise InstallError("package manifest has an unknown schema")
     declared = manifest.get("files")
     if not isinstance(declared, list):
         raise InstallError("package manifest has no files list")
@@ -293,9 +305,10 @@ def load_manifest() -> dict:
 
 def load_migration_catalog() -> dict:
     try:
-        document = json.loads(MIGRATION_CATALOG_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
+        content = MIGRATION_CATALOG_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
         raise InstallError(f"install migration catalog is unreadable: {error}") from error
+    document = strict_json_loads(content, "install migration catalog")
     expected_keys = {
         "format_version",
         "package_id",
@@ -487,9 +500,10 @@ def read_state(
     if content is None:
         return {}
     try:
-        document = json.loads(content.decode())
-    except (UnicodeError, ValueError) as error:
+        decoded = content.decode()
+    except UnicodeError as error:
         raise InstallError(f"managed state is unreadable: {error}") from error
+    document = strict_json_loads(decoded, "managed state")
     if not isinstance(document, dict):
         raise InstallError("managed state has an unknown document schema")
     if document.get("package_id") != SKILL_NAME:
@@ -846,6 +860,48 @@ def staging_relative(relative: str, content_hash: str) -> Path:
     return STAGING_RELATIVE / content_hash / Path(relative)
 
 
+def write_recovery_relative(
+    transaction_id: str,
+    relative: str,
+) -> Path:
+    path_id = sha256_bytes(relative.encode())
+    return WRITE_RECOVERY_RELATIVE / transaction_id / path_id / Path(relative).name
+
+
+def exact_path_state(
+    path: Path,
+    codex_home: Path,
+    expected_exists: bool,
+    expected_sha256: str | None,
+    expected_mode: int | None,
+) -> bool:
+    content = safe_existing_bytes(path, codex_home)
+    actual_exists = content is not None
+    actual_sha256 = sha256_bytes(content) if content is not None else None
+    actual_mode = (
+        path.stat(follow_symlinks=False).st_mode & 0o777
+        if content is not None
+        else None
+    )
+    return (actual_exists, actual_sha256, actual_mode) == (
+        expected_exists,
+        expected_sha256,
+        expected_mode,
+    )
+
+
+def return_claimed_path(staging: Path, path: Path) -> Path:
+    """Best-effort return of a drifted claimed object without replacing a collision."""
+    try:
+        rename_noreplace(staging, path)
+        fsync_directory(staging.parent)
+        if path.parent != staging.parent:
+            fsync_directory(path.parent)
+        return path
+    except (InstallError, OSError):
+        return staging
+
+
 def verify_precondition(plan: PlannedWrite, codex_home: Path) -> None:
     current = safe_existing_bytes(plan.path, codex_home)
     current_exists = current is not None
@@ -1051,19 +1107,39 @@ def atomic_write(
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
-        if path.exists():
-            os.chmod(temporary, path.stat().st_mode & 0o777)
-        else:
-            os.chmod(temporary, 0o644)
-        # Recheck after staging and immediately before replacement. This catches
-        # target or parent-path drift that occurs after the all-target gate.
+        os.chmod(temporary, plan.desired_mode)
+        # Bind the live namespace object immediately before claiming it. An
+        # existing preimage is moved to a deterministic transaction-owned path;
+        # an absent preimage is asserted by the candidate no-replace rename.
         verify_precondition(plan, codex_home)
-        os.replace(temporary, path)
-        directory_descriptor = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            os.close(directory_descriptor)
+        if plan.expected_prior_exists:
+            staging = plan.write_recovery_path or (
+                codex_home
+                / write_recovery_relative(secrets.token_hex(32), plan.relative)
+            )
+            staging.parent.mkdir(parents=True, exist_ok=True)
+            if safe_existing_bytes(staging, codex_home) is not None:
+                raise InstallError(
+                    f"write recovery staging already exists: {plan.relative}"
+                )
+            rename_noreplace(path, staging)
+            fsync_directory(path.parent)
+            if staging.parent != path.parent:
+                fsync_directory(staging.parent)
+            if not exact_path_state(
+                staging,
+                codex_home,
+                True,
+                plan.expected_prior_sha256,
+                plan.expected_prior_mode,
+            ):
+                preserved = return_claimed_path(staging, path)
+                raise InstallError(
+                    f"write target changed while being claimed: {plan.relative}; "
+                    f"preserved at {preserved}"
+                )
+        rename_noreplace(temporary, path)
+        fsync_directory(path.parent)
     finally:
         if temporary.exists():
             temporary.unlink()
@@ -1616,17 +1692,22 @@ def preserve_snapshot(
 
 
 def journal_document(plans: list[PlannedWrite], agents_language: str) -> dict:
+    transaction_id = secrets.token_hex(32)
     return {
         "agents_language": agents_language,
-        "format_version": 1,
+        "format_version": 2,
         "install_contract_sha256": install_contract_sha256(),
         "package_id": SKILL_NAME,
+        "transaction_id": transaction_id,
         "targets": [
             {
                 "desired_managed_sha256": plan.managed_hash,
+                "desired_mode": plan.desired_mode,
                 "desired_sha256": plan.desired_sha256,
                 "managed_key": plan.managed_key,
                 "operation": plan.operation,
+                "prior_exists": plan.expected_prior_exists,
+                "prior_mode": plan.expected_prior_mode,
                 "prior_sha256": plan.expected_prior_sha256,
                 "quarantine_relative": (
                     str(quarantine_relative(plan.relative, plan.expected_prior_sha256))
@@ -1639,6 +1720,16 @@ def journal_document(plans: list[PlannedWrite], agents_language: str) -> dict:
                     else None
                 ),
                 "relative": plan.relative,
+                "write_recovery_relative": (
+                    str(
+                        write_recovery_relative(
+                            transaction_id,
+                            plan.relative,
+                        )
+                    )
+                    if plan.operation == "write" and plan.expected_prior_exists
+                    else None
+                ),
             }
             for plan in plans
         ],
@@ -1658,15 +1749,20 @@ def validate_journal(document: object) -> dict:
         "install_contract_sha256",
         "package_id",
         "targets",
+        "transaction_id",
     }
     if not isinstance(document, dict) or set(document) != expected_keys:
         raise InstallError("install transaction has an unknown schema")
-    if document.get("format_version") != 1:
-        raise InstallError("install transaction format_version must be 1")
+    if document.get("format_version") != 2:
+        raise InstallError("install transaction format_version must be 2")
     if document.get("package_id") != SKILL_NAME:
         raise InstallError("install transaction package identity mismatch")
     if document.get("agents_language") not in AGENTS_SECTION_FILES:
         raise InstallError("install transaction has an invalid AGENTS language")
+    if not isinstance(document.get("transaction_id"), str) or re.fullmatch(
+        r"[0-9a-f]{64}", document["transaction_id"]
+    ) is None:
+        raise InstallError("install transaction has an invalid transaction id")
     if not validate_optional_hash(document.get("install_contract_sha256")) or document.get(
         "install_contract_sha256"
     ) is None:
@@ -1676,13 +1772,17 @@ def validate_journal(document: object) -> dict:
         raise InstallError("install transaction has no targets")
     expected_target_keys = {
         "desired_managed_sha256",
+        "desired_mode",
         "desired_sha256",
         "managed_key",
         "operation",
+        "prior_exists",
+        "prior_mode",
         "prior_sha256",
         "quarantine_relative",
         "relative",
         "staging_relative",
+        "write_recovery_relative",
     }
     seen = set()
     catalog = load_migration_catalog()
@@ -1701,6 +1801,7 @@ def validate_journal(document: object) -> dict:
         managed_key = target.get("managed_key")
         quarantine = target.get("quarantine_relative")
         staging = target.get("staging_relative")
+        write_recovery = target.get("write_recovery_relative")
         if (
             not isinstance(relative, str)
             or not relative
@@ -1719,6 +1820,21 @@ def validate_journal(document: object) -> dict:
             raise InstallError(f"install transaction has an invalid hash: {relative}")
         if operation == "write" and target.get("desired_sha256") is None:
             raise InstallError(f"install transaction write has no desired hash: {relative}")
+        if not isinstance(target.get("prior_exists"), bool):
+            raise InstallError(
+                f"install transaction has invalid prior existence: {relative}"
+            )
+        if target["prior_exists"]:
+            if target["prior_sha256"] is None or not isinstance(
+                target.get("prior_mode"), int
+            ) or not 0 <= target["prior_mode"] <= 0o777:
+                raise InstallError(
+                    f"install transaction has invalid prior state: {relative}"
+                )
+        elif target["prior_sha256"] is not None or target.get("prior_mode") is not None:
+            raise InstallError(
+                f"install transaction has inconsistent prior absence: {relative}"
+            )
         if operation == "quarantine":
             if target.get("desired_sha256") is not None or target.get("prior_sha256") is None:
                 raise InstallError(
@@ -1732,10 +1848,35 @@ def validate_journal(document: object) -> dict:
                 raise InstallError(
                     f"install transaction has invalid quarantine or staging target: {relative}"
                 )
+            if target.get("desired_mode") is not None or write_recovery is not None:
+                raise InstallError(
+                    f"install transaction quarantine has invalid write state: {relative}"
+                )
         elif quarantine is not None or staging is not None:
             raise InstallError(
                 f"install transaction write has a quarantine or staging target: {relative}"
             )
+        else:
+            if not isinstance(target.get("desired_mode"), int) or not 0 <= target[
+                "desired_mode"
+            ] <= 0o777:
+                raise InstallError(
+                    f"install transaction has invalid desired mode: {relative}"
+                )
+            expected_write_recovery = (
+                str(
+                    write_recovery_relative(
+                        document["transaction_id"],
+                        relative,
+                    )
+                )
+                if target["prior_exists"]
+                else None
+            )
+            if write_recovery != expected_write_recovery:
+                raise InstallError(
+                    f"install transaction has invalid write recovery target: {relative}"
+                )
         if managed_key is not None and not isinstance(managed_key, str):
             raise InstallError(f"install transaction has an invalid managed key: {relative}")
         if relative == "AGENTS.md":
@@ -1806,55 +1947,80 @@ def create_journal(codex_home: Path, document: dict) -> None:
 def classify_journal(codex_home: Path, journal: dict) -> tuple[str, list[tuple[str, str]]]:
     classifications = []
     for target in journal["targets"]:
-        content = safe_existing_bytes(codex_home / target["relative"], codex_home)
-        actual = sha256_bytes(content) if content is not None else None
+        path = codex_home / target["relative"]
+        actual_state = file_state(path, codex_home)
         if target["operation"] == "quarantine":
-            quarantined = safe_existing_bytes(
-                codex_home / target["quarantine_relative"], codex_home
+            quarantine_path = codex_home / target["quarantine_relative"]
+            staging_path = codex_home / target["staging_relative"]
+            quarantine_state = file_state(quarantine_path, codex_home)
+            staged_state = file_state(staging_path, codex_home)
+            prior_state = (
+                target["prior_exists"],
+                target["prior_sha256"],
+                target["prior_mode"],
             )
-            quarantined_hash = (
-                sha256_bytes(quarantined) if quarantined is not None else None
-            )
-            staged = safe_existing_bytes(
-                codex_home / target["staging_relative"], codex_home
-            )
-            staged_hash = sha256_bytes(staged) if staged is not None else None
             linked = (
-                actual == target["prior_sha256"]
-                and quarantined_hash == target["prior_sha256"]
-                and same_physical_file(
-                    codex_home / target["relative"],
-                    codex_home / target["quarantine_relative"],
-                )
+                actual_state == prior_state
+                and quarantine_state == prior_state
+                and same_physical_file(path, quarantine_path)
             )
             if linked:
                 classification = "linked"
             elif (
-                actual is None
-                and quarantined_hash == target["prior_sha256"]
-                and staged_hash == target["prior_sha256"]
-                and same_physical_file(
-                    codex_home / target["staging_relative"],
-                    codex_home / target["quarantine_relative"],
-                )
+                actual_state == (False, None, None)
+                and quarantine_state == prior_state
+                and staged_state == prior_state
+                and same_physical_file(staging_path, quarantine_path)
             ):
                 classification = "staged"
-            elif actual == target["prior_sha256"] and quarantined_hash is None:
+            elif actual_state == prior_state and quarantine_state == (False, None, None):
                 classification = "prior"
             elif (
-                actual is None
-                and quarantined_hash == target["prior_sha256"]
-                and staged_hash is None
+                actual_state == (False, None, None)
+                and quarantine_state == prior_state
+                and staged_state == (False, None, None)
             ):
                 classification = "desired"
             else:
                 classification = "conflict"
-        elif actual == target["desired_sha256"]:
-            classification = "desired"
-        elif actual == target["prior_sha256"]:
-            classification = "prior"
         else:
-            classification = "conflict"
+            recovery_relative = target["write_recovery_relative"]
+            recovery_state = (
+                file_state(codex_home / recovery_relative, codex_home)
+                if recovery_relative is not None
+                else (False, None, None)
+            )
+            expected_recovery_state = (
+                (
+                    True,
+                    target["prior_sha256"],
+                    target["prior_mode"],
+                )
+                if target["prior_exists"]
+                else (False, None, None)
+            )
+            prior_state = (
+                target["prior_exists"],
+                target["prior_sha256"],
+                target["prior_mode"],
+            )
+            desired_state = (
+                True,
+                target["desired_sha256"],
+                target["desired_mode"],
+            )
+            if actual_state == desired_state and recovery_state == expected_recovery_state:
+                classification = "desired"
+            elif actual_state == prior_state and recovery_state == (False, None, None):
+                classification = "prior"
+            elif (
+                target["prior_exists"]
+                and actual_state == (False, None, None)
+                and recovery_state == expected_recovery_state
+            ):
+                classification = "claimed"
+            else:
+                classification = "conflict"
         classifications.append((target["relative"], classification))
     states = {classification for _, classification in classifications}
     if "conflict" in states:
@@ -1868,6 +2034,34 @@ def classify_journal(codex_home: Path, journal: dict) -> tuple[str, list[tuple[s
     return status, classifications
 
 
+def recover_claimed_writes(
+    codex_home: Path,
+    journal: dict,
+    classifications: list[tuple[str, str]],
+) -> None:
+    targets = {target["relative"]: target for target in journal["targets"]}
+    for relative, classification in classifications:
+        if classification != "claimed":
+            continue
+        target = targets[relative]
+        staging = codex_home / target["write_recovery_relative"]
+        path = codex_home / relative
+        rename_noreplace(staging, path)
+        fsync_directory(staging.parent)
+        if staging.parent != path.parent:
+            fsync_directory(path.parent)
+        if not exact_path_state(
+            path,
+            codex_home,
+            True,
+            target["prior_sha256"],
+            target["prior_mode"],
+        ):
+            raise InstallError(
+                f"claimed write preimage changed during recovery: {relative}"
+            )
+
+
 def validate_recovery_plan(plans: list[PlannedWrite], journal: dict) -> None:
     journal_targets = {target["relative"]: target for target in journal["targets"]}
     for plan in plans:
@@ -1877,7 +2071,11 @@ def validate_recovery_plan(plans: list[PlannedWrite], journal: dict) -> None:
         if (
             target["operation"] != plan.operation
             or target["desired_sha256"] != plan.desired_sha256
+            or target["desired_mode"] != plan.desired_mode
             or target["desired_managed_sha256"] != plan.managed_hash
+            or target["prior_exists"] != plan.expected_prior_exists
+            or target["prior_mode"] != plan.expected_prior_mode
+            or target["prior_sha256"] != plan.expected_prior_sha256
             or target["quarantine_relative"]
             != (
                 str(quarantine_relative(plan.relative, plan.expected_prior_sha256))
@@ -1890,8 +2088,40 @@ def validate_recovery_plan(plans: list[PlannedWrite], journal: dict) -> None:
                 if plan.staging_path is not None
                 else None
             )
+            or target["write_recovery_relative"]
+            != (
+                str(
+                    write_recovery_relative(
+                        journal["transaction_id"],
+                        plan.relative,
+                    )
+                )
+                if plan.operation == "write" and plan.expected_prior_exists
+                else None
+            )
         ):
             raise InstallError(f"recovery plan changed target contract: {plan.relative}")
+
+
+def bind_journal_write_recovery(
+    plans: list[PlannedWrite],
+    journal: dict,
+    codex_home: Path,
+) -> list[PlannedWrite]:
+    targets = {target["relative"]: target for target in journal["targets"]}
+    bound = []
+    for plan in plans:
+        target = targets.get(plan.relative)
+        if target is None:
+            raise InstallError(f"install transaction is missing target: {plan.relative}")
+        relative = target["write_recovery_relative"]
+        bound.append(
+            replace(
+                plan,
+                write_recovery_path=(codex_home / relative if relative is not None else None),
+            )
+        )
+    return bound
 
 
 def finish_journal(codex_home: Path, journal: dict) -> None:
@@ -1927,9 +2157,10 @@ def apply_install(
                 raise InstallError(
                     "unfinished install transaction uses a different AGENTS language"
                 )
-            status, _ = classify_journal(codex_home, journal)
+            status, classifications = classify_journal(codex_home, journal)
             if status == "PARTIAL_CONFLICT":
                 raise InstallError("unfinished install transaction has conflicting targets")
+            recover_claimed_writes(codex_home, journal, classifications)
             plans, _ = plan_install(codex_home, agents_language, journal)
             validate_recovery_plan(plans, journal)
         else:
@@ -1938,6 +2169,7 @@ def apply_install(
                 return []
             journal = journal_document(plans, agents_language)
             create_journal(codex_home, journal)
+        plans = bind_journal_write_recovery(plans, journal, codex_home)
         touched = apply_plans(plans, codex_home, on_touched)
         finish_journal(codex_home, journal)
         return touched
@@ -2313,9 +2545,10 @@ def apply_install_with_receipt(
                     raise InstallError("unfinished apply belongs to another install contract")
                 if journal["agents_language"] != agents_language:
                     raise InstallError("unfinished apply uses a different AGENTS language")
-                status, _ = classify_journal(codex_home, journal)
+                status, classifications = classify_journal(codex_home, journal)
                 if status == "PARTIAL_CONFLICT":
                     raise InstallError("unfinished apply has conflicting targets")
+                recover_claimed_writes(codex_home, journal, classifications)
                 plans, _ = plan_install(codex_home, agents_language, journal)
                 validate_recovery_plan(plans, journal)
             else:
@@ -2343,6 +2576,8 @@ def apply_install_with_receipt(
                     # postimages plus the already durable restore receipt.
                     plans = []
         plans = bind_receipt_preconditions(plans, apply_document)
+        if journal is not None:
+            plans = bind_journal_write_recovery(plans, journal, codex_home)
         verify_restore_target_backups(codex_home, apply_document["restore_targets"])
         touched = apply_plans(plans, codex_home, on_touched)
         verify_candidate_postimages(codex_home, apply_document)
@@ -2392,13 +2627,14 @@ def state_matches(target: dict, prefix: str, state: tuple[bool, str | None, int 
 def validate_restore_journal(document: object) -> dict:
     if not isinstance(document, dict) or set(document) != {
         "candidate_backups",
+        "candidate_staging",
         "format_version",
         "package_id",
         "receipt_digest",
         "target",
     }:
         raise InstallError("restore transaction has an unknown schema")
-    if document["format_version"] != 1 or document["package_id"] != SKILL_NAME:
+    if document["format_version"] != 2 or document["package_id"] != SKILL_NAME:
         raise InstallError("restore transaction identity mismatch")
     if not validate_optional_hash(document["receipt_digest"]) or document["receipt_digest"] is None:
         raise InstallError("restore transaction has an invalid receipt digest")
@@ -2408,19 +2644,74 @@ def validate_restore_journal(document: object) -> dict:
         for key, value in document["candidate_backups"].items()
     ):
         raise InstallError("restore transaction has invalid candidate backups")
+    if not isinstance(document["candidate_staging"], dict) or not all(
+        isinstance(key, str) and (value is None or isinstance(value, str))
+        for key, value in document["candidate_staging"].items()
+    ):
+        raise InstallError("restore transaction has invalid candidate staging")
     return document
 
 
-def atomic_restore_prior(codex_home: Path, target: dict) -> None:
+def atomic_restore_prior(
+    codex_home: Path,
+    target: dict,
+    candidate_staging_relative: str | None,
+) -> None:
     path = codex_home / target["relative"]
     current = file_state(path, codex_home)
     if state_matches(target, "prior", current):
+        if candidate_staging_relative is not None and not state_matches(
+            target,
+            "candidate",
+            file_state(codex_home / candidate_staging_relative, codex_home),
+        ):
+            raise InstallError(
+                f"candidate restore staging mismatch: {target['relative']}"
+            )
         return
-    if not state_matches(target, "candidate", current):
+
+    candidate_staging = (
+        codex_home / candidate_staging_relative
+        if candidate_staging_relative is not None
+        else None
+    )
+    if target["candidate_exists"]:
+        if candidate_staging is None:
+            raise InstallError(f"missing candidate restore staging: {target['relative']}")
+        staged_state = file_state(candidate_staging, codex_home)
+        if state_matches(target, "candidate", current):
+            if staged_state != (False, None, None):
+                raise InstallError(
+                    f"candidate restore staging collision: {target['relative']}"
+                )
+            candidate_staging.parent.mkdir(parents=True, exist_ok=True)
+            rename_noreplace(path, candidate_staging)
+            fsync_directory(path.parent)
+            if candidate_staging.parent != path.parent:
+                fsync_directory(candidate_staging.parent)
+            if not state_matches(
+                target, "candidate", file_state(candidate_staging, codex_home)
+            ):
+                preserved = return_claimed_path(candidate_staging, path)
+                raise InstallError(
+                    f"restore target changed while being claimed: {target['relative']}; "
+                    f"preserved at {preserved}"
+                )
+        elif not (
+            current == (False, None, None)
+            and state_matches(target, "candidate", staged_state)
+        ):
+            raise InstallError(f"restore target drifted: {target['relative']}")
+    elif current != (False, None, None) or candidate_staging is not None:
         raise InstallError(f"restore target drifted: {target['relative']}")
+
     if not target["prior_exists"]:
-        path.unlink()
-        fsync_directory(path.parent)
+        if candidate_staging is not None and not state_matches(
+            target, "candidate", file_state(candidate_staging, codex_home)
+        ):
+            raise InstallError(
+                f"candidate restore staging mismatch: {target['relative']}"
+            )
         return
     backup = codex_home / target["prior_backup_relative"]
     backup_content = safe_existing_bytes(backup, codex_home)
@@ -2435,13 +2726,19 @@ def atomic_restore_prior(codex_home: Path, target: dict) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.chmod(temporary, target["prior_mode"])
-        if not state_matches(target, "candidate", file_state(path, codex_home)):
-            raise InstallError(f"restore target drifted: {target['relative']}")
-        os.replace(temporary, path)
+        if file_state(path, codex_home) != (False, None, None):
+            raise InstallError(f"restore target collision: {target['relative']}")
+        rename_noreplace(temporary, path)
         fsync_directory(path.parent)
     finally:
         if temporary.exists():
             temporary.unlink()
+    if not state_matches(target, "prior", file_state(path, codex_home)):
+        raise InstallError(f"restored prior postimage mismatch: {target['relative']}")
+    if candidate_staging is not None and not state_matches(
+        target, "candidate", file_state(candidate_staging, codex_home)
+    ):
+        raise InstallError(f"candidate restore staging mismatch: {target['relative']}")
 
 
 def restore_install(
@@ -2481,6 +2778,7 @@ def restore_install(
                         f"candidate postimage drifted before restore: {target['relative']}"
                     )
             candidate_backups = {}
+            candidate_staging = {}
             for target in receipt["targets"]:
                 backup_relative = None
                 if target["candidate_exists"]:
@@ -2497,9 +2795,21 @@ def restore_install(
                         target["candidate_mode"],
                     )
                 candidate_backups[target["relative"]] = backup_relative
+                candidate_staging[target["relative"]] = (
+                    str(
+                        vault_relative(
+                            "staged-candidate",
+                            receipt["receipt_digest"],
+                            target["relative"],
+                        )
+                    )
+                    if target["candidate_exists"]
+                    else None
+                )
             journal = {
                 "candidate_backups": candidate_backups,
-                "format_version": 1,
+                "candidate_staging": candidate_staging,
+                "format_version": 2,
                 "package_id": SKILL_NAME,
                 "receipt_digest": receipt["receipt_digest"],
                 "target": receipt["target"],
@@ -2512,10 +2822,13 @@ def restore_install(
                 or journal["target"] != receipt["target"]
                 or set(journal["candidate_backups"])
                 != {target["relative"] for target in receipt["targets"]}
+                or set(journal["candidate_staging"])
+                != {target["relative"] for target in receipt["targets"]}
             ):
                 raise InstallError("unfinished restore belongs to another receipt")
         for target in receipt["targets"]:
             candidate_backup = journal["candidate_backups"][target["relative"]]
+            candidate_staging = journal["candidate_staging"][target["relative"]]
             expected_candidate_backup = (
                 str(
                     vault_relative(
@@ -2528,6 +2841,21 @@ def restore_install(
             if candidate_backup != expected_candidate_backup:
                 raise InstallError(
                     f"restore transaction has invalid candidate vault path: {target['relative']}"
+                )
+            expected_candidate_staging = (
+                str(
+                    vault_relative(
+                        "staged-candidate",
+                        receipt["receipt_digest"],
+                        target["relative"],
+                    )
+                )
+                if target["candidate_exists"]
+                else None
+            )
+            if candidate_staging != expected_candidate_staging:
+                raise InstallError(
+                    f"restore transaction has invalid candidate staging path: {target['relative']}"
                 )
             if target["candidate_exists"]:
                 candidate = safe_existing_bytes(
@@ -2543,7 +2871,7 @@ def restore_install(
                     raise InstallError(f"candidate restore vault mismatch: {target['relative']}")
             elif candidate_backup is not None:
                 raise InstallError(f"absent candidate has a vault path: {target['relative']}")
-            atomic_restore_prior(codex_home, target)
+            atomic_restore_prior(codex_home, target, candidate_staging)
             result = target["prior_sha256"] or "<absent>"
             if on_restored is not None:
                 on_restored(target["relative"], result)
