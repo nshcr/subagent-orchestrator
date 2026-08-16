@@ -266,6 +266,10 @@ raise SystemExit(module.main())
                 "receipt-bound apply transaction",
             ),
             (INSTALL_MODULE.RESTORE_JOURNAL_RELATIVE, "restore transaction"),
+            (
+                INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE,
+                "write cleanup transaction",
+            ),
         ):
             path = self.codex_home / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -423,6 +427,222 @@ raise SystemExit(module.main())
         self.assertFalse(INSTALL_MODULE.same_physical_file(agents, candidate_backup))
         report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
         self.assertEqual(report["restore_receipts"][0]["status"], "RESTORED")
+
+    def test_successive_en_zh_applies_leave_no_write_recovery_and_doctor_healthy(self):
+        en_plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        en_touched, en_restore = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", en_plan
+        )
+        self.assertTrue(en_touched)
+        self.assertTrue(en_restore.is_file())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_RECOVERY_RELATIVE).exists())
+
+        zh_plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "zh")
+        zh_touched, zh_restore = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "zh", zh_plan
+        )
+
+        self.assertTrue(zh_touched)
+        self.assertTrue(zh_restore.is_file())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_RECOVERY_RELATIVE).exists())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_RELATIVE).exists())
+        self.assertFalse(
+            (self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE).exists()
+        )
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "zh")
+        self.assertTrue(report["healthy"])
+        self.assertEqual(report["status"], "HEALTHY")
+        self.assertEqual(report["write_recovery"], [])
+
+    def test_write_cleanup_interruption_is_doctor_visible_and_resumable(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# exact cleanup prior\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        original_remove = INSTALL_MODULE.remove_verified_cleanup_file
+        interrupted = False
+
+        def remove_then_interrupt(path):
+            nonlocal interrupted
+            original_remove(path)
+            if not interrupted:
+                interrupted = True
+                raise OSError("injected write cleanup interruption")
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "remove_verified_cleanup_file",
+            side_effect=remove_then_interrupt,
+        ):
+            with self.assertRaisesRegex(OSError, "write cleanup interruption"):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        install_journal = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+        apply_journal = self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE
+        cleanup_journal = self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE
+        self.assertTrue(install_journal.is_file())
+        self.assertTrue(apply_journal.is_file())
+        self.assertTrue(cleanup_journal.is_file())
+        receipts = sorted(
+            (self.codex_home / INSTALL_MODULE.RESTORE_RECEIPTS_RELATIVE).glob("*.json")
+        )
+        self.assertEqual(len(receipts), 1)
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+        self.assertFalse(report["healthy"])
+        self.assertEqual(report["status"], "WRITE_CLEANUP_PENDING")
+
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+
+        self.assertEqual(touched, [])
+        self.assertEqual(receipt_path.resolve(), receipts[0].resolve())
+        self.assertFalse(install_journal.exists())
+        self.assertFalse(apply_journal.exists())
+        self.assertFalse(cleanup_journal.exists())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_RECOVERY_RELATIVE).exists())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_RELATIVE).exists())
+        INSTALL_MODULE.restore_install(self.codex_home, receipt_path)
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
+        self.assertFalse((self.codex_home / "config.toml").exists())
+
+    def test_cleanup_journal_resumes_after_install_journal_is_durably_removed(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# prior across final cleanup window\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        original_finish = INSTALL_MODULE.finish_write_cleanup_journal
+        interrupted = False
+
+        def interrupt_before_cleanup_journal_removal(codex_home, document):
+            nonlocal interrupted
+            if not interrupted:
+                interrupted = True
+                raise OSError("injected before cleanup journal removal")
+            return original_finish(codex_home, document)
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "finish_write_cleanup_journal",
+            side_effect=interrupt_before_cleanup_journal_removal,
+        ):
+            with self.assertRaisesRegex(OSError, "before cleanup journal removal"):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        install_journal = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+        apply_journal = self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE
+        cleanup_journal = self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE
+        receipts = sorted(
+            (self.codex_home / INSTALL_MODULE.RESTORE_RECEIPTS_RELATIVE).glob("*.json")
+        )
+        self.assertEqual(len(receipts), 1)
+        self.assertFalse(install_journal.exists())
+        self.assertTrue(apply_journal.is_file())
+        self.assertTrue(cleanup_journal.is_file())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_RECOVERY_RELATIVE).exists())
+        self.assertFalse((self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_RELATIVE).exists())
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+        self.assertFalse(report["healthy"])
+        self.assertEqual(report["status"], "WRITE_CLEANUP_PENDING")
+
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+
+        self.assertEqual(touched, [])
+        self.assertEqual(receipt_path.resolve(), receipts[0].resolve())
+        self.assertFalse(install_journal.exists())
+        self.assertFalse(apply_journal.exists())
+        self.assertFalse(cleanup_journal.exists())
+        self.assertTrue(receipt_path.is_file())
+        INSTALL_MODULE.restore_install(self.codex_home, receipt_path)
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
+        self.assertFalse((self.codex_home / "config.toml").exists())
+
+    def test_write_cleanup_collision_is_preserved_and_blocks_retry(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        agents.write_bytes(b"# cleanup collision prior\n")
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "run_write_cleanup",
+            side_effect=OSError("injected before write cleanup"),
+        ):
+            with self.assertRaisesRegex(OSError, "before write cleanup"):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        cleanup_document = INSTALL_MODULE.validate_write_cleanup_journal(
+            INSTALL_MODULE.read_managed_json(
+                self.codex_home,
+                INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE,
+                "write cleanup transaction",
+            )
+        )
+        collision = (
+            self.codex_home
+            / cleanup_document["write_recovery_relative"]
+            / "unexpected-owner-bytes"
+        )
+        collision.write_bytes(b"foreign cleanup collision\n")
+        staged_preimage = (
+            self.codex_home
+            / cleanup_document["entries"][0]["write_recovery_relative"]
+        )
+        staged_preimage.write_bytes(b"tampered staged preimage\n")
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+        self.assertFalse(report["healthy"])
+        self.assertEqual(report["status"], "WRITE_CLEANUP_CONFLICT")
+        self.assertTrue(
+            any(target["state"] == "UNEXPECTED_FILE" for target in report["targets"])
+        )
+        self.assertTrue(any(target["state"] == "MISMATCH" for target in report["targets"]))
+        with self.assertRaisesRegex(
+            INSTALL_MODULE.InstallError, "conflicting or tampered"
+        ):
+            INSTALL_MODULE.apply_install_with_receipt(self.codex_home, "en", plan)
+        self.assertEqual(collision.read_bytes(), b"foreign cleanup collision\n")
+        self.assertEqual(staged_preimage.read_bytes(), b"tampered staged preimage\n")
+        self.assertTrue(
+            (self.codex_home / INSTALL_MODULE.WRITE_CLEANUP_JOURNAL_RELATIVE).is_file()
+        )
+
+    def test_doctor_reports_orphan_write_recovery(self):
+        orphan = (
+            self.codex_home
+            / INSTALL_MODULE.WRITE_RECOVERY_RELATIVE
+            / ("a" * 64)
+            / ("b" * 64)
+            / "AGENTS.md"
+        )
+        orphan.parent.mkdir(parents=True)
+        orphan.write_bytes(b"orphan recovery bytes\n")
+
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+
+        self.assertFalse(report["healthy"])
+        self.assertEqual(report["status"], "WRITE_RECOVERY_ORPHAN")
+        self.assertTrue(
+            any(target["state"] == "ORPHAN_FILE" for target in report["targets"])
+        )
+        healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+        self.assertFalse(healthy)
+        self.assertIn("DOCTOR WRITE_RECOVERY_ORPHAN", diagnosis)
+        self.assertTrue(any(line.startswith("WRITE_RECOVERY ") for line in diagnosis))
 
     def test_restore_snapshots_are_independent_and_never_replace_collisions(self):
         self.codex_home.mkdir()

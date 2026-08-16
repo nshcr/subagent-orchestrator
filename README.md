@@ -148,8 +148,9 @@ The package manifest, migration catalog, managed state, plan/restore receipts,
 and every apply/restore journal use duplicate-key-rejecting JSON parsing; an
 ambiguous document is rejected before journal creation or target mutation.
 `--doctor` is read-only and classifies the current installation, active apply
-lock, unfinished apply or restore transaction, retained restore receipts, and
-any quarantined retired artifacts. Add
+lock, unfinished apply, write-cleanup, or restore transaction, retained restore
+receipts, orphan or conflicting write-recovery state, and any quarantined
+retired artifacts. Add
 `--format json` for a stable machine-readable diagnostic receipt.
 Choose `--agents-language en` for English or `--agents-language zh` for Simplified
 Chinese. The installer writes exactly one policy section and can safely switch a
@@ -194,9 +195,8 @@ are rechecked immediately before each managed mutation. Each existing live
 preimage is then atomically claimed into a transaction-id-owned
 `.write-recovery/` path and verified again; the candidate is renamed only into
 an absent live path. A concurrent live or staging collision is preserved and
-leaves the journal recoverable instead of being replaced. Claimed preimages are
-retained as recovery evidence. Atomicity is per file, not across the complete
-plan. If a
+leaves the journal recoverable instead of being replaced. Atomicity is per file,
+not across the complete plan. If a
 late change or interruption stops an apply, already completed `TOUCHED` receipts
 are flushed and the journal remains for read-only diagnosis and idempotent
 forward recovery with the same package, language, and plan receipt. Conflicting
@@ -209,7 +209,17 @@ verified staging link remains afterward as a read-only retirement receipt.
 
 Successful apply emits an absolute `RESTORE_RECEIPT` path. The install journal
 is retained through exact candidate postimage validation and durable receipt
-creation; cleanup interruptions resume forward from the receipt-bound metadata.
+creation. Only then does a durable cleanup journal bind the install transaction,
+plan and restore receipt, source/target identity, prior vault paths, and every
+transaction-owned `.write-recovery/` path. Cleanup atomically claims only that
+transaction subtree, verifies each exact staged byte sequence and mode against
+its independent prior-vault snapshot, and removes it. The install journal is
+removed only after staging cleanup completes; the cleanup journal is removed
+only after the install journal is durably gone. Cleanup interruptions therefore
+remain doctor-visible and resume with the same receipt, while a mismatch,
+symlink, unexpected file, cross-transaction path, or namespace collision is
+preserved and blocks cleanup. A completed apply has no write-recovery files;
+unclassified recovery subtrees are reported as orphans rather than HEALTHY.
 If interruption persists receipt-bound apply metadata before the install
 journal, retry proceeds only when every live target still equals its exact prior
 preimage; exact candidate postimages require the durable restore receipt, while
@@ -230,8 +240,8 @@ Review `--doctor`,
 `skills/subagent-orchestrator/.managed-package-state.json`, any
 `.install-transaction.json`, receipt-bound apply/restore journal,
 `.restore-receipts/`, `.restore-vault/`, `.retired/`, or
-`.retirement-receipts/` and `.write-recovery/` evidence, plus `AGENTS.md` and
-`config.toml`, before any
+`.retirement-receipts/`, `.write-recovery/`, `.write-recovery-cleanup/`, and the
+write-cleanup journal, plus `AGENTS.md` and `config.toml`, before any
 manual cleanup. A stale target lock also requires manual inspection; there is
 intentionally no force-unlock flag.
 

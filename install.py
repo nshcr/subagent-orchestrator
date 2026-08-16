@@ -47,11 +47,15 @@ APPLY_RECEIPT_JOURNAL_RELATIVE = (
 RESTORE_JOURNAL_RELATIVE = (
     Path("skills") / SKILL_NAME / ".receipt-restore-transaction.json"
 )
+WRITE_CLEANUP_JOURNAL_RELATIVE = (
+    Path("skills") / SKILL_NAME / ".write-recovery-cleanup-transaction.json"
+)
 RESTORE_VAULT_RELATIVE = Path("skills") / SKILL_NAME / ".restore-vault"
 RESTORE_RECEIPTS_RELATIVE = Path("skills") / SKILL_NAME / ".restore-receipts"
 QUARANTINE_RELATIVE = Path("skills") / SKILL_NAME / ".retired"
 STAGING_RELATIVE = Path("skills") / SKILL_NAME / ".retirement-receipts"
 WRITE_RECOVERY_RELATIVE = Path("skills") / SKILL_NAME / ".write-recovery"
+WRITE_CLEANUP_RELATIVE = Path("skills") / SKILL_NAME / ".write-recovery-cleanup"
 AGENTS_HEADING = "## Subagents and parallelism"
 LEGACY_AGENTS_HEADING = "## 子代理与并行"
 AGENTS_SECTION_FILES = {
@@ -1704,8 +1708,23 @@ def preserve_snapshot(
         raise InstallError(f"failed to preserve independent restore snapshot: {source}")
 
 
-def journal_document(plans: list[PlannedWrite], agents_language: str) -> dict:
-    transaction_id = secrets.token_hex(32)
+def apply_transaction_id(apply_document: dict) -> str:
+    return canonical_json_hash(
+        {
+            "format_version": 1,
+            "package_id": SKILL_NAME,
+            "plan_digest": apply_document["plan_digest"],
+            "source": apply_document["source"],
+            "target": apply_document["target"],
+        }
+    )
+
+
+def journal_document(
+    plans: list[PlannedWrite],
+    agents_language: str,
+    transaction_id: str,
+) -> dict:
     return {
         "agents_language": agents_language,
         "format_version": 2,
@@ -2145,12 +2164,39 @@ def finish_journal(codex_home: Path, journal: dict) -> None:
     status, _ = classify_journal(codex_home, journal)
     if status != "COMPLETE_PENDING_CLEANUP":
         raise InstallError(f"install transaction did not reach completion: {status}")
+    remove_install_journal(codex_home)
+
+
+def finish_cleaned_journal(codex_home: Path, journal: dict) -> None:
+    path = codex_home / JOURNAL_RELATIVE
+    current = read_journal(codex_home)
+    if current != journal:
+        raise InstallError("install transaction changed before write cleanup")
+    for target in journal["targets"]:
+        path_state = file_state(codex_home / target["relative"], codex_home)
+        if target["operation"] == "write":
+            expected = (True, target["desired_sha256"], target["desired_mode"])
+            recovery = target["write_recovery_relative"]
+            if path_state != expected or (
+                recovery is not None
+                and file_state(codex_home / recovery, codex_home)
+                != (False, None, None)
+            ):
+                raise InstallError(
+                    f"cleaned install transaction target mismatch: {target['relative']}"
+                )
+        else:
+            if path_state != (False, None, None):
+                raise InstallError(
+                    f"cleaned install quarantine target mismatch: {target['relative']}"
+                )
+    remove_install_journal(codex_home)
+
+
+def remove_install_journal(codex_home: Path) -> None:
+    path = codex_home / JOURNAL_RELATIVE
     path.unlink()
-    directory_descriptor = os.open(path.parent, os.O_RDONLY)
-    try:
-        os.fsync(directory_descriptor)
-    finally:
-        os.close(directory_descriptor)
+    fsync_directory(path.parent)
 
 
 def apply_install(
@@ -2159,33 +2205,63 @@ def apply_install(
     on_touched: Callable[[str, str], None] | None = None,
 ) -> list[tuple[str, str]]:
     codex_home = validate_codex_home(codex_home)
-    with apply_lock(codex_home):
-        journal = read_journal(codex_home)
-        if journal is not None:
-            if journal["install_contract_sha256"] != install_contract_sha256():
+    journal = read_journal(codex_home)
+    apply_document_raw = read_managed_json(
+        codex_home,
+        APPLY_RECEIPT_JOURNAL_RELATIVE,
+        "receipt-bound apply transaction",
+    )
+    if journal is not None and apply_document_raw is not None:
+        apply_document = validate_apply_receipt_journal(apply_document_raw)
+        restore_targets = {
+            target["relative"]: target
+            for target in apply_document["restore_targets"]
+        }
+        receipt = {
+            "agents_language": journal["agents_language"],
+            "format_version": 1,
+            "package_id": SKILL_NAME,
+            "plan_digest": apply_document["plan_digest"],
+            "source": apply_document["source"],
+            "target": apply_document["target"],
+            "targets": [
+                {
+                    "desired_exists": target["operation"] == "write",
+                    "desired_mode": target["desired_mode"],
+                    "desired_sha256": target["desired_sha256"],
+                    "managed_key": target["managed_key"],
+                    "operation": target["operation"],
+                    "prior_exists": target["prior_exists"],
+                    "prior_mode": target["prior_mode"],
+                    "prior_sha256": target["prior_sha256"],
+                    "relative": target["relative"],
+                }
+                for target in journal["targets"]
+            ],
+        }
+        validate_plan_receipt(receipt)
+        for target in receipt["targets"]:
+            restore_target = restore_targets[target["relative"]]
+            if (
+                target["prior_exists"] != restore_target["prior_exists"]
+                or target["prior_mode"] != restore_target["prior_mode"]
+                or target["prior_sha256"] != restore_target["prior_sha256"]
+                or target["desired_exists"] != restore_target["candidate_exists"]
+                or target["desired_mode"] != restore_target["candidate_mode"]
+                or target["desired_sha256"] != restore_target["candidate_sha256"]
+            ):
                 raise InstallError(
-                    "unfinished install transaction belongs to another install contract"
+                    f"internal recovery receipt mismatch: {target['relative']}"
                 )
-            if journal["agents_language"] != agents_language:
-                raise InstallError(
-                    "unfinished install transaction uses a different AGENTS language"
-                )
-            status, classifications = classify_journal(codex_home, journal)
-            if status == "PARTIAL_CONFLICT":
-                raise InstallError("unfinished install transaction has conflicting targets")
-            recover_claimed_writes(codex_home, journal, classifications)
-            plans, _ = plan_install(codex_home, agents_language, journal)
-            validate_recovery_plan(plans, journal)
-        else:
-            plans, _ = plan_install(codex_home, agents_language)
-            if not plans:
-                return []
-            journal = journal_document(plans, agents_language)
-            create_journal(codex_home, journal)
-        plans = bind_journal_write_recovery(plans, journal, codex_home)
-        touched = apply_plans(plans, codex_home, on_touched)
-        finish_journal(codex_home, journal)
-        return touched
+    else:
+        receipt = plan_receipt_document(codex_home, agents_language)
+    touched, _ = apply_install_with_receipt(
+        codex_home,
+        agents_language,
+        receipt,
+        on_touched,
+    )
+    return touched
 
 
 def validate_apply_receipt_journal(document: object) -> dict:
@@ -2481,6 +2557,358 @@ def ensure_restore_receipt(
     return receipt_path
 
 
+def write_cleanup_relative(receipt_digest: str, transaction_id: str) -> Path:
+    return WRITE_CLEANUP_RELATIVE / receipt_digest / transaction_id
+
+
+def write_cleanup_document(apply_document: dict, journal: dict) -> dict:
+    restore_receipt = restore_receipt_document(apply_document)
+    restore_targets = {
+        target["relative"]: target for target in apply_document["restore_targets"]
+    }
+    entries = []
+    cleanup_root = write_cleanup_relative(
+        restore_receipt["receipt_digest"], journal["transaction_id"]
+    )
+    source_root = WRITE_RECOVERY_RELATIVE / journal["transaction_id"]
+    for target in journal["targets"]:
+        recovery_relative = target["write_recovery_relative"]
+        if recovery_relative is None:
+            continue
+        receipt_target = restore_targets[target["relative"]]
+        relative_within_transaction = Path(recovery_relative).relative_to(source_root)
+        entries.append(
+            {
+                "cleanup_relative": str(cleanup_root / relative_within_transaction),
+                "prior_backup_relative": receipt_target["prior_backup_relative"],
+                "prior_mode": receipt_target["prior_mode"],
+                "prior_sha256": receipt_target["prior_sha256"],
+                "relative": target["relative"],
+                "write_recovery_relative": recovery_relative,
+            }
+        )
+    return {
+        "cleanup_relative": str(cleanup_root),
+        "entries": entries,
+        "format_version": 1,
+        "install_contract_sha256": journal["install_contract_sha256"],
+        "package_id": SKILL_NAME,
+        "plan_digest": apply_document["plan_digest"],
+        "receipt_digest": restore_receipt["receipt_digest"],
+        "source": apply_document["source"],
+        "target": apply_document["target"],
+        "transaction_id": journal["transaction_id"],
+        "write_recovery_relative": str(source_root),
+    }
+
+
+def validate_write_cleanup_journal(document: object) -> dict:
+    expected_keys = {
+        "cleanup_relative",
+        "entries",
+        "format_version",
+        "install_contract_sha256",
+        "package_id",
+        "plan_digest",
+        "receipt_digest",
+        "source",
+        "target",
+        "transaction_id",
+        "write_recovery_relative",
+    }
+    if not isinstance(document, dict) or set(document) != expected_keys:
+        raise InstallError("write cleanup transaction has an unknown schema")
+    if document["format_version"] != 1 or document["package_id"] != SKILL_NAME:
+        raise InstallError("write cleanup transaction identity mismatch")
+    for name in (
+        "install_contract_sha256",
+        "plan_digest",
+        "receipt_digest",
+        "transaction_id",
+    ):
+        if not validate_optional_hash(document[name]) or document[name] is None:
+            raise InstallError(f"write cleanup transaction has invalid {name}")
+    validate_source_identity(document["source"])
+    validate_target_identity(document["target"])
+    expected_source_root = WRITE_RECOVERY_RELATIVE / document["transaction_id"]
+    expected_cleanup_root = write_cleanup_relative(
+        document["receipt_digest"], document["transaction_id"]
+    )
+    if document["write_recovery_relative"] != str(expected_source_root) or document[
+        "cleanup_relative"
+    ] != str(expected_cleanup_root):
+        raise InstallError("write cleanup transaction has invalid transaction roots")
+    if not isinstance(document["entries"], list) or not document["entries"]:
+        raise InstallError("write cleanup transaction has no entries")
+    expected_entry_keys = {
+        "cleanup_relative",
+        "prior_backup_relative",
+        "prior_mode",
+        "prior_sha256",
+        "relative",
+        "write_recovery_relative",
+    }
+    seen = set()
+    for entry in document["entries"]:
+        if not isinstance(entry, dict) or set(entry) != expected_entry_keys:
+            raise InstallError("write cleanup transaction has an invalid entry")
+        relative = entry["relative"]
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+            or relative in seen
+        ):
+            raise InstallError("write cleanup transaction has an unsafe target")
+        if (
+            not validate_optional_hash(entry["prior_sha256"])
+            or entry["prior_sha256"] is None
+            or not isinstance(entry["prior_mode"], int)
+            or not 0 <= entry["prior_mode"] <= 0o777
+        ):
+            raise InstallError(f"write cleanup transaction has invalid prior: {relative}")
+        expected_recovery = write_recovery_relative(
+            document["transaction_id"], relative
+        )
+        expected_cleanup = expected_cleanup_root / expected_recovery.relative_to(
+            expected_source_root
+        )
+        expected_backup = vault_relative("prior", document["plan_digest"], relative)
+        if (
+            entry["write_recovery_relative"] != str(expected_recovery)
+            or entry["cleanup_relative"] != str(expected_cleanup)
+            or entry["prior_backup_relative"] != str(expected_backup)
+        ):
+            raise InstallError(
+                f"write cleanup transaction has invalid paths: {relative}"
+            )
+        seen.add(relative)
+    return document
+
+
+def inspect_write_cleanup_tree(
+    codex_home: Path,
+    document: dict,
+    root_key: str,
+    *,
+    allow_missing: bool,
+) -> tuple[bool, list[tuple[str, str]]]:
+    root = codex_home / document[root_key]
+    if root.is_symlink():
+        return False, [(str(root.relative_to(codex_home)), "SYMLINK")]
+    if not root.exists():
+        return True, [(entry["relative"], "CLEANED") for entry in document["entries"]]
+    if not root.is_dir():
+        return False, [(str(root.relative_to(codex_home)), "NOT_DIRECTORY")]
+    entry_key = (
+        "write_recovery_relative"
+        if root_key == "write_recovery_relative"
+        else "cleanup_relative"
+    )
+    expected_files = {
+        (codex_home / entry[entry_key]).relative_to(root): entry
+        for entry in document["entries"]
+    }
+    expected_dirs = set()
+    for relative in expected_files:
+        expected_dirs.update(parent for parent in relative.parents if parent != Path("."))
+    states = []
+    valid = True
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root)
+        if path.is_symlink():
+            states.append((str(path.relative_to(codex_home)), "SYMLINK"))
+            valid = False
+        elif path.is_dir():
+            if relative not in expected_dirs:
+                states.append((str(path.relative_to(codex_home)), "UNEXPECTED_DIRECTORY"))
+                valid = False
+        elif path.is_file():
+            if relative not in expected_files:
+                states.append((str(path.relative_to(codex_home)), "UNEXPECTED_FILE"))
+                valid = False
+        else:
+            states.append((str(path.relative_to(codex_home)), "UNEXPECTED_OBJECT"))
+            valid = False
+    for relative, entry in expected_files.items():
+        path = root / relative
+        state = file_state(path, codex_home)
+        expected = (True, entry["prior_sha256"], entry["prior_mode"])
+        if state == expected:
+            states.append((entry["relative"], "PENDING"))
+        elif allow_missing and state == (False, None, None):
+            states.append((entry["relative"], "CLEANED"))
+        else:
+            states.append((entry["relative"], "MISMATCH"))
+            valid = False
+    return valid, states
+
+
+def classify_write_cleanup(
+    codex_home: Path, document: dict
+) -> tuple[str, list[tuple[str, str]]]:
+    source = codex_home / document["write_recovery_relative"]
+    cleanup = codex_home / document["cleanup_relative"]
+    source_exists = source.exists() or source.is_symlink()
+    cleanup_exists = cleanup.exists() or cleanup.is_symlink()
+    if source_exists and cleanup_exists:
+        return "WRITE_CLEANUP_CONFLICT", [
+            (document["transaction_id"], "BOTH_TRANSACTION_ROOTS_EXIST")
+        ]
+    if source_exists:
+        valid, states = inspect_write_cleanup_tree(
+            codex_home, document, "write_recovery_relative", allow_missing=False
+        )
+        return (
+            "WRITE_CLEANUP_PENDING" if valid else "WRITE_CLEANUP_CONFLICT",
+            states,
+        )
+    if cleanup_exists:
+        valid, states = inspect_write_cleanup_tree(
+            codex_home, document, "cleanup_relative", allow_missing=True
+        )
+        return (
+            "WRITE_CLEANUP_PENDING" if valid else "WRITE_CLEANUP_CONFLICT",
+            states,
+        )
+    return "WRITE_CLEANUP_COMPLETE", [
+        (entry["relative"], "CLEANED") for entry in document["entries"]
+    ]
+
+
+def verify_cleanup_entry(codex_home: Path, entry: dict, path: Path) -> None:
+    backup = codex_home / entry["prior_backup_relative"]
+    expected = (True, entry["prior_sha256"], entry["prior_mode"])
+    if file_state(path, codex_home) != expected or file_state(backup, codex_home) != expected:
+        raise InstallError(f"write cleanup preimage mismatch: {entry['relative']}")
+    if same_physical_file(path, backup):
+        raise InstallError(
+            f"write cleanup preimage is not independent: {entry['relative']}"
+        )
+
+
+def verify_write_cleanup_binding(
+    document: dict,
+    apply_document: dict,
+    journal: dict | None,
+) -> None:
+    restore_receipt = restore_receipt_document(apply_document)
+    if (
+        document["plan_digest"] != apply_document["plan_digest"]
+        or document["receipt_digest"] != restore_receipt["receipt_digest"]
+        or document["source"] != apply_document["source"]
+        or document["target"] != apply_document["target"]
+        or document["install_contract_sha256"]
+        != apply_document["source"]["install_contract_sha256"]
+        or document["transaction_id"] != apply_transaction_id(apply_document)
+    ):
+        raise InstallError("write cleanup transaction binding mismatch")
+    restore_targets = {
+        target["relative"]: target for target in apply_document["restore_targets"]
+    }
+    expected_relatives = {
+        relative
+        for relative, target in restore_targets.items()
+        if target["prior_exists"] and target["candidate_exists"]
+    }
+    if {entry["relative"] for entry in document["entries"]} != expected_relatives:
+        raise InstallError("write cleanup transaction target set mismatch")
+    for entry in document["entries"]:
+        target = restore_targets[entry["relative"]]
+        if (
+            entry["prior_sha256"] != target["prior_sha256"]
+            or entry["prior_mode"] != target["prior_mode"]
+            or entry["prior_backup_relative"] != target["prior_backup_relative"]
+        ):
+            raise InstallError(
+                f"write cleanup transaction receipt mismatch: {entry['relative']}"
+            )
+    if journal is not None and write_cleanup_document(apply_document, journal) != document:
+        raise InstallError("write cleanup transaction install-journal mismatch")
+
+
+def remove_verified_cleanup_file(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    path.unlink()
+    fsync_directory(path.parent)
+
+
+def remove_empty_directory(path: Path) -> None:
+    try:
+        path.rmdir()
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        if error.errno in {errno.ENOTEMPTY, errno.EEXIST}:
+            return
+        raise
+    fsync_directory(path.parent)
+
+
+def run_write_cleanup(codex_home: Path, document: dict) -> None:
+    status, _ = classify_write_cleanup(codex_home, document)
+    if status == "WRITE_CLEANUP_CONFLICT":
+        raise InstallError("write cleanup transaction is conflicting or tampered")
+    source_root = codex_home / document["write_recovery_relative"]
+    cleanup_root = codex_home / document["cleanup_relative"]
+    if status == "WRITE_CLEANUP_PENDING" and source_root.exists():
+        for entry in document["entries"]:
+            verify_cleanup_entry(
+                codex_home,
+                entry,
+                codex_home / entry["write_recovery_relative"],
+            )
+        cleanup_root.parent.mkdir(parents=True, exist_ok=True)
+        rename_noreplace(source_root, cleanup_root)
+        fsync_directory(source_root.parent)
+        fsync_directory(cleanup_root.parent)
+        status, _ = classify_write_cleanup(codex_home, document)
+        if status != "WRITE_CLEANUP_PENDING":
+            raise InstallError("write cleanup transaction changed while being claimed")
+    if status == "WRITE_CLEANUP_PENDING":
+        for entry in document["entries"]:
+            path = codex_home / entry["cleanup_relative"]
+            if file_state(path, codex_home) == (False, None, None):
+                continue
+            verify_cleanup_entry(codex_home, entry, path)
+            remove_verified_cleanup_file(path)
+        directories = [path for path in cleanup_root.rglob("*") if path.is_dir()]
+        for directory in sorted(
+            directories, key=lambda value: len(value.parts), reverse=True
+        ):
+            directory.rmdir()
+            fsync_directory(directory.parent)
+        cleanup_root.rmdir()
+        fsync_directory(cleanup_root.parent)
+    status, _ = classify_write_cleanup(codex_home, document)
+    if status != "WRITE_CLEANUP_COMPLETE":
+        raise InstallError(f"write cleanup transaction did not complete: {status}")
+    remove_empty_directory(codex_home / WRITE_RECOVERY_RELATIVE)
+    remove_empty_directory(cleanup_root.parent)
+    remove_empty_directory(codex_home / WRITE_CLEANUP_RELATIVE)
+
+
+def finish_write_cleanup_journal(codex_home: Path, document: dict) -> None:
+    current = read_managed_json(
+        codex_home,
+        WRITE_CLEANUP_JOURNAL_RELATIVE,
+        "write cleanup transaction",
+    )
+    if validate_write_cleanup_journal(current) != document:
+        raise InstallError("write cleanup transaction changed before cleanup")
+    status, _ = classify_write_cleanup(codex_home, document)
+    if status != "WRITE_CLEANUP_COMPLETE":
+        raise InstallError(f"write cleanup transaction is not complete: {status}")
+    path = codex_home / WRITE_CLEANUP_JOURNAL_RELATIVE
+    path.unlink()
+    fsync_directory(path.parent)
+
+
 def classify_receipt_bound_apply(
     codex_home: Path,
     apply_document: dict,
@@ -2529,6 +2957,20 @@ def apply_install_with_receipt(
             "receipt-bound apply transaction",
         )
         journal = read_journal(codex_home)
+        cleanup_document_raw = read_managed_json(
+            codex_home,
+            WRITE_CLEANUP_JOURNAL_RELATIVE,
+            "write cleanup transaction",
+        )
+        if cleanup_document_raw is not None and apply_document_raw is None:
+            raise InstallError("write cleanup transaction is missing apply metadata")
+        if (
+            cleanup_document_raw is None
+            and apply_document_raw is None
+            and journal is None
+            and write_recovery_artifacts(codex_home)
+        ):
+            raise InstallError("orphan write recovery state blocks apply")
         if apply_document_raw is None:
             if journal is not None:
                 raise InstallError(
@@ -2538,7 +2980,11 @@ def apply_install_with_receipt(
             if not plans:
                 return [], None
             apply_document = prepare_receipt_bound_apply(codex_home, receipt, plans)
-            journal = journal_document(plans, agents_language)
+            journal = journal_document(
+                plans,
+                agents_language,
+                apply_transaction_id(apply_document),
+            )
             create_journal(codex_home, journal)
         else:
             apply_document = validate_apply_receipt_journal(apply_document_raw)
@@ -2553,7 +2999,42 @@ def apply_install_with_receipt(
                 raise InstallError("source package drifted during apply recovery")
             if receipt["target"] != target_identity(codex_home):
                 raise InstallError("target identity changed during apply recovery")
+            if cleanup_document_raw is not None:
+                cleanup_document = validate_write_cleanup_journal(
+                    cleanup_document_raw
+                )
+                verify_write_cleanup_binding(
+                    cleanup_document, apply_document, journal
+                )
+                verify_restore_target_backups(
+                    codex_home, apply_document["restore_targets"]
+                )
+                verify_candidate_postimages(codex_home, apply_document)
+                receipt_path = ensure_restore_receipt(
+                    codex_home, apply_document, may_create=False
+                )
+                run_write_cleanup(codex_home, cleanup_document)
+                if journal is not None:
+                    finish_cleaned_journal(codex_home, journal)
+                finish_write_cleanup_journal(codex_home, cleanup_document)
+                meta_path = codex_home / APPLY_RECEIPT_JOURNAL_RELATIVE
+                current_meta = read_managed_json(
+                    codex_home,
+                    APPLY_RECEIPT_JOURNAL_RELATIVE,
+                    "receipt-bound apply transaction",
+                )
+                if validate_apply_receipt_journal(current_meta) != apply_document:
+                    raise InstallError(
+                        "receipt-bound apply transaction changed before cleanup"
+                    )
+                meta_path.unlink()
+                fsync_directory(meta_path.parent)
+                return [], receipt_path
             if journal is not None:
+                if journal["transaction_id"] != apply_transaction_id(apply_document):
+                    raise InstallError(
+                        "unfinished apply has an invalid transaction binding"
+                    )
                 if journal["install_contract_sha256"] != install_contract_sha256():
                     raise InstallError("unfinished apply belongs to another install contract")
                 if journal["agents_language"] != agents_language:
@@ -2582,7 +3063,11 @@ def apply_install_with_receipt(
                         raise InstallError(
                             "prepared apply metadata does not match the plan receipt"
                         )
-                    journal = journal_document(plans, agents_language)
+                    journal = journal_document(
+                        plans,
+                        agents_language,
+                        apply_transaction_id(apply_document),
+                    )
                     create_journal(codex_home, journal)
                 else:
                     # The only journal-free completion state is exact candidate
@@ -2600,7 +3085,17 @@ def apply_install_with_receipt(
             may_create=journal is not None,
         )
         if journal is not None:
-            finish_journal(codex_home, journal)
+            cleanup_document = write_cleanup_document(apply_document, journal)
+            if cleanup_document["entries"]:
+                write_new_json(
+                    codex_home / WRITE_CLEANUP_JOURNAL_RELATIVE,
+                    cleanup_document,
+                )
+                run_write_cleanup(codex_home, cleanup_document)
+                finish_cleaned_journal(codex_home, journal)
+                finish_write_cleanup_journal(codex_home, cleanup_document)
+            else:
+                finish_journal(codex_home, journal)
         meta_path = codex_home / APPLY_RECEIPT_JOURNAL_RELATIVE
         current_meta = read_managed_json(
             codex_home,
@@ -2770,11 +3265,21 @@ def restore_install(
             raise InstallError("restore receipt belongs to another target identity")
         if receipt["source"] != source_package_identity():
             raise InstallError("restore receipt belongs to another source package")
-        if read_journal(codex_home) is not None or read_managed_json(
-            codex_home,
-            APPLY_RECEIPT_JOURNAL_RELATIVE,
-            "receipt-bound apply transaction",
-        ) is not None:
+        if (
+            read_journal(codex_home) is not None
+            or read_managed_json(
+                codex_home,
+                APPLY_RECEIPT_JOURNAL_RELATIVE,
+                "receipt-bound apply transaction",
+            )
+            is not None
+            or read_managed_json(
+                codex_home,
+                WRITE_CLEANUP_JOURNAL_RELATIVE,
+                "write cleanup transaction",
+            )
+            is not None
+        ):
             raise InstallError("cannot restore while an apply transaction is unfinished")
         verify_restore_target_backups(codex_home, receipt["targets"])
         journal_raw = read_managed_json(
@@ -3020,6 +3525,42 @@ def restore_receipt_reports(codex_home: Path) -> list[dict[str, str]]:
     return reports
 
 
+def write_recovery_artifacts(codex_home: Path) -> list[dict[str, str]]:
+    artifacts = []
+    for root_relative in (WRITE_RECOVERY_RELATIVE, WRITE_CLEANUP_RELATIVE):
+        root = codex_home / root_relative
+        if root.is_symlink():
+            artifacts.append({"path": str(root_relative), "state": "SYMLINK"})
+            continue
+        if not root.exists():
+            continue
+        if not root.is_dir():
+            artifacts.append({"path": str(root_relative), "state": "NOT_DIRECTORY"})
+            continue
+        found_leaf = False
+        for path in sorted(root.rglob("*")):
+            if path.is_symlink():
+                state = "SYMLINK"
+            elif path.is_file():
+                state = "FILE"
+            elif path.is_dir():
+                try:
+                    next(path.iterdir())
+                except StopIteration:
+                    state = "EMPTY_DIRECTORY"
+                else:
+                    continue
+            else:
+                state = "OBJECT"
+            found_leaf = True
+            artifacts.append(
+                {"path": str(path.relative_to(codex_home)), "state": state}
+            )
+        if not found_leaf:
+            artifacts.append({"path": str(root_relative), "state": "EMPTY_DIRECTORY"})
+    return artifacts
+
+
 def doctor_report(codex_home: Path, agents_language: str) -> dict:
     """Return a stable, read-only diagnostic report for text or JSON rendering."""
     codex_home = validate_codex_home(codex_home)
@@ -3037,8 +3578,40 @@ def doctor_report(codex_home: Path, agents_language: str) -> dict:
         "restore_receipts": [],
         "status": "ACTIVE_APPLY" if locked else "UNKNOWN",
         "targets": [],
+        "write_recovery": [],
     }
     if locked:
+        return report
+    cleanup_raw = read_managed_json(
+        codex_home,
+        WRITE_CLEANUP_JOURNAL_RELATIVE,
+        "write cleanup transaction",
+    )
+    if cleanup_raw is not None:
+        try:
+            cleanup_document = validate_write_cleanup_journal(cleanup_raw)
+            status, classifications = classify_write_cleanup(
+                codex_home, cleanup_document
+            )
+            report["status"] = (
+                "WRITE_CLEANUP_PENDING"
+                if status == "WRITE_CLEANUP_COMPLETE"
+                else status
+            )
+            report["targets"] = [
+                {"path": relative, "state": classification}
+                for relative, classification in classifications
+            ]
+        except InstallError:
+            report["status"] = "WRITE_CLEANUP_CONFLICT"
+            report["targets"] = [
+                {
+                    "path": str(WRITE_CLEANUP_JOURNAL_RELATIVE),
+                    "state": "TAMPERED",
+                }
+            ]
+        report["write_recovery"] = write_recovery_artifacts(codex_home)
+        report["restore_receipts"] = restore_receipt_reports(codex_home)
         return report
     restore_journal = read_managed_json(
         codex_home, RESTORE_JOURNAL_RELATIVE, "restore transaction"
@@ -3051,6 +3624,7 @@ def doctor_report(codex_home: Path, agents_language: str) -> dict:
             for relative in sorted(restore_journal["candidate_backups"])
         ]
         report["restore_receipts"] = restore_receipt_reports(codex_home)
+        report["write_recovery"] = write_recovery_artifacts(codex_home)
         return report
     journal = read_journal(codex_home)
     if journal is not None:
@@ -3063,6 +3637,15 @@ def doctor_report(codex_home: Path, agents_language: str) -> dict:
             for relative, classification in classifications
         ]
     else:
+        report["write_recovery"] = write_recovery_artifacts(codex_home)
+        if report["write_recovery"]:
+            report["status"] = "WRITE_RECOVERY_ORPHAN"
+            report["targets"] = [
+                {"path": artifact["path"], "state": f"ORPHAN_{artifact['state']}"}
+                for artifact in report["write_recovery"]
+            ]
+            report["restore_receipts"] = restore_receipt_reports(codex_home)
+            return report
         state_exists = (
             safe_existing_bytes(codex_home / STATE_RELATIVE, codex_home) is not None
         )
@@ -3088,6 +3671,7 @@ def doctor_report(codex_home: Path, agents_language: str) -> dict:
         "retirement receipt",
     )
     report["restore_receipts"] = restore_receipt_reports(codex_home)
+    report["write_recovery"] = write_recovery_artifacts(codex_home)
     return report
 
 
@@ -3116,6 +3700,10 @@ def render_doctor_report(report: dict) -> list[str]:
             **receipt
         )
         for receipt in report["retirement_receipts"]
+    )
+    lines.extend(
+        f"WRITE_RECOVERY {artifact['path']} {artifact['state']}"
+        for artifact in report["write_recovery"]
     )
     return lines
 
