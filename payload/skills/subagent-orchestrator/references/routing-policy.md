@@ -13,7 +13,7 @@ custom leaves; built-in agents own generic leaves and the capability-gated peer 
 | Required independent high-risk final gate | fresh `risk_reviewer` | Named, disjoint final invariant registry |
 | Material narrow read-only codebase question | built-in `explorer` leaf | External manifest passes explorer path/byte predicate and replaces primary scan |
 | Scoped implementation or fix | built-in `worker` leaf | External manifest passes worker predicate; settled strategy; disjoint writer component |
-| Material dependency graph needing direct evidence handoff | built-in `default` bounded peer | Proven capability and material primary relay removed |
+| Material dependency graph needing direct evidence handoff | built-in `default` bounded peer | Trace-external host capability plus producer-consumer artifact receipt proving material primary relay removed |
 | Any other, ambiguous, simple, resolved, mechanical, or open-ended class | Primary | No qualified route |
 
 An artifact request, label, ordinary leaf, two tiny files, padding, duplicate ranges,
@@ -27,11 +27,13 @@ manifest; an agent cannot self-issue or proxy it. Missing evidence falls back pr
 - Governed custom roles are parent-routed nonrecursive leaves: depth zero, no peer
   message, no follow-up. Built-in `explorer` and `worker` are leaves by default.
 - Built-in `default` may coordinate one additional level with at most two registered
-  built-in leaf descendants. This bounded-peer topology has one coordinator maximum. Unproven client capability
+  built-in leaf descendants. This bounded-peer topology has one coordinator maximum
+  and must execute its externally bound artifact relay; a no-op peer is rejected. Unproven client capability
   fails closed to a built-in leaf or primary.
 - One writer owns each task-wide canonical component. Overlap, rename, split, and
   merge union aliases permanently. Reject overlapping writers. Two accumulated
-  writer compactions exhaust new writer spawn/follow-up for that component.
+  writer compactions, proven by trace-external host receipts rather than terminal
+  self-report, exhaust new writer spawn/follow-up for that component.
 - Start at most three qualified direct children; a fourth needs explicit user
   authorization. Capacity alone never qualifies delegation. Shared mutation and
   final integration remain serial.
@@ -43,8 +45,9 @@ Open `slice_open` before spawn and use immutable work-transfer receipts with
 access ledger and does not reconstruct transferred work. Only digest-bound targeted
 precheck and strict proper-subset sampling no larger than 10% are promotion eligible.
 
-`send_message` carries admitted evidence, dependency status, or an artifact receipt
-to a running built-in target; it cannot start a turn or amend authorization, scope,
+`send_message` carries externally admitted evidence, dependency status, or an artifact
+receipt to a running built-in target, bound to producer, task, slice, typed purpose, and the
+target's original transfer digest; it cannot start a turn or amend authorization, scope,
 ownership, topology, or handoff; its canonical digest binds a non-empty dependency.
 `followup_task` targets an idle/terminal built-in
 child for `new_failure_evidence`, `missing_acceptance_field`, or

@@ -19,14 +19,18 @@ role behavior and fixed child runtime configuration live in agent TOMLs.
    required gates, and the admitted state digest.
 4. Issue each child an immutable work-transfer receipt. Use `fork_turns=none`;
    full-history children and agent-authored materiality are ineligible.
+5. Require host-provided authority receipts in a separate document outside the lifecycle trace. Trace
+   SHA-256 values bind payloads but never authenticate issuers; missing or unmatched
+   materiality, compaction, message, bounded-peer, or pilot authority fails closed.
 
 ## Run, freeze, and close
 
 1. Start only qualified, independent, ownership-safe children. Preserve the
    direct-child and bounded-peer caps; capacity never creates work.
 2. Keep a task-wide primary source-access ledger. Targeted precheck and sampling
-   use one frozen denominator and must be proper subsets no larger than 10%; integration readback
-   may inspect child artifacts and changed files without replaying transferred scans.
+   use one frozen denominator and must be proper subsets no larger than 10%; integration
+   consumes only admitted artifact/changed-path receipts with zero transferred source
+   ranges and bytes.
 3. Treat wait timeout as observation-only. Never interrupt for silence, elapsed
    time, token use, credits, or repeated waits; every required descendant ends terminal.
 4. Freeze only after the writer is terminal. Tester, reviewer, gate, and close
@@ -42,8 +46,14 @@ role behavior and fixed child runtime configuration live in agent TOMLs.
 - After two writer compactions for one task and owner component, reject new writer
   spawn/follow-up; do not cancel an active child, and accept safe incomplete receipts.
 - `send_message` carries admitted evidence, dependency status, or artifact receipt
-  to a running built-in target. `followup_task` uses only the three typed same-scope
+  to a running built-in target, bound to task, slice, original transfer scope, typed
+  purpose, and an externally admitted receipt. `followup_task` uses only the three typed same-scope
   reasons. Custom roles never message, recurse, repair, or review their own repair.
+- A default peer requires trace-external host capability plus an executed producer-to-
+  consumer artifact relay. No-op peers without both admitted descendants and material
+  relay are ineligible.
+- Pilot authorization follows freeze, binds the exact frozen HEAD and message producer,
+  rejects every normalized create-task action, and becomes stale after any new generation.
 - The primary retains authorization, scope, conflict handling, integration, and
   final acceptance. Unsupported or capability-unverified work stays primary.
 

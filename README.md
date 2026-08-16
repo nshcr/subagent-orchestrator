@@ -44,27 +44,35 @@ unique slice, one acceptance milestone, one change class, exact task-wide owner
 paths, required gate IDs, and an admitted state summary. Every child receives an
 immutable work-transfer receipt and fresh context; full-history children are never
 eligible. Explorer and worker additionally require a non-self-issued materiality
-manifest with canonical, deduplicated source ranges. Tiny leaves, padding, repeated
+manifest with canonical, deduplicated source ranges and a matching host authority
+receipt supplied in a physically separate document outside the trace. Trace SHA-256 values bind payloads but do not
+authenticate issuers. Tiny leaves, padding, repeated
 content, synthetic splitting, and verification-token assets fall back to primary.
 
 Primary source access is accounted across the complete task. A targeted precheck or
-sampling receipt must be a strict proper subset no larger than 10%; integration may
-read child receipts, artifacts, and changed files, but cannot replay the transferred
+sampling receipt must be a strict proper subset no larger than 10%; integration has
+zero source ranges/bytes and consumes admitted artifact or changed-path receipts only.
+It cannot replay the transferred
 scan. Canonical owner components permanently union overlap, rename, split, and merge
-aliases. Two writer compactions exhaust new writer work for that task/component.
+aliases. Trace-external cumulative compaction receipts, not terminal self-report,
+prove when two writer compactions exhaust new writer work for that task/component.
 Each slice permits at most one writer, and sampling uses one frozen task-wide denominator.
 
 Freeze occurs only after writer terminal. Tester, reviewer, every gate, and close
 recompute HEAD, index, worktree, and complete changed-path digests. Any hash change
 invalidates all gates. Each invariant belongs to exactly one gate, and three disjoint
 fresh gates must PASS the same final hash; repairs rerun all three at the next attempt.
-Messages and follow-ups are typed, digest-bound, same-scope control events; polling,
+Messages and follow-ups are typed, digest-bound, same-scope control events. Message
+receipts bind the original transfer digest, and a default peer needs host capability
+plus an executed producer-consumer artifact relay; polling, no-op peers,
 custom-role messaging, reviewer self-review, unregistered peers, and scope changes
 are hard blockers. Close requires the full task tree terminal.
 
-Pilot activation requires a host-issued admission receipt for a new task. It binds
-the user authorization event, signer, actions, target, revision, package, validity,
-and excluded active task IDs; it cannot auto-create tasks. Without CI, target, and
+Pilot activation requires a host authorization anchor outside the trace for a new
+task after freeze. It binds authorization event/text, task/slice, signer, non-empty
+string actions, target identity, exact frozen HEAD revision, package/contract, validity,
+and exact excluded active-task IDs; repair makes it stale, and normalized create-task
+actions are forbidden. Without CI, target, and
 signed pilot evidence, the highest claim remains `verified-local`.
 
 ## Requirements

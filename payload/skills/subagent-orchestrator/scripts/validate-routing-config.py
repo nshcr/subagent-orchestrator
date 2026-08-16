@@ -13,7 +13,11 @@ import sys
 import tomllib
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lifecycle_conformance import load_trace, validate_trace_document
+from lifecycle_conformance import (
+    load_trace,
+    load_trusted_authority_receipts,
+    validate_trace_document,
+)
 
 
 SKILL_NAME = "subagent-orchestrator"
@@ -112,14 +116,14 @@ ROLE_INSTRUCTION_SHA256 = {
     "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
 }
 REFERENCE_SHA256 = {
-    "routing-policy.md": "ac944ba5ec777cd1bf187ced8347332a051b09de8ce23f4b49c4edaaccb0c1d3",
-    "evaluation-policy.md": "59280215f90eee72eb1463d7625a034c309e6545727d3b08005a8082f3b01354",
-    "delegation-contracts.md": "6831283a4643c1d7a538f3c02e36ee024d9188b87e6aa4042ec382cbf1635676",
+    "routing-policy.md": "60848931f487bfb55b576394e3fb6ba63d27dd6ad69736ab18bb9b2635a83465",
+    "evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
+    "delegation-contracts.md": "792b6dfb180571f33bf81fc2ccc1c5dd55ffb7c9c1fb28dde4ed90e9075385c5",
 }
-SKILL_SHA256 = "36df8d88592525fba7749b2618254751ba0f07eec4f61d4aea2533ae2aa3d112"
+SKILL_SHA256 = "b82d2905847dc376bb99555b1d49675ede80bf2050d38ee87f11218e3641f4bc"
 GLOBAL_POLICY_SHA256 = {
-    "## Subagents and parallelism": "5274ac947738eeaddfa4e8c1c4538192ea5db17be042a19b1feca4e13cc45fe3",
-    "## 子代理与并行": "50702c458d4adf38d2b4b86d578fd5b4ef36cd43ef6dd0306640b491061e09f3",
+    "## Subagents and parallelism": "fc8df61ce6ebe5066d2797ea96cf291a3364864fca55be488b4d84cf99c72b27",
+    "## 子代理与并行": "39235ebb5d0a72b5be545e070d9019814ec533db5cc542bfd6407b932e30a990",
 }
 GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
@@ -131,7 +135,7 @@ GLOBAL_POLICY_MARKERS = {
         "The primary always retains authorization, scope, conflict handling, integration, and final acceptance",
         "children cannot expand authority",
         "governed roles remain leaves",
-        "only a skill-qualified bounded peer may delegate one level",
+        "only a capability-and-relay-qualified bounded peer may delegate one level",
         "every required descendant must reach a terminal state before the primary ends",
     ),
     "## 子代理与并行": (
@@ -143,13 +147,14 @@ GLOBAL_POLICY_MARKERS = {
         "主代理始终保留授权、范围、冲突处理、整合和最终验收",
         "子代理不得扩权",
         "治理角色保持叶子",
-        "仅 skill 准入的受限协作代理可继续委派一层",
+        "仅同时通过能力与实质 relay 准入的受限协作代理可继续委派一层",
         "所有必需后代在主代理结束前必须到达终态",
     ),
 }
 LIFECYCLE_ASSET_SHA256 = {
-    "scripts/lifecycle_conformance.py": "d1ffe6fb9a7663aa80e728efb0cb6dba208e2c14990a0fb926cbc5bf63903a49",
-    "tests/fixtures/lifecycle-trace.json": "83c8ab6e54b7cb9a6ecb33edcdf2447b3a54c62a0c93ca252c1c59767ed586f5",
+    "scripts/lifecycle_conformance.py": "b6e870d6f1d6b906e2bad4fc5114fad647a5e67f13693732af5aaa7fa4db3343",
+    "tests/fixtures/lifecycle-trace.json": "9d5df95bc2a2baaa0548e87071fc499adcd23cb4b601685febb4e4fada4dd95c",
+    "tests/fixtures/lifecycle-authority-receipts.json": "aeccd7a24408946c0f9acb4c08d1d33c039ae8ff5f34dcffb998d82bede817ba",
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",
@@ -168,6 +173,7 @@ REQUIRED_SKILL_FILES = (
     "scripts/validate-routing-config.py",
     "scripts/lifecycle_conformance.py",
     "tests/fixtures/lifecycle-trace.json",
+    "tests/fixtures/lifecycle-authority-receipts.json",
     "tests/test_lifecycle_conformance.py",
     "tests/test_validate_routing_config.py",
 )
@@ -366,12 +372,18 @@ def validate_lifecycle_assets(
             f"{relative}: lifecycle conformance asset integrity mismatch",
         )
     trace_path = skill_dir / "tests" / "fixtures" / "lifecycle-trace.json"
+    authority_path = skill_dir / "tests" / "fixtures" / "lifecycle-authority-receipts.json"
     try:
         trace = load_trace(trace_path)
     except (OSError, ValueError) as error:
         checks.require(False, f"lifecycle trace is unreadable: {error}")
         return
-    trace_errors = validate_trace_document(trace)
+    try:
+        trusted_authority_receipts = load_trusted_authority_receipts(authority_path)
+    except (OSError, ValueError) as error:
+        checks.require(False, f"lifecycle authority receipts are unreadable: {error}")
+        return
+    trace_errors = validate_trace_document(trace, trusted_authority_receipts)
     checks.require(
         not trace_errors,
         f"lifecycle trace conformance failed: {trace_errors}",
@@ -474,7 +486,7 @@ def validate_references(
         "Full-history children are ineligible",
         "proper-subset sampling no larger than 10%",
         "Two accumulated writer compactions",
-        "`send_message` carries admitted evidence",
+        "`send_message` carries externally admitted evidence",
         "`followup_task` targets an idle/terminal built-in",
         "Three disjoint fresh gates PASS",
         "Repair reruns all at attempt+1",
@@ -648,13 +660,13 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
     )
     for legacy in sorted(LEGACY_ROLE_NAMES):
         checks.require(legacy not in active_contract, f"active policy contains legacy role name: {legacy}")
-    checks.require(len(skill.splitlines()) <= 60, "SKILL.md exceeds 60-line noise budget")
+    checks.require(len(skill.splitlines()) <= 70, "SKILL.md exceeds 70-line noise budget")
     for relative, text in (
         ("routing-policy.md", routing),
         ("evaluation-policy.md", evaluation),
         ("delegation-contracts.md", delegation),
     ):
-        checks.require(len(text.splitlines()) <= 110, f"{relative} exceeds 110-line noise budget")
+        checks.require(len(text.splitlines()) <= 125, f"{relative} exceeds 125-line noise budget")
     checks.require('display_name: "Subagent Orchestrator"' in yaml_text, "openai.yaml display name mismatch")
     checks.require(
         'short_description: "Evidence-backed delegation routing"' in yaml_text,

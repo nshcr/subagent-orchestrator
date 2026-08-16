@@ -40,27 +40,34 @@ The admitted-state digest is the canonical hash of the complete transfer payload
 ## Materiality and primary access
 
 Explorer/worker eligibility requires a host, owner, or sealed-harness issued
-materiality manifest. An agent cannot issue or proxy it. Every source range binds
+materiality manifest plus a matching host-provided authority receipt in a physically
+separate document outside the trace. An agent cannot issue or proxy either. The receipt binds task, slice, child,
+issuer, canonical source identity, range count, non-padding bytes, and manifest
+payload digest. Every source range binds
 path, path hash, start/end, content hash, and non-padding bytes. Ranges are immutable,
 task-wide unique, non-overlapping, and deduplicated by content. Padding, repeated
 content, synthetic splitting, tiny leaf work, and verification-token assets fail.
 The routing validator owns route-specific minimum unique paths and bytes.
-The manifest digest is the canonical hash of issuer, asset kind, and every range;
-changing any payload field without changing that digest fails.
+The manifest digest binds issuer, task/slice, asset kind, source identity, byte
+accounting, and every range. SHA-256 proves payload binding, not issuer authenticity;
+changing issuer and rehashing still fails unless the external trust set admits it.
 
 The primary records every source access for the top-level task. Only a receipt-bound
 targeted precheck and strict proper-subset sampling, with unique ranges and bytes no
 more than 10% of one frozen task-wide manifest denominator, qualify. Opaque attribution, unavailable attribution,
 pre-spawn scanning, full-manifest laundering, or reconstruction replay blocks policy
-promotion. Integration may read receipts, artifacts, and changed files, but must not
-repeat the transferred source scan or rewrite the writer-owned artifact.
+promotion. Integration declares zero source ranges/bytes and consumes only previously
+admitted artifact or changed-path receipt digests; it must not repeat the transferred
+source scan or rewrite the writer-owned artifact.
 
 ## Owner components, freeze, and gates
 
 Each slice permits at most one writer. It owns a task-wide canonical component. Path overlap and rename old/new,
 split, or merge union aliases permanently across slice, commit, and rollover. Reject
-overlapping active writers. Count writer compactions by task plus canonical component;
-after two, reject another writer spawn or follow-up. Never cancel an already-running
+overlapping active writers. Host-provided compaction receipts outside the trace bind
+task, slice, child, canonical owner component, prior receipt, current count, and
+cumulative count; terminal self-reporting is not authority. Cumulative count starts
+at zero; after two, reject another writer spawn or follow-up. Never cancel an already-running
 child for this limit; accept its safe incomplete receipt.
 
 Freeze only after writer terminal. Tester, reviewer, gate, and close each recompute
@@ -75,8 +82,10 @@ and a terminal complete task tree.
 ## Messages, follow-ups, and terminal receipts
 
 `send_message` targets a running admitted built-in child and carries only digest-bound
-evidence, dependency status, or artifact receipt with producer, consumer, dependency,
-and a canonical payload digest; dependency must be non-empty. It cannot start a turn or change authority, scope, ownership, topology,
+evidence, dependency status, or artifact receipt with task, slice, original transfer
+scope digest, producer, consumer, typed purpose, admitted receipt, dependency, and a
+canonical payload digest. Host authority or the peer-relay receipt must admit the exact
+receipt and scope; self-rehashing a scope expansion fails. It cannot start a turn or change authority, scope, ownership, topology,
 or handoff. Custom-role and unregistered peer messages are hard blockers.
 
 `followup_task` targets an idle/terminal built-in child, preserves scope, and uses
@@ -84,6 +93,21 @@ exactly one reason: `new_failure_evidence`, `missing_acceptance_field`, or
 `authorized_continue`. Its scope digest must equal the original admitted work-transfer.
 Status polling, custom-role follow-up, reviewer repair/review,
 scope growth, and exhausted-writer follow-up are hard blockers.
+
+A default bounded peer requires separate trace-external host capability and material-
+relay receipts. The latter binds task/slice, peer, producer, consumer, artifact,
+consumer transfer digest, and actual primary-relay removal. It must run admitted leaf
+descendants and execute that relay; no descendants, capability, or relay is a no-op.
+Custom roles remain nonrecursive governed leaves without peer messaging.
+
+Any trace declaring `pilot`, `pilot-signed`, or promotion includes `pilot_admission`
+after freeze. Its revision is the exact frozen HEAD; a repair/hash generation change
+requires new authorization before close.
+The host authorization anchor outside the trace binds task/slice, non-empty string
+actions, target identity, revision, package/contract digests, validity, exact excluded
+active-task IDs, and authorization event/text digests. Missing, proxy/self-issued,
+expired, cross-scope, active-task, type-invalid, or normalized create/auto-create
+authorization using spaces, punctuation, underscores, or camel case fails.
 
 Every child reaches terminal with status, artifact/receipt digest, completion digest,
 and any safe incomplete receipt. A gate receipt ends in its role's exact standalone

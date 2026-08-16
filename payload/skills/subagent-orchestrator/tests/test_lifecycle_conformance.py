@@ -10,11 +10,13 @@ module = module_from_spec(spec)
 assert spec and spec.loader
 spec.loader.exec_module(module)
 fixture_path = skill_dir / "tests" / "fixtures" / "lifecycle-trace.json"
+authority_fixture_path = skill_dir / "tests" / "fixtures" / "lifecycle-authority-receipts.json"
 
 
 class LifecycleConformanceTest(unittest.TestCase):
     def setUp(self):
         self.trace = module.load_trace(fixture_path)
+        self.authority = module.load_trusted_authority_receipts(authority_fixture_path)
 
     def events(self, trace=None):
         return (trace or self.trace)["scenarios"][0]["events"]
@@ -22,11 +24,22 @@ class LifecycleConformanceTest(unittest.TestCase):
     def event(self, kind, *, child=None, trace=None):
         return next(item for item in self.events(trace) if item["type"] == kind and (child is None or item.get("child") == child))
 
-    def errors(self, trace=None):
-        return module.validate_trace_document(trace or self.trace)
+    def errors(self, trace=None, authority=None):
+        return module.validate_trace_document(
+            trace or self.trace,
+            self.authority if authority is None else authority,
+        )
 
-    def assert_rejected(self, trace, marker):
-        self.assertTrue(any(marker in error for error in self.errors(trace)), self.errors(trace))
+    def assert_rejected(self, trace, marker, authority=None):
+        self.assertTrue(
+            any(marker in error for error in self.errors(trace, authority)),
+            self.errors(trace, authority),
+        )
+
+    def reseal(self, value, *, excluded=("type", "receipt_digest")):
+        value["receipt_digest"] = module.canonical_digest(
+            {key: item for key, item in value.items() if key not in excluded}
+        )
 
     def test_accepts_complete_evidence_bus_slice(self):
         self.assertEqual(self.errors(), [])
@@ -72,6 +85,15 @@ class LifecycleConformanceTest(unittest.TestCase):
                 access["attribution"] = "unavailable"
             self.assert_rejected(trace, marker)
 
+    def test_integration_cannot_replay_full_transferred_source(self):
+        trace = copy.deepcopy(self.trace)
+        access = self.event("primary_access", trace=trace)
+        access["kind"] = "integration"
+        access["receipt_digest"] = module.canonical_digest(
+            {key: value for key, value in access.items() if key not in {"type", "receipt_digest"}}
+        )
+        self.assert_rejected(trace, "integration cannot replay transferred source")
+
     def test_rejects_pre_spawn_sampling_laundering(self):
         trace = copy.deepcopy(self.trace)
         access = self.event("primary_access", trace=trace)
@@ -92,16 +114,15 @@ class LifecycleConformanceTest(unittest.TestCase):
         for reason in ("overlap", "rename", "split", "merge"):
             with self.subTest(reason=reason):
                 trace = copy.deepcopy(self.trace)
+                authority = copy.deepcopy(self.authority)
                 self.event("owner_union", trace=trace)["reason"] = reason
-                self.event("receipt", child="writer-governance", trace=trace)["writer_compactions"] = 2
-                receipt_index = self.events(trace).index(self.event("receipt", child="writer-governance", trace=trace))
-                self.events(trace).insert(receipt_index + 1, {
-                    "type": "followup_task", "target": "writer-governance",
-                    "reason": "authorized_continue", "same_scope": True, "authorized": True,
-                    "scope_digest": self.event("spawn", child="writer-governance", trace=trace)["work_transfer"]["admitted_state_digest"],
-                    "changes_scope": False, "status_poll": False,
-                })
-                self.assert_rejected(trace, "writer followup compaction budget exhausted")
+                spawn = self.event("spawn", child="writer-governance", trace=trace)
+                old = spawn["authority_receipts"]["compaction_baseline"]
+                baseline = next(item for item in authority["compaction_receipts"] if item["receipt_digest"] == old)
+                baseline["cumulative_count"] = 2
+                baseline["receipt_digest"] = module.canonical_digest({key: value for key, value in baseline.items() if key != "receipt_digest"})
+                spawn["authority_receipts"]["compaction_baseline"] = baseline["receipt_digest"]
+                self.assert_rejected(trace, "writer compaction budget exhausted", authority)
 
     def test_rejects_illegal_send_message_to_custom_role(self):
         trace = copy.deepcopy(self.trace)
@@ -163,6 +184,130 @@ class LifecycleConformanceTest(unittest.TestCase):
             trace = copy.deepcopy(self.trace)
             self.event("pilot_admission", trace=trace)[key] = value
             self.assertTrue(self.errors(trace))
+
+    def test_requires_externally_trusted_authority_receipts(self):
+        self.assert_rejected(self.trace, "trusted authority receipts are missing", authority={})
+
+    def test_rejects_forged_materiality_issuer_even_after_rehash(self):
+        trace = copy.deepcopy(self.trace)
+        manifest = self.event("spawn", child="writer-governance", trace=trace)["materiality_manifest"]
+        manifest["issued_by"] = "forged-owner"
+        manifest["manifest_digest"] = module.canonical_digest(
+            {key: value for key, value in manifest.items() if key != "manifest_digest"}
+        )
+        self.assert_rejected(trace, "not admitted by trusted authority")
+
+    def test_three_writer_followups_cannot_replay_zero_compaction_receipt(self):
+        trace = copy.deepcopy(self.trace)
+        receipt = self.event("receipt", child="writer-governance", trace=trace)
+        index = self.events(trace).index(receipt) + 1
+        scope = self.event("spawn", child="writer-governance", trace=trace)["work_transfer"]["admitted_state_digest"]
+        injected = []
+        for _ in range(3):
+            injected.extend((
+                {
+                    "type": "followup_task", "target": "writer-governance",
+                    "reason": "authorized_continue", "same_scope": True,
+                    "scope_digest": scope, "authorized": True,
+                    "changes_scope": False, "status_poll": False,
+                },
+                copy.deepcopy(receipt),
+            ))
+        self.events(trace)[index:index] = injected
+        self.assert_rejected(trace, "writer compaction is not admitted by trusted authority")
+
+    def test_rejects_noop_default_without_descendants_or_material_relay(self):
+        trace = copy.deepcopy(self.trace)
+        removed = {"peer-producer", "peer-consumer"}
+        self.events(trace)[:] = [
+            event for event in self.events(trace)
+            if event.get("child") not in removed
+            and event.get("producer") not in removed
+            and event.get("consumer") not in removed
+        ]
+        self.assert_rejected(trace, "default peer is a no-op")
+
+    def test_scope_expanding_message_rejected_after_self_rehash(self):
+        trace = copy.deepcopy(self.trace)
+        message = self.event("send_message", trace=trace)
+        spawn = self.event("spawn", child="writer-governance", trace=trace)
+        message["dependency"] = "new out-of-scope dependency"
+        message["receipt_digest"] = "fe" * 32
+        spawn["work_transfer"]["admitted_receipt_digests"] = [message["receipt_digest"]]
+        spawn["work_transfer"]["admitted_state_digest"] = module.canonical_digest(
+            {key: value for key, value in spawn["work_transfer"].items() if key != "admitted_state_digest"}
+        )
+        message["scope_digest"] = spawn["work_transfer"]["admitted_state_digest"]
+        message["digest"] = module.canonical_digest(
+            {key: value for key, value in message.items() if key not in {"type", "digest"}}
+        )
+        self.assert_rejected(trace, "not admitted by trusted authority")
+
+    def test_message_authority_binds_primary_producer(self):
+        trace = copy.deepcopy(self.trace)
+        message = self.event("send_message", trace=trace)
+        message["producer"] = "host"
+        message["digest"] = module.canonical_digest(
+            {key: value for key, value in message.items() if key not in {"type", "digest"}}
+        )
+        self.assert_rejected(trace, "receipt/scope is not admitted by trusted authority")
+
+    def test_pilot_admission_fail_closed_matrix(self):
+        mutations = {
+            "missing": lambda trace: self.events(trace).remove(self.event("pilot_admission", trace=trace)),
+            "forged": lambda trace: self.event("pilot_admission", trace=trace).update(issued_by="proxy-host"),
+            "typed-actions": lambda trace: self.event("pilot_admission", trace=trace).update(actions=[{"bad": "type"}]),
+            "typed-exclusions": lambda trace: self.event("pilot_admission", trace=trace).update(excluded_active_task_ids=[1]),
+            "cross-scope": lambda trace: self.event("pilot_admission", trace=trace).update(slice_id="other-slice"),
+            "expired": lambda trace: self.event("pilot_admission", trace=trace).update(observed_at="2027-01-01T00:00:00Z"),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                trace = copy.deepcopy(self.trace)
+                mutate(trace)
+                if label != "missing":
+                    self.reseal(self.event("pilot_admission", trace=trace))
+                self.assertTrue(self.errors(trace), label)
+
+    def test_pilot_revision_must_match_frozen_head(self):
+        trace = copy.deepcopy(self.trace)
+        pilot = self.event("pilot_admission", trace=trace)
+        pilot["revision"] = "f" * 64
+        self.reseal(pilot)
+        self.assert_rejected(trace, "pilot revision does not match frozen HEAD")
+
+    def test_pilot_authorization_is_stale_after_repair_generation(self):
+        trace = copy.deepcopy(self.trace)
+        pilot = self.event("pilot_admission", trace=trace)
+        close = self.event("close", trace=trace)
+        changed = copy.deepcopy(close["readback"])
+        changed["worktree"] = "9" * 64
+        self.events(trace).insert(self.events(trace).index(close), {"type": "repair", "readback": changed})
+        close["readback"] = changed
+        self.assert_rejected(trace, "pilot authorization is stale for the final generation")
+
+    def test_auto_create_action_normalization_uses_trusted_resigned_authority(self):
+        variants = (
+            "create task", "create-task", "create.task", "create_task", "createTask",
+            "auto create task", "auto-create-task", "auto.create_task", "autoCreateTask",
+        )
+        for action in variants:
+            with self.subTest(action=action):
+                trace = copy.deepcopy(self.trace)
+                authority = copy.deepcopy(self.authority)
+                pilot = self.event("pilot_admission", trace=trace)
+                pilot["actions"] = [action]
+                self.reseal(pilot)
+                authority["pilot_authorizations"] = [
+                    {key: value for key, value in pilot.items() if key != "type"}
+                ]
+                self.assert_rejected(trace, "pilot admission exclusions/actions invalid", authority)
+
+    def test_rejects_forged_or_missing_default_capability_anchor(self):
+        for value in (None, "fa" * 32):
+            trace = copy.deepcopy(self.trace)
+            self.event("spawn", child="peer-coordinator", trace=trace)["authority_receipts"]["peer_capability"] = value
+            self.assert_rejected(trace, "capability is not admitted by trusted authority")
 
     def test_binds_work_transfer_route_and_topology_to_spawn(self):
         trace = copy.deepcopy(self.trace)
@@ -300,11 +445,22 @@ class LifecycleConformanceTest(unittest.TestCase):
             lambda trace: self.event("slice_open", trace=trace)["required_gate_ids"].__setitem__(0, {"bad": "gate"}),
             lambda trace: self.event("gate_register", trace=trace)["invariants"].__setitem__(0, ["bad"]),
             lambda trace: self.event("owner_union", trace=trace)["aliases"].__setitem__(0, {"bad": "alias"}),
+            lambda trace: trace["scenarios"][0].update(task_id={"bad": "task"}),
+            lambda trace: trace["scenarios"][0].update(declared_evidence_tier={"bad": "tier"}),
+            lambda trace: self.event("owner_union", trace=trace).update(reason={"bad": "reason"}),
+            lambda trace: self.event("spawn", child="writer-governance", trace=trace).update(owner_component={"bad": "component"}),
+            lambda trace: self.event("spawn", child="writer-governance", trace=trace)["authority_receipts"].update(compaction_baseline={"bad": "receipt"}),
         )
         for mutate in mutations:
             trace = copy.deepcopy(self.trace)
             mutate(trace)
             self.assertTrue(self.errors(trace))
+
+    def test_invalid_authority_active_task_types_return_errors(self):
+        authority = copy.deepcopy(self.authority)
+        authority["active_task_ids"] = [{"bad": "task"}]
+        errors = self.errors(authority=authority)
+        self.assertTrue(any("active-task set is invalid" in error for error in errors), errors)
 
 
 if __name__ == "__main__":

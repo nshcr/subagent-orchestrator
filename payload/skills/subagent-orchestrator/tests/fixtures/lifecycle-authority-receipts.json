@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "active_task_ids": [
+    "019fd4e7-e622-7891-8cbc-ea95899f7915"
+  ],
+  "materiality_receipts": [
+    {
+      "issuer_kind": "owner",
+      "issuer": "primary-owner",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "child": "writer-governance",
+      "manifest_digest": "303ac89841b462fee05602db1566c4a29fe3a838c5e24a978f96d0cac6addf06",
+      "source_identity_digest": "eaf1d55435870528bbd1756b7690c3a50fdfc6de97d9536ebe0cb59aa7668f18",
+      "source_range_count": 10,
+      "source_bytes": 9700,
+      "receipt_digest": "a2c8bfbab9a90e208b576811c6f075e36d06717f1df31507ac3b83e418db3ecc"
+    },
+    {
+      "issuer_kind": "host",
+      "issuer": "codex-host",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "child": "peer-producer",
+      "manifest_digest": "5ecd5d530ecc64045fd5efb57a1abec184235c8e39815a188cf47ea461cacb2c",
+      "source_identity_digest": "b29ae2e7ac6753e7423e894926e14853e7dfb23ab9757c9abf84e2593d4ce8b2",
+      "source_range_count": 2,
+      "source_bytes": 4200,
+      "receipt_digest": "a4c23f7a4748edd4636b45d90266cb8e4c9403cb2f608196f9664b5f99d5ce5c"
+    },
+    {
+      "issuer_kind": "host",
+      "issuer": "codex-host",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "child": "peer-consumer",
+      "manifest_digest": "9935cb8e1d15d1231d518906551fded43a94ef917a91f7dc7c4c6fb16e5fa916",
+      "source_identity_digest": "e2579624baa5c8f8f48d87ce82d5ae400a5ba4ee3b2273ba3fa6526f10035cf8",
+      "source_range_count": 2,
+      "source_bytes": 4200,
+      "receipt_digest": "baad6c193d8dc33d22c552221fbe344e4d749d3e3fb36934dc123fcb1870340a"
+    }
+  ],
+  "compaction_receipts": [
+    {
+      "issuer": "codex-host",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "child": "writer-governance",
+      "owner_component": "governance-component",
+      "current_count": 0,
+      "cumulative_count": 0,
+      "prior_receipt_digest": null,
+      "receipt_digest": "b1fd724127f3f171d148ff548e0066c792ed5342a41cef4cedd3b14ef85862f5"
+    },
+    {
+      "issuer": "codex-host",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "child": "writer-governance",
+      "owner_component": "governance-component",
+      "current_count": 1,
+      "cumulative_count": 1,
+      "prior_receipt_digest": "b1fd724127f3f171d148ff548e0066c792ed5342a41cef4cedd3b14ef85862f5",
+      "receipt_digest": "4a4ba0b9a070f2332c3e41c15105fc30f5ecf42d624a405b26bfe6298015d58b"
+    }
+  ],
+  "peer_capability_receipts": [
+    {
+      "issuer": "codex-host",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "peer": "peer-coordinator",
+      "capability": "bounded-peer-relay",
+      "target_identity": "codex-runtime-2026-08",
+      "receipt_digest": "3ba21f7543dccd848ca563066f3fa3d6dc5764d4cdf574926f9f415f0bc55945"
+    }
+  ],
+  "peer_relay_receipts": [
+    {
+      "issuer": "codex-host",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "peer": "peer-coordinator",
+      "producer": "peer-producer",
+      "consumer": "peer-consumer",
+      "artifact_receipt_digest": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      "consumer_scope_digest": "4a77bf66bd9621c3c759ffcb0f9c155a736cfc7e6e3482cda55d7129380fe942",
+      "removed_primary_relay": true,
+      "receipt_digest": "d791489b9903a1f88a4023bc79280f29d46fef8f6d40ec02e455876ec63decc6"
+    }
+  ],
+  "pilot_authorizations": [
+    {
+      "receipt_digest": "831dc4e5040dcf43cde0b16058d86a829ef3d5cea21c5d638aac11458fb9f267",
+      "authorization_event_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "grantor": "user",
+      "authorized_signer": "host-runtime",
+      "task_id": "task-new-host-authorized",
+      "actions": [
+        "load-candidate",
+        "bounded-peer-pilot"
+      ],
+      "target": "local-codex-client",
+      "revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "package_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "valid_from": "2026-08-16T00:00:00Z",
+      "valid_until": "2026-08-17T00:00:00Z",
+      "observed_at": "2026-08-16T12:00:00Z",
+      "excluded_active_task_ids": [
+        "019fd4e7-e622-7891-8cbc-ea95899f7915"
+      ],
+      "issued_by": "codex-host",
+      "status": "valid",
+      "authorization_text_digest": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+      "contract_digest": "cbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcb",
+      "slice_id": "slice-governance"
+    }
+  ],
+  "message_receipts": [
+    {
+      "issuer": "codex-host",
+      "task_id": "task-new-host-authorized",
+      "slice_id": "slice-governance",
+      "consumer": "writer-governance",
+      "scope_digest": "ad0b67a6cffe72135d1149255b658f808a61961ab83f4a4054a1606d4339923b",
+      "purpose": "dependency_status",
+      "payload_receipt_digest": "abababababababababababababababababababababababababababababababab",
+      "dependency_digest": "00637fbfa96db75400fb32a8da0d06584f5a785114aff53f16333c726f2f0cb1",
+      "receipt_digest": "db37dd9a8520562d05751454a09886e8215e3b06ae7f3fb74a4fee0087e1ddcd",
+      "producer": "primary"
+    }
+  ]
+}

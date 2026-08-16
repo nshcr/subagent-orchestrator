@@ -290,6 +290,7 @@ def verify_portability() -> None:
         "fork_context": "none-only",
         "slice_open_required": True,
         "materiality_manifest_issuer": "host-owner-or-sealed-harness",
+        "authority_receipts": "host-provided-outside-trace-separate-document",
         "required_typed_fields": expected_typed_fields,
         "user_facing_language": "user-preferred",
         "model_facing_language": "English",
@@ -303,6 +304,9 @@ def verify_portability() -> None:
         "materiality_digest": "canonical-payload-bound",
         "primary_access_receipt": "canonical-payload-bound",
         "send_message_digest": "canonical-payload-bound-with-nonempty-dependency",
+        "send_message_admission": "external-receipt-plus-original-transfer-scope",
+        "send_message_authority_binding": "producer-consumer-task-slice-scope-purpose-receipt",
+        "integration_source_ranges_and_bytes": "zero-only",
         "followup_scope": "original-work-transfer-digest",
         "full_history_eligible": False,
         "send_message_purposes": ["evidence", "dependency_status", "artifact_receipt"],
@@ -313,6 +317,7 @@ def verify_portability() -> None:
         "freeze_after_writer_terminal": True,
         "readback_fields": ["head", "index", "worktree", "changed_paths"],
         "writer_compaction_cap_per_task_owner_component": 2,
+        "writer_compaction_authority": "external-cumulative-receipt",
         "writer_cap_per_slice": 1,
         "owner_alias_union_reasons": ["overlap", "rename", "split", "merge"],
         "disjoint_final_gate_count": 3,
@@ -331,6 +336,11 @@ def verify_portability() -> None:
         "self_issued_or_proxy_receipt": "reject",
         "receipt_digest": "canonical-payload-bound",
         "validity_evaluated_at": "observed_at",
+        "authorization_anchor": "host-provided-outside-trace",
+        "authorization_text_and_contract_bound": True,
+        "revision": "exact-frozen-head-and-generation-bound",
+        "actions_and_exclusions": "nonempty-strings",
+        "action_normalization": "reject-create-task-separator-and-camel-variants",
     }:
         fail("portable profile pilot admission mismatch")
     if not (ROOT / expected_handoff["contract_reference"]).is_file():

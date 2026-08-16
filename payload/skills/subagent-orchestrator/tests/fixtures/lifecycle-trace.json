@@ -4,11 +4,11 @@
   "bounded_peer_leaf_cap": 2,
   "runtime_capacity": 16,
   "owner_hashes": {
-    "SKILL.md": "36df8d88592525fba7749b2618254751ba0f07eec4f61d4aea2533ae2aa3d112",
-    "references/routing-policy.md": "ac944ba5ec777cd1bf187ced8347332a051b09de8ce23f4b49c4edaaccb0c1d3",
-    "references/delegation-contracts.md": "6831283a4643c1d7a538f3c02e36ee024d9188b87e6aa4042ec382cbf1635676",
-    "references/evaluation-policy.md": "59280215f90eee72eb1463d7625a034c309e6545727d3b08005a8082f3b01354",
-    "AGENTS.md#subagent-policy": "50702c458d4adf38d2b4b86d578fd5b4ef36cd43ef6dd0306640b491061e09f3",
+      "SKILL.md": "b82d2905847dc376bb99555b1d49675ede80bf2050d38ee87f11218e3641f4bc",
+      "references/routing-policy.md": "60848931f487bfb55b576394e3fb6ba63d27dd6ad69736ab18bb9b2635a83465",
+      "references/delegation-contracts.md": "792b6dfb180571f33bf81fc2ccc1c5dd55ffb7c9c1fb28dde4ed90e9075385c5",
+      "references/evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
+    "AGENTS.md#subagent-policy": "39235ebb5d0a72b5be545e070d9019814ec533db5cc542bfd6407b932e30a990",
     "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
   },
   "scenarios": [
@@ -22,17 +22,32 @@
           "slice_id": "slice-governance",
           "acceptance_milestone": "validated governance package",
           "change_class": "governance-contract",
-          "owner_paths": ["payload/skills/subagent-orchestrator", "portable-profile.json"],
-          "required_gate_ids": ["methodology", "efficiency", "governance"],
-          "state_summary": ["clean baseline", "lineage accepted"],
+          "owner_paths": [
+            "payload/skills/subagent-orchestrator",
+            "portable-profile.json"
+          ],
+          "required_gate_ids": [
+            "methodology",
+            "efficiency",
+            "governance"
+          ],
+          "state_summary": [
+            "clean baseline",
+            "lineage accepted"
+          ],
           "state_digest": "40346f19afdc6c0a13a2505c0e018023a0df09336eda327f782fba6fb388044e"
         },
         {
           "type": "owner_union",
           "component": "governance-component",
-          "paths": ["payload/skills/subagent-orchestrator", "portable-profile.json"],
+          "paths": [
+            "payload/skills/subagent-orchestrator",
+            "portable-profile.json"
+          ],
           "reason": "rename",
-          "aliases": ["legacy-policy-component"]
+          "aliases": [
+            "legacy-policy-component"
+          ]
         },
         {
           "type": "spawn",
@@ -45,7 +60,10 @@
           "delegation_depth": 0,
           "fork_context": "none",
           "owner_component": "legacy-policy-component",
-          "owner_paths": ["payload/skills/subagent-orchestrator", "portable-profile.json"],
+          "owner_paths": [
+            "payload/skills/subagent-orchestrator",
+            "portable-profile.json"
+          ],
           "work_transfer": {
             "producer": "owner",
             "consumer": "writer-governance",
@@ -53,31 +71,127 @@
             "slice_id": "slice-governance",
             "route": "worker",
             "topology": "leaf",
-            "input_summary": ["settled contract", "exact baseline"],
-            "sampling_allowlist": ["payload/skills/subagent-orchestrator/SKILL.md"],
-            "admitted_state_digest": "08d9c2e4305042ba8814c92ea01d22166f84c8afa880bbb70726c02fc9b2fd42",
+            "input_summary": [
+              "settled contract",
+              "exact baseline"
+            ],
+            "sampling_allowlist": [
+              "payload/skills/subagent-orchestrator/SKILL.md"
+            ],
+            "admitted_state_digest": "ad0b67a6cffe72135d1149255b658f808a61961ab83f4a4054a1606d4339923b",
             "status": "admitted",
             "artifact_receipt_digest": null,
-            "completion_conditions": ["tests pass", "receipt emitted"],
-            "forbidden_actions": ["scope expansion", "peer messages", "git commit"]
+            "completion_conditions": [
+              "tests pass",
+              "receipt emitted"
+            ],
+            "forbidden_actions": [
+              "scope expansion",
+              "peer messages",
+              "git commit"
+            ],
+            "admitted_receipt_digests": [
+              "abababababababababababababababababababababababababababababababab"
+            ]
           },
           "materiality_manifest": {
             "issuer_kind": "owner",
             "issued_by": "primary-owner",
-            "manifest_digest": "58d0636958f928196ef8f35e6852255d1c5eda932894e20a03d1b1b5c7526172",
+            "manifest_digest": "303ac89841b462fee05602db1566c4a29fe3a838c5e24a978f96d0cac6addf06",
             "asset_kind": "source",
             "source_ranges": [
-              {"path": "payload/skills/subagent-orchestrator/SKILL.md", "path_sha256": "4444444444444444444444444444444444444444444444444444444444444444", "start": 0, "end": 4096, "content_sha256": "5555555555555555555555555555555555555555555555555555555555555555", "non_padding_bytes": 3000},
-              {"path": "payload/skills/subagent-orchestrator/references/delegation-contracts.md", "path_sha256": "6666666666666666666666666666666666666666666666666666666666666666", "start": 0, "end": 4096, "content_sha256": "7777777777777777777777777777777777777777777777777777777777777777", "non_padding_bytes": 3000},
-              {"path": "portable-profile.json", "path_sha256": "8888888888888888888888888888888888888888888888888888888888888888", "start": 0, "end": 4096, "content_sha256": "9999999999999999999999999999999999999999999999999999999999999999", "non_padding_bytes": 3000},
-              {"path": "extra/0", "path_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "start": 0, "end": 100, "content_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "non_padding_bytes": 100},
-              {"path": "extra/1", "path_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "start": 0, "end": 100, "content_sha256": "1111111111111111111111111111111111111111111111111111111111111111", "non_padding_bytes": 100},
-              {"path": "extra/2", "path_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "start": 0, "end": 100, "content_sha256": "2222222222222222222222222222222222222222222222222222222222222222", "non_padding_bytes": 100},
-              {"path": "extra/3", "path_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "start": 0, "end": 100, "content_sha256": "3333333333333333333333333333333333333333333333333333333333333333", "non_padding_bytes": 100},
-              {"path": "extra/4", "path_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "start": 0, "end": 100, "content_sha256": "4444444444444444444444444444444444444444444444444444444444444444", "non_padding_bytes": 100},
-              {"path": "extra/5", "path_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "start": 0, "end": 100, "content_sha256": "6666666666666666666666666666666666666666666666666666666666666666", "non_padding_bytes": 100},
-              {"path": "extra/6", "path_sha256": "0000000000000000000000000000000000000000000000000000000000000000", "start": 0, "end": 100, "content_sha256": "8888888888888888888888888888888888888888888888888888888888888888", "non_padding_bytes": 100}
-            ]
+              {
+                "path": "payload/skills/subagent-orchestrator/SKILL.md",
+                "path_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "start": 0,
+                "end": 4096,
+                "content_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "non_padding_bytes": 3000
+              },
+              {
+                "path": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
+                "path_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "start": 0,
+                "end": 4096,
+                "content_sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+                "non_padding_bytes": 3000
+              },
+              {
+                "path": "portable-profile.json",
+                "path_sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                "start": 0,
+                "end": 4096,
+                "content_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+                "non_padding_bytes": 3000
+              },
+              {
+                "path": "extra/0",
+                "path_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "start": 0,
+                "end": 100,
+                "content_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                "non_padding_bytes": 100
+              },
+              {
+                "path": "extra/1",
+                "path_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "start": 0,
+                "end": 100,
+                "content_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "non_padding_bytes": 100
+              },
+              {
+                "path": "extra/2",
+                "path_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                "start": 0,
+                "end": 100,
+                "content_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "non_padding_bytes": 100
+              },
+              {
+                "path": "extra/3",
+                "path_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                "start": 0,
+                "end": 100,
+                "content_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+                "non_padding_bytes": 100
+              },
+              {
+                "path": "extra/4",
+                "path_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "start": 0,
+                "end": 100,
+                "content_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+                "non_padding_bytes": 100
+              },
+              {
+                "path": "extra/5",
+                "path_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                "start": 0,
+                "end": 100,
+                "content_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "non_padding_bytes": 100
+              },
+              {
+                "path": "extra/6",
+                "path_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+                "start": 0,
+                "end": 100,
+                "content_sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+                "non_padding_bytes": 100
+              }
+            ],
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "source_identity_digest": "eaf1d55435870528bbd1756b7690c3a50fdfc6de97d9536ebe0cb59aa7668f18",
+            "source_range_count": 10,
+            "source_bytes": 9700
+          },
+          "authority_receipts": {
+            "materiality": "a2c8bfbab9a90e208b576811c6f075e36d06717f1df31507ac3b83e418db3ecc",
+            "compaction_baseline": "b1fd724127f3f171d148ff548e0066c792ed5342a41cef4cedd3b14ef85862f5",
+            "peer_capability": null,
+            "peer_relay": null
           }
         },
         {
@@ -85,21 +199,266 @@
           "producer": "primary",
           "consumer": "writer-governance",
           "dependency": "installer lineage",
-          "digest": "ac905dbdbd59fb8f5598ac0e8d75866480e109c4a3232b953a30b934a9249080",
+          "digest": "864c7cdd926d6620eeface5eeed21f2a8f3df4d3e20ee4a1ee470f611b12f04d",
           "purpose": "dependency_status",
           "admitted": true,
           "starts_turn": false,
-          "changes_handoff": false
+          "changes_handoff": false,
+          "task_id": "task-new-host-authorized",
+          "slice_id": "slice-governance",
+          "scope_digest": "ad0b67a6cffe72135d1149255b658f808a61961ab83f4a4054a1606d4339923b",
+          "receipt_digest": "abababababababababababababababababababababababababababababababab",
+          "admission_anchor_digest": "db37dd9a8520562d05751454a09886e8215e3b06ae7f3fb74a4fee0087e1ddcd"
+        },
+        {
+          "type": "spawn",
+          "child": "peer-coordinator",
+          "parent": "primary",
+          "slice_id": "slice-governance",
+          "agent_type": "default",
+          "route": "built-in",
+          "topology": "bounded-peer",
+          "delegation_depth": 1,
+          "fork_context": "none",
+          "owner_component": "",
+          "owner_paths": [],
+          "work_transfer": {
+            "producer": "primary",
+            "consumer": "peer-coordinator",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "default",
+            "topology": "bounded-peer",
+            "input_summary": [
+              "bounded producer-consumer artifact lane"
+            ],
+            "sampling_allowlist": [
+              "externally admitted materiality only"
+            ],
+            "admitted_state_digest": "0890ac13e9c57656bd002506be2f55a062a1297bc109a7a005f4e7d17b4913d3",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "admitted_receipt_digests": [],
+            "completion_conditions": [
+              "terminal artifact receipt"
+            ],
+            "forbidden_actions": [
+              "scope expansion",
+              "custom peer messaging",
+              "recursive delegation"
+            ]
+          },
+          "materiality_manifest": null,
+          "authority_receipts": {
+            "materiality": null,
+            "compaction_baseline": null,
+            "peer_capability": "3ba21f7543dccd848ca563066f3fa3d6dc5764d4cdf574926f9f415f0bc55945",
+            "peer_relay": "d791489b9903a1f88a4023bc79280f29d46fef8f6d40ec02e455876ec63decc6"
+          }
+        },
+        {
+          "type": "spawn",
+          "child": "peer-producer",
+          "parent": "peer-coordinator",
+          "slice_id": "slice-governance",
+          "agent_type": "explorer",
+          "route": "built-in",
+          "topology": "leaf",
+          "delegation_depth": 1,
+          "fork_context": "none",
+          "owner_component": "",
+          "owner_paths": [],
+          "work_transfer": {
+            "producer": "peer-coordinator",
+            "consumer": "peer-producer",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "explorer",
+            "topology": "leaf",
+            "input_summary": [
+              "bounded producer-consumer artifact lane"
+            ],
+            "sampling_allowlist": [
+              "externally admitted materiality only"
+            ],
+            "admitted_state_digest": "6740213e5fccfa437cc81c88a892fd16eeb38839d2063a37ecc58b407da2f7fd",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "admitted_receipt_digests": [],
+            "completion_conditions": [
+              "terminal artifact receipt"
+            ],
+            "forbidden_actions": [
+              "scope expansion",
+              "custom peer messaging",
+              "recursive delegation"
+            ]
+          },
+          "materiality_manifest": {
+            "issuer_kind": "host",
+            "issued_by": "codex-host",
+            "manifest_digest": "5ecd5d530ecc64045fd5efb57a1abec184235c8e39815a188cf47ea461cacb2c",
+            "asset_kind": "source",
+            "source_ranges": [
+              {
+                "path": "peer/producer-a",
+                "path_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+                "start": 0,
+                "end": 2200,
+                "content_sha256": "4973b9a581a8de3670f628d0015d193065b76172417e9bd4a769a213affed9e7",
+                "non_padding_bytes": 2100
+              },
+              {
+                "path": "peer/producer-b",
+                "path_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+                "start": 0,
+                "end": 2200,
+                "content_sha256": "cf66233a9f0da976b75aacd369eafc3a7049c155c637f2fa213137d5e1791b12",
+                "non_padding_bytes": 2100
+              }
+            ],
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "source_identity_digest": "b29ae2e7ac6753e7423e894926e14853e7dfb23ab9757c9abf84e2593d4ce8b2",
+            "source_range_count": 2,
+            "source_bytes": 4200
+          },
+          "authority_receipts": {
+            "materiality": "a4c23f7a4748edd4636b45d90266cb8e4c9403cb2f608196f9664b5f99d5ce5c",
+            "compaction_baseline": null,
+            "peer_capability": null,
+            "peer_relay": null
+          }
+        },
+        {
+          "type": "spawn",
+          "child": "peer-consumer",
+          "parent": "peer-coordinator",
+          "slice_id": "slice-governance",
+          "agent_type": "explorer",
+          "route": "built-in",
+          "topology": "leaf",
+          "delegation_depth": 1,
+          "fork_context": "none",
+          "owner_component": "",
+          "owner_paths": [],
+          "work_transfer": {
+            "producer": "peer-coordinator",
+            "consumer": "peer-consumer",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "explorer",
+            "topology": "leaf",
+            "input_summary": [
+              "bounded producer-consumer artifact lane"
+            ],
+            "sampling_allowlist": [
+              "externally admitted materiality only"
+            ],
+            "admitted_state_digest": "4a77bf66bd9621c3c759ffcb0f9c155a736cfc7e6e3482cda55d7129380fe942",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "admitted_receipt_digests": [
+              "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+            ],
+            "completion_conditions": [
+              "terminal artifact receipt"
+            ],
+            "forbidden_actions": [
+              "scope expansion",
+              "custom peer messaging",
+              "recursive delegation"
+            ]
+          },
+          "materiality_manifest": {
+            "issuer_kind": "host",
+            "issued_by": "codex-host",
+            "manifest_digest": "9935cb8e1d15d1231d518906551fded43a94ef917a91f7dc7c4c6fb16e5fa916",
+            "asset_kind": "source",
+            "source_ranges": [
+              {
+                "path": "peer/consumer-a",
+                "path_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+                "start": 0,
+                "end": 2200,
+                "content_sha256": "1e980a1cb339e13b6a8499cacf94f01130484ebf45c60baed09d4f0aa70e7d55",
+                "non_padding_bytes": 2100
+              },
+              {
+                "path": "peer/consumer-b",
+                "path_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+                "start": 0,
+                "end": 2200,
+                "content_sha256": "97aaa9e41b66326519959c8dba2d40f3db61ad0762a24590d4079dbd49d57cc0",
+                "non_padding_bytes": 2100
+              }
+            ],
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "source_identity_digest": "e2579624baa5c8f8f48d87ce82d5ae400a5ba4ee3b2273ba3fa6526f10035cf8",
+            "source_range_count": 2,
+            "source_bytes": 4200
+          },
+          "authority_receipts": {
+            "materiality": "baad6c193d8dc33d22c552221fbe344e4d749d3e3fb36934dc123fcb1870340a",
+            "compaction_baseline": null,
+            "peer_capability": null,
+            "peer_relay": null
+          }
+        },
+        {
+          "type": "receipt",
+          "child": "peer-producer",
+          "status": "complete",
+          "artifact_receipt_digest": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+          "completion_digest": "cececececececececececececececececececececececececececececececece",
+          "compaction_receipt_digest": null,
+          "safe_incomplete": false
+        },
+        {
+          "type": "send_message",
+          "producer": "peer-producer",
+          "consumer": "peer-consumer",
+          "task_id": "task-new-host-authorized",
+          "slice_id": "slice-governance",
+          "scope_digest": "4a77bf66bd9621c3c759ffcb0f9c155a736cfc7e6e3482cda55d7129380fe942",
+          "dependency": "producer artifact",
+          "receipt_digest": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+          "digest": "c35ecd9281eeae73008da00b3667ba414cb8679f190c443be50c2fc299307522",
+          "purpose": "artifact_receipt",
+          "admitted": true,
+          "starts_turn": false,
+          "changes_handoff": false,
+          "admission_anchor_digest": "d791489b9903a1f88a4023bc79280f29d46fef8f6d40ec02e455876ec63decc6"
+        },
+        {
+          "type": "receipt",
+          "child": "peer-consumer",
+          "status": "complete",
+          "artifact_receipt_digest": "cfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcf",
+          "completion_digest": "d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0",
+          "compaction_receipt_digest": null,
+          "safe_incomplete": false
+        },
+        {
+          "type": "receipt",
+          "child": "peer-coordinator",
+          "status": "complete",
+          "artifact_receipt_digest": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+          "completion_digest": "d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+          "compaction_receipt_digest": null,
+          "safe_incomplete": false
         },
         {
           "type": "primary_access",
           "kind": "sampling",
-          "receipt_digest": "489a89cc984894eeb4cb81ecd8951ec468cf79b167f0e3c4c390788fefb09a15",
+          "receipt_digest": "89d2d33be6be2e1dab72c16edb77cb27346ff26ca6c1cfc2e2a0c1deb2cd7459",
           "unique_ranges": 1,
           "unique_bytes": 800,
-          "manifest_ranges": 10,
-          "manifest_bytes": 9700,
-          "attribution": "task-wide"
+          "manifest_ranges": 14,
+          "manifest_bytes": 18100,
+          "attribution": "task-wide",
+          "consumed_receipt_digests": []
         },
         {
           "type": "receipt",
@@ -107,8 +466,8 @@
           "status": "complete",
           "artifact_receipt_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
           "completion_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-          "writer_compactions": 1,
-          "safe_incomplete": false
+          "safe_incomplete": false,
+          "compaction_receipt_digest": "4a4ba0b9a070f2332c3e41c15105fc30f5ecf42d624a405b26bfe6298015d58b"
         },
         {
           "type": "freeze",
@@ -133,11 +492,37 @@
           "owner_component": "",
           "owner_paths": [],
           "work_transfer": {
-            "producer": "primary", "consumer": "tester", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "evidence_tester", "topology": "leaf",
-            "input_summary": ["frozen filesystem readback"], "sampling_allowlist": ["test output only"], "admitted_state_digest": "28f77e1d704ff42cce43414dff2e81736b8df3768646d57d803c630657be4177", "status": "admitted", "artifact_receipt_digest": null,
-            "completion_conditions": ["evidence receipt"], "forbidden_actions": ["source writes", "peer messages"]
+            "producer": "primary",
+            "consumer": "tester",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "evidence_tester",
+            "topology": "leaf",
+            "input_summary": [
+              "frozen filesystem readback"
+            ],
+            "sampling_allowlist": [
+              "test output only"
+            ],
+            "admitted_state_digest": "982b913ebca85dc2c10a476f19d05fb90e79c5ff336d198532c8468c197eab35",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "completion_conditions": [
+              "evidence receipt"
+            ],
+            "forbidden_actions": [
+              "source writes",
+              "peer messages"
+            ],
+            "admitted_receipt_digests": []
           },
-          "materiality_manifest": null
+          "materiality_manifest": null,
+          "authority_receipts": {
+            "materiality": null,
+            "compaction_baseline": null,
+            "peer_capability": null,
+            "peer_relay": null
+          }
         },
         {
           "type": "readback",
@@ -149,45 +534,267 @@
             "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"
           }
         },
-        {"type": "receipt", "child": "tester", "status": "complete", "artifact_receipt_digest": "4444444444444444444444444444444444444444444444444444444444444444", "completion_digest": "5555555555555555555555555555555555555555555555555555555555555555", "writer_compactions": 0, "safe_incomplete": false},
-        {"type": "gate_register", "gate_id": "methodology", "invariants": ["method-validity"]},
-        {"type": "gate_register", "gate_id": "efficiency", "invariants": ["cost-integrity"]},
-        {"type": "gate_register", "gate_id": "governance", "invariants": ["install-safety"]},
         {
-          "type": "spawn", "child": "review-method", "parent": "primary", "slice_id": "slice-governance", "agent_type": "risk_reviewer", "route": "custom", "topology": "leaf", "delegation_depth": 0, "fork_context": "none", "owner_component": "", "owner_paths": [],
-          "work_transfer": {"producer": "primary", "consumer": "review-method", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "risk_reviewer", "topology": "leaf", "input_summary": ["final frozen hash"], "sampling_allowlist": ["methodology invariant"], "admitted_state_digest": "3824045c83089344d21d2448234c17c13ab655c42390b60d0e4572f87a089ed5", "status": "admitted", "artifact_receipt_digest": null, "completion_conditions": ["fresh gate result"], "forbidden_actions": ["writes", "followup repair"]}, "materiality_manifest": null
+          "type": "receipt",
+          "child": "tester",
+          "status": "complete",
+          "artifact_receipt_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+          "completion_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+          "safe_incomplete": false,
+          "compaction_receipt_digest": null
         },
         {
-          "type": "spawn", "child": "review-efficiency", "parent": "primary", "slice_id": "slice-governance", "agent_type": "risk_reviewer", "route": "custom", "topology": "leaf", "delegation_depth": 0, "fork_context": "none", "owner_component": "", "owner_paths": [],
-          "work_transfer": {"producer": "primary", "consumer": "review-efficiency", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "risk_reviewer", "topology": "leaf", "input_summary": ["final frozen hash"], "sampling_allowlist": ["efficiency invariant"], "admitted_state_digest": "7503ed9e0a46e59349c69aa341c7338293afa61f25740b9acf2b2e905926a008", "status": "admitted", "artifact_receipt_digest": null, "completion_conditions": ["fresh gate result"], "forbidden_actions": ["writes", "followup repair"]}, "materiality_manifest": null
+          "type": "gate_register",
+          "gate_id": "methodology",
+          "invariants": [
+            "method-validity"
+          ]
         },
         {
-          "type": "spawn", "child": "review-governance", "parent": "primary", "slice_id": "slice-governance", "agent_type": "risk_reviewer", "route": "custom", "topology": "leaf", "delegation_depth": 0, "fork_context": "none", "owner_component": "", "owner_paths": [],
-          "work_transfer": {"producer": "primary", "consumer": "review-governance", "task_id": "task-new-host-authorized", "slice_id": "slice-governance", "route": "risk_reviewer", "topology": "leaf", "input_summary": ["final frozen hash"], "sampling_allowlist": ["governance invariant"], "admitted_state_digest": "671b6468f714bda497ce301485a5cc3e86e0794658836e524e64eba32d840c52", "status": "admitted", "artifact_receipt_digest": null, "completion_conditions": ["fresh gate result"], "forbidden_actions": ["writes", "followup repair"]}, "materiality_manifest": null
+          "type": "gate_register",
+          "gate_id": "efficiency",
+          "invariants": [
+            "cost-integrity"
+          ]
         },
-        {"type": "gate_result", "gate_id": "methodology", "child": "review-method", "attempt": 1, "result": "PASS", "invariants": ["method-validity"], "artifact_receipt_digest": "1111111111111111111111111111111111111111111111111111111111111111", "completion_digest": "2222222222222222222222222222222222222222222222222222222222222222", "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}},
-        {"type": "gate_result", "gate_id": "efficiency", "child": "review-efficiency", "attempt": 1, "result": "PASS", "invariants": ["cost-integrity"], "artifact_receipt_digest": "3333333333333333333333333333333333333333333333333333333333333333", "completion_digest": "4444444444444444444444444444444444444444444444444444444444444444", "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}},
-        {"type": "gate_result", "gate_id": "governance", "child": "review-governance", "attempt": 1, "result": "PASS", "invariants": ["install-safety"], "artifact_receipt_digest": "5555555555555555555555555555555555555555555555555555555555555555", "completion_digest": "6666666666666666666666666666666666666666666666666666666666666666", "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}},
+        {
+          "type": "gate_register",
+          "gate_id": "governance",
+          "invariants": [
+            "install-safety"
+          ]
+        },
+        {
+          "type": "spawn",
+          "child": "review-method",
+          "parent": "primary",
+          "slice_id": "slice-governance",
+          "agent_type": "risk_reviewer",
+          "route": "custom",
+          "topology": "leaf",
+          "delegation_depth": 0,
+          "fork_context": "none",
+          "owner_component": "",
+          "owner_paths": [],
+          "work_transfer": {
+            "producer": "primary",
+            "consumer": "review-method",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "risk_reviewer",
+            "topology": "leaf",
+            "input_summary": [
+              "final frozen hash"
+            ],
+            "sampling_allowlist": [
+              "methodology invariant"
+            ],
+            "admitted_state_digest": "b40b3a9ccf48f7a09446483880bfd90f42ec4851fb5a0f056fe029e2fe5db11c",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "completion_conditions": [
+              "fresh gate result"
+            ],
+            "forbidden_actions": [
+              "writes",
+              "followup repair"
+            ],
+            "admitted_receipt_digests": []
+          },
+          "materiality_manifest": null,
+          "authority_receipts": {
+            "materiality": null,
+            "compaction_baseline": null,
+            "peer_capability": null,
+            "peer_relay": null
+          }
+        },
+        {
+          "type": "spawn",
+          "child": "review-efficiency",
+          "parent": "primary",
+          "slice_id": "slice-governance",
+          "agent_type": "risk_reviewer",
+          "route": "custom",
+          "topology": "leaf",
+          "delegation_depth": 0,
+          "fork_context": "none",
+          "owner_component": "",
+          "owner_paths": [],
+          "work_transfer": {
+            "producer": "primary",
+            "consumer": "review-efficiency",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "risk_reviewer",
+            "topology": "leaf",
+            "input_summary": [
+              "final frozen hash"
+            ],
+            "sampling_allowlist": [
+              "efficiency invariant"
+            ],
+            "admitted_state_digest": "5f4bb8261f65996ed1a539488979fff90817a570c9db9de783157cd15dba9655",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "completion_conditions": [
+              "fresh gate result"
+            ],
+            "forbidden_actions": [
+              "writes",
+              "followup repair"
+            ],
+            "admitted_receipt_digests": []
+          },
+          "materiality_manifest": null,
+          "authority_receipts": {
+            "materiality": null,
+            "compaction_baseline": null,
+            "peer_capability": null,
+            "peer_relay": null
+          }
+        },
+        {
+          "type": "spawn",
+          "child": "review-governance",
+          "parent": "primary",
+          "slice_id": "slice-governance",
+          "agent_type": "risk_reviewer",
+          "route": "custom",
+          "topology": "leaf",
+          "delegation_depth": 0,
+          "fork_context": "none",
+          "owner_component": "",
+          "owner_paths": [],
+          "work_transfer": {
+            "producer": "primary",
+            "consumer": "review-governance",
+            "task_id": "task-new-host-authorized",
+            "slice_id": "slice-governance",
+            "route": "risk_reviewer",
+            "topology": "leaf",
+            "input_summary": [
+              "final frozen hash"
+            ],
+            "sampling_allowlist": [
+              "governance invariant"
+            ],
+            "admitted_state_digest": "60a51b5ed4d26c3227ae7cafd7eed2e8c7436b82e22cb542912c676aff8f3a2a",
+            "status": "admitted",
+            "artifact_receipt_digest": null,
+            "completion_conditions": [
+              "fresh gate result"
+            ],
+            "forbidden_actions": [
+              "writes",
+              "followup repair"
+            ],
+            "admitted_receipt_digests": []
+          },
+          "materiality_manifest": null,
+          "authority_receipts": {
+            "materiality": null,
+            "compaction_baseline": null,
+            "peer_capability": null,
+            "peer_relay": null
+          }
+        },
+        {
+          "type": "gate_result",
+          "gate_id": "methodology",
+          "child": "review-method",
+          "attempt": 1,
+          "result": "PASS",
+          "invariants": [
+            "method-validity"
+          ],
+          "artifact_receipt_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+          "completion_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+          "readback": {
+            "head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "worktree": "1111111111111111111111111111111111111111111111111111111111111111",
+            "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        },
+        {
+          "type": "gate_result",
+          "gate_id": "efficiency",
+          "child": "review-efficiency",
+          "attempt": 1,
+          "result": "PASS",
+          "invariants": [
+            "cost-integrity"
+          ],
+          "artifact_receipt_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "completion_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+          "readback": {
+            "head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "worktree": "1111111111111111111111111111111111111111111111111111111111111111",
+            "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        },
+        {
+          "type": "gate_result",
+          "gate_id": "governance",
+          "child": "review-governance",
+          "attempt": 1,
+          "result": "PASS",
+          "invariants": [
+            "install-safety"
+          ],
+          "artifact_receipt_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+          "completion_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+          "readback": {
+            "head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "worktree": "1111111111111111111111111111111111111111111111111111111111111111",
+            "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        },
         {
           "type": "pilot_admission",
-          "receipt_digest": "50229e2e3ea276c765100135d298cae03062e87e61e96d19f49b56d9aad3c7d4",
+          "receipt_digest": "831dc4e5040dcf43cde0b16058d86a829ef3d5cea21c5d638aac11458fb9f267",
           "authorization_event_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "grantor": "user",
           "authorized_signer": "host-runtime",
           "task_id": "task-new-host-authorized",
-          "actions": ["load-candidate", "bounded-peer-pilot"],
+          "actions": [
+            "load-candidate",
+            "bounded-peer-pilot"
+          ],
           "target": "local-codex-client",
-          "revision": "candidate-final-hash",
+          "revision": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
           "package_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
           "valid_from": "2026-08-16T00:00:00Z",
           "valid_until": "2026-08-17T00:00:00Z",
           "observed_at": "2026-08-16T12:00:00Z",
-          "excluded_active_task_ids": ["019fd4e7-e622-7891-8cbc-ea95899f7915"],
+          "excluded_active_task_ids": [
+            "019fd4e7-e622-7891-8cbc-ea95899f7915"
+          ],
           "issued_by": "codex-host",
-          "status": "valid"
+          "status": "valid",
+          "authorization_text_digest": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+          "contract_digest": "cbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcb",
+          "slice_id": "slice-governance"
         },
-        {"type": "close", "required_gate_ids": ["methodology", "efficiency", "governance"], "readback": {"head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "worktree": "1111111111111111111111111111111111111111111111111111111111111111", "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"}}
-      ]
+        {
+          "type": "close",
+          "required_gate_ids": [
+            "methodology",
+            "efficiency",
+            "governance"
+          ],
+          "readback": {
+            "head": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "index": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "worktree": "1111111111111111111111111111111111111111111111111111111111111111",
+            "changed_paths": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        }
+      ],
+      "declared_evidence_tier": "pilot-signed"
     }
   ]
 }

@@ -65,13 +65,19 @@ revision, package, target, evidence producer, and artifacts; narrative assertion
 not advance a tier. Missing CI, target, or signature evidence caps the result at
 `verified-local`. Production observation never implies `pilot-signed`.
 
-Pilot requires a host-issued admission receipt binding the user's authorization event
-digest, grantor, authorized signer, task and allowed actions, target, revision, package,
-validity window, deterministic observed timestamp, and explicit excluded active task IDs.
+Pilot follows the frozen final state and requires a host-issued admission receipt binding the user's authorization event
+and text digests, grantor, authorized signer, task/slice and allowed actions, target,
+revision, package and contract,
+validity window, deterministic observed timestamp, exact frozen HEAD revision, and explicit excluded active task IDs.
 The canonical receipt digest binds every field. Reject self-issued, proxied,
 tampered, expired, cross-task, cross-target, or active-task admissions. The pilot must
 not auto-create a task. `pilot-signed` cites the exact admission digest and signed
 result; an active UTP task is excluded.
+The host supplies the authorization anchor outside the trace. SHA-256 binds the
+payload but is not signer authentication. Missing, type-invalid, auto-create, or
+trace-only rehashed authorization fails closed. Repair or any final-hash generation
+change makes the prior pilot authorization stale; normalized create-task and auto-
+create-task actions fail regardless of spaces, punctuation, underscores, or camel case.
 
 ## Provenance and registry
 
