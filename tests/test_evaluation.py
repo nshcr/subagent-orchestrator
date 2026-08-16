@@ -1,19 +1,33 @@
 import copy
+from datetime import datetime, timezone
+from decimal import Decimal
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(PACKAGE_ROOT))
 
-from evaluation import EvaluationError, build_report, validate_campaign  # noqa: E402
+from evaluation import (  # noqa: E402
+    EvaluationError,
+    build_report,
+    canonical_digest,
+    extract_production_facts,
+    validate_campaign,
+    validate_evidence_chain,
+    validate_production_fact,
+)
+from evaluation.production_facts import _metric  # noqa: E402
 
 
 DIGEST = "a" * 64
+RUBRIC_DIGEST = "225bfb839fbb7dbf0ab3c05ea75ed9c09fb759288b85d82ac001d6e144a348e0"
 
 
 def billed_thread(thread_id, kind, role, parent, credits):
@@ -91,6 +105,9 @@ def instance(identifier, family, *, holdout=False):
         "instance_id": identifier,
         "task_class": "test-triage",
         "fixture_family": family,
+        "fixture_sha256": hashlib.sha256(f"fixture:{identifier}".encode()).hexdigest(),
+        "prompt_sha256": hashlib.sha256(f"prompt:{identifier}".encode()).hexdigest(),
+        "rubric_sha256": RUBRIC_DIGEST,
         "scenario": f"scenario {identifier}",
         "expected_roles": ["evidence_tester"],
         "holdout": holdout,
@@ -126,7 +143,7 @@ def campaign():
         instance("development-a", "family-a"),
     ]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "campaign_id": "campaign-1",
         "configuration_hashes": {
             "role_instructions": DIGEST,
@@ -150,7 +167,7 @@ def campaign():
 def holdout():
     instances = [instance("sealed-c", "family-c", holdout=True)]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "campaign_id": "campaign-1",
         "allowed_baseline_roles": ["explorer"],
         "seal": {
@@ -275,7 +292,7 @@ class EvaluationCampaignTest(unittest.TestCase):
             ("role", role_mismatch, "custom receiver role mismatch"),
             ("tokens", token_mismatch, "total must equal input plus output"),
             ("cost", cost_mismatch, "credits total does not match"),
-            ("incomplete-cost", incomplete_cost, "incomplete cost evidence"),
+            ("incomplete-cost", incomplete_cost, "unavailable cost evidence"),
             ("receiver", receiver_mismatch, "expected_receiver_ids do not match"),
             ("order", order_drift, "execution_order drifts"),
         )
@@ -349,6 +366,12 @@ class EvaluationCampaignTest(unittest.TestCase):
                 ):
                     validate_campaign(document, sealed_holdout=sealed)
 
+        unfrozen = campaign()
+        for run in unfrozen["instances"][0]["runs"].values():
+            run["quality_checks"][0]["max_score"] = 11
+        with self.assertRaisesRegex(EvaluationError, "rubric_sha256 does not match"):
+            validate_campaign(unfrozen)
+
     def test_mandatory_named_gate_exception_is_narrow_and_fail_closed(self):
         base = campaign()
         base["class_policies"]["test-triage"] = {
@@ -365,7 +388,9 @@ class EvaluationCampaignTest(unittest.TestCase):
             for item in document["instances"]:
                 set_run_credits(item["runs"]["custom"], "9.14")
         mandatory = build_report(base, sealed)["task_classes"][0]
-        self.assertEqual(mandatory["recommendation"], "mandatory-custom")
+        self.assertEqual(mandatory["recommendation"], "retained-not-efficient")
+        self.assertEqual(mandatory["governance_retention"]["decision"], "PASS")
+        self.assertEqual(mandatory["efficiency_promotion"]["decision"], "BLOCK")
 
         elective = campaign()
         elective_holdout = holdout()
@@ -458,9 +483,19 @@ class EvaluationCampaignTest(unittest.TestCase):
     def test_schema_artifacts_parse_and_forbid_unknown_fields(self):
         schema = json.loads((PACKAGE_ROOT / "evaluation" / "campaign.schema.json").read_text())
         sealed = json.loads((PACKAGE_ROOT / "evaluation" / "sealed-holdout.schema.json").read_text())
+        production = json.loads(
+            (PACKAGE_ROOT / "evaluation" / "production-fact.schema.json").read_text()
+        )
+        tiers = json.loads(
+            (PACKAGE_ROOT / "evaluation" / "evidence-tier.schema.json").read_text()
+        )
         self.assertFalse(schema["additionalProperties"])
         self.assertFalse(schema["$defs"]["thread"]["additionalProperties"])
         self.assertFalse(sealed["additionalProperties"])
+        self.assertFalse(production["additionalProperties"])
+        self.assertFalse(production["properties"]["metrics"]["additionalProperties"])
+        self.assertFalse(tiers["additionalProperties"])
+        self.assertEqual(schema["properties"]["schema_version"]["const"], 2)
         self.assertEqual(schema["$defs"]["thread"]["properties"]["kind"]["enum"], ["primary", "child"])
 
     def test_bundled_smoke_fixture_and_cli(self):
@@ -480,6 +515,490 @@ class EvaluationCampaignTest(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("valid and deterministic", completed.stdout)
+
+    def test_paired_pareto_blocks_pooled_quality_and_independent_median_tricks(self):
+        pooled = campaign()
+        pooled["instances"][0]["runs"]["custom"]["quality_checks"][0]["score"] = 9
+        for arm in ("baseline", "custom"):
+            pooled["instances"][1]["runs"][arm]["quality_checks"][0]["max_score"] = 100
+        pooled["instances"][1]["runs"]["baseline"]["quality_checks"][0]["score"] = 1
+        pooled["instances"][1]["runs"]["custom"]["quality_checks"][0]["score"] = 100
+        pooled["instances"][1]["rubric_sha256"] = "8c7533cb85006bebd138a7e11b43f152fb4b6bb7ca95496cfa44874c49eb0a56"
+        result = build_report(pooled, holdout())["task_classes"][0]
+        self.assertFalse(result["quality_non_regression"])
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+
+        median_trick = campaign()
+        sealed = holdout()
+        pairs = [
+            median_trick["instances"][0],
+            median_trick["instances"][1],
+            sealed["instances"][0],
+        ]
+        for item, baseline_cost, custom_cost in zip(
+            pairs, ("0.01", "100", "100"), ("1", "90", "90"), strict=True
+        ):
+            set_run_credits(item["runs"]["baseline"], baseline_cost)
+            set_run_credits(item["runs"]["custom"], custom_cost)
+        result = build_report(median_trick, sealed)["task_classes"][0]
+        self.assertEqual(result["arms"]["custom"]["median_total_credits"], "90")
+        self.assertEqual(result["arms"]["baseline"]["median_total_credits"], "100")
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+        self.assertTrue(
+            any(Decimal(value) > Decimal("1") for value in result["pair_credit_ratios"])
+        )
+
+    def test_duplicate_fixture_zero_baseline_and_cost_unavailability_fail_closed(self):
+        duplicate = campaign()
+        duplicate["instances"][1]["fixture_sha256"] = duplicate["instances"][0][
+            "fixture_sha256"
+        ]
+        with self.assertRaisesRegex(EvaluationError, "duplicate fixture_sha256"):
+            validate_campaign(duplicate)
+        duplicate_prompt = campaign()
+        duplicate_prompt["instances"][1]["prompt_sha256"] = duplicate_prompt[
+            "instances"
+        ][0]["prompt_sha256"]
+        with self.assertRaisesRegex(EvaluationError, "duplicate prompt_sha256"):
+            validate_campaign(duplicate_prompt)
+
+        zero = campaign()
+        set_run_credits(zero["instances"][0]["runs"]["baseline"], "0")
+        result = build_report(zero, holdout())["task_classes"][0]
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+
+        aggregate = campaign()
+        aggregate_holdout = holdout()
+        for document in (aggregate, aggregate_holdout):
+            for item in document["instances"]:
+                set_run_credits(item["runs"]["custom"], "11")
+        result = build_report(aggregate, aggregate_holdout)["task_classes"][0]
+        self.assertGreater(Decimal(result["class_credit_ratio"]), Decimal("1"))
+        self.assertGreater(Decimal(result["overall_credit_ratio"]), Decimal("1"))
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+
+        unavailable = campaign()
+        thread = unavailable["instances"][0]["runs"]["custom"]["threads"][0]
+        thread["cost_complete"] = False
+        thread["credits"] = {key: None for key in thread["credits"]}
+        result = build_report(unavailable, holdout())["task_classes"][0]
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+        self.assertIsNone(result["arms"]["custom"]["total_credits"])
+
+    def test_positive_quality_requires_cost_non_regression_and_mandatory_dual_outcomes(self):
+        improved = campaign()
+        sealed = holdout()
+        improved["instances"][0]["runs"]["baseline"]["quality_checks"][0]["score"] = 9
+        set_run_credits(improved["instances"][0]["runs"]["custom"], "11")
+        result = build_report(improved, sealed)["task_classes"][0]
+        self.assertEqual(result["quality_outcome"], "improved")
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+
+        set_run_credits(improved["instances"][0]["runs"]["custom"], "10")
+        result = build_report(improved, sealed)["task_classes"][0]
+        self.assertEqual(result["efficiency_promotion"]["decision"], "PASS")
+
+        improved["class_policies"]["test-triage"] = {
+            "decision_mode": "mandatory_named_gate",
+            "custom_role": "evidence_tester",
+            "higher_level_required": True,
+            "callable_builtin_equivalent": False,
+            "availability_probe_reference": "probe",
+            "availability_probe_sha256": DIGEST,
+            "restored_after_probe": True,
+        }
+        for document in (improved, sealed):
+            for item in document["instances"]:
+                set_run_credits(item["runs"]["baseline"], "30")
+                set_run_credits(item["runs"]["custom"], "33")
+        result = build_report(improved, sealed)["task_classes"][0]
+        self.assertEqual(result["recommendation"], "retained-not-efficient")
+        self.assertEqual(result["governance_retention"]["decision"], "PASS")
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+
+        for document in (improved, sealed):
+            for item in document["instances"]:
+                set_run_credits(item["runs"]["custom"], "30")
+        result = build_report(improved, sealed)["task_classes"][0]
+        self.assertEqual(result["recommendation"], "retained-efficient")
+
+        thread = improved["instances"][0]["runs"]["custom"]["threads"][0]
+        thread["cost_complete"] = False
+        thread["credits"] = {key: None for key in thread["credits"]}
+        result = build_report(improved, sealed)["task_classes"][0]
+        self.assertEqual(result["recommendation"], "retained-not-efficient")
+        self.assertEqual(result["governance_retention"]["decision"], "PASS")
+        self.assertEqual(result["efficiency_promotion"]["decision"], "BLOCK")
+
+
+def evidence_document(tier, *, revision="abc123", package=DIGEST):
+    provenance = {
+        "implemented": {
+            "source_tree_sha256": DIGEST,
+            "diff_sha256": DIGEST,
+            "implementation_receipt_sha256": DIGEST,
+        },
+        "verified-local": {
+            "command": "python3 -B validate.py",
+            "exit_code": 0,
+            "environment_sha256": DIGEST,
+            "result_sha256": DIGEST,
+        },
+        "verified-ci": {
+            "provider": "github-actions",
+            "run_id": "123",
+            "run_url": "https://example.invalid/run/123",
+            "revision": revision,
+            "result_sha256": DIGEST,
+        },
+        "verified-target": {
+            "target_id": "target-a",
+            "environment_sha256": DIGEST,
+            "revision": revision,
+            "package_digest": package,
+            "receipt_sha256": DIGEST,
+        },
+        "pilot-signed": {
+            "authority": "deployment-owner",
+            "authority_id": "owner-1",
+            "signed_at": "2026-08-16T10:00:00+08:00",
+            "signature_sha256": DIGEST,
+            "target_receipt_sha256": DIGEST,
+        },
+    }[tier]
+    return {
+        "schema_version": "evidence-tier.v1",
+        "tier": tier,
+        "revision": revision,
+        "package_digest": package,
+        "artifact_digest": DIGEST,
+        "predecessor": None,
+        "provenance": provenance,
+    }
+
+
+def evidence_chain():
+    chain = []
+    for tier in ("implemented", "verified-local", "verified-ci", "verified-target", "pilot-signed"):
+        document = evidence_document(tier)
+        if chain:
+            document["predecessor"] = {
+                "tier": chain[-1]["tier"],
+                "digest": canonical_digest(chain[-1]),
+            }
+        chain.append(document)
+    return chain
+
+
+class EvidenceTierTest(unittest.TestCase):
+    def test_exact_monotonic_chain_and_cli(self):
+        chain = evidence_chain()
+        validate_evidence_chain(chain)
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = []
+            for index, document in enumerate(chain):
+                path = Path(temporary) / f"{index}.json"
+                path.write_text(json.dumps(document), encoding="utf-8")
+                paths.extend(["--input", str(path)])
+            completed = subprocess.run(
+                [sys.executable, "-B", "-m", "evaluation", "evidence-tier", *paths],
+                cwd=PACKAGE_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_missing_skipped_proxy_mismatch_and_authority_fail(self):
+        cases = []
+        missing = evidence_chain()[:2]
+        missing[1]["predecessor"] = None
+        cases.append((missing, "predecessor"))
+        cases.append(([evidence_chain()[0], evidence_chain()[2]], "skips or reorders"))
+        proxy = evidence_chain()[:2]
+        proxy[1]["provenance"] = {"narrative": "verified locally"}
+        cases.append((proxy, "keys mismatch"))
+        mismatch = evidence_chain()[:3]
+        mismatch[2]["revision"] = "different"
+        cases.append((mismatch, "revision/package"))
+        package_mismatch = evidence_chain()[:2]
+        package_mismatch[1]["package_digest"] = "b" * 64
+        cases.append((package_mismatch, "revision/package"))
+        pilot = evidence_chain()
+        del pilot[-1]["provenance"]["authority"]
+        cases.append((pilot, "keys mismatch"))
+        for chain, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(EvaluationError, message):
+                    validate_evidence_chain(chain)
+
+
+def uuid7_for(moment):
+    milliseconds = int(moment.timestamp() * 1000)
+    return str(uuid.UUID(int=(milliseconds << 80) | (7 << 76) | (2 << 62) | 1))
+
+
+def write_jsonl(path, events):
+    path.write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
+
+
+class ProductionFactsTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "config", "user.email", "test@example.invalid"], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "config", "user.name", "Test"], check=True)
+        (self.repo / "tracked.txt").write_text("base\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.repo), "add", "tracked.txt"], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-qm", "base"], check=True)
+        self.base = subprocess.run(
+            ["git", "-C", str(self.repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.parent = self.root / "parent.jsonl"
+        self.children = self.root / "children"
+        self.children.mkdir()
+        self.spawn = datetime(2026, 8, 16, 1, 0, tzinfo=timezone.utc)
+        self.child_id = uuid7_for(self.spawn.replace(microsecond=1000))
+        self._write_valid_sources()
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def _write_valid_sources(self, *, fork_turns="all", extra_parent=(), extra_child=()):
+        call_id = "spawn-1"
+        write_jsonl(
+            self.parent,
+            [
+                {"timestamp": self.spawn.isoformat(), "type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent", "call_id": call_id, "arguments": json.dumps({"task_name": "worker__fact", "fork_turns": fork_turns})}},
+                {"timestamp": self.spawn.replace(microsecond=500).isoformat(), "type": "response_item", "payload": {"type": "function_call_output", "call_id": call_id, "output": json.dumps({"agent_id": self.child_id})}},
+                {"timestamp": self.spawn.replace(microsecond=700).isoformat(), "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 1, "cached_input_tokens": 0, "cache_write_input_tokens": 0, "output_tokens": 1, "reasoning_output_tokens": 0, "total_tokens": 2}}}},
+                {"timestamp": self.spawn.replace(microsecond=800).isoformat(), "type": "event_msg", "payload": {"type": "billing_record", "scope": "thread", "thread_id": "parent-thread", "credits": {"uncached_input": "3", "cached_input": "1", "output": "2", "total": "6"}}},
+                {"timestamp": self.spawn.replace(microsecond=900).isoformat(), "type": "event_msg", "payload": {"type": "billing_record", "scope": "run", "run_id": "run-1", "credits": {"uncached_input": "5", "cached_input": "1", "output": "4", "total": "10"}}},
+                *extra_parent,
+            ],
+        )
+        start = self.spawn.replace(microsecond=2000)
+        write_jsonl(
+            self.children / f"{self.child_id}.jsonl",
+            [
+                {"timestamp": self.spawn.replace(microsecond=1000).isoformat(), "type": "session_meta", "payload": {"id": self.child_id}},
+                {"timestamp": start.isoformat(), "type": "turn_context", "payload": {"role": "worker"}},
+                {"timestamp": self.spawn.replace(microsecond=3000).isoformat(), "type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 10, "cached_input_tokens": 2, "cache_write_input_tokens": 0, "output_tokens": 4, "reasoning_output_tokens": 1, "total_tokens": 14}}}},
+                *extra_child,
+                {"timestamp": self.spawn.replace(microsecond=4000).isoformat(), "type": "event_msg", "payload": {"type": "billing_record", "scope": "thread", "thread_id": self.child_id, "credits": {"uncached_input": "2", "cached_input": "0", "output": "2", "total": "4"}}},
+                {"timestamp": self.spawn.replace(microsecond=5000).isoformat(), "type": "event_msg", "payload": {"type": "agent_status", "status": "completed"}},
+            ],
+        )
+
+    def _extract(self, state="terminal"):
+        return extract_production_facts(
+            parent=self.parent,
+            children_root=self.children,
+            repo=self.repo,
+            base=self.base,
+            cutoff=datetime(2026, 8, 16, 2, 0, tzinfo=timezone.utc),
+            source_state=state,
+        )
+
+    def test_terminal_fact_is_private_typed_and_complete(self):
+        fact = self._extract()
+        self.assertEqual(fact["schema_version"], "production-fact.v1")
+        self.assertTrue(fact["completion_claim_eligible"])
+        self.assertEqual(fact["metrics"]["forks"]["all"]["value"], 1)
+        serialized = json.dumps(fact)
+        self.assertNotIn(str(self.root), serialized)
+        self.assertNotIn(self.child_id, serialized)
+        for item in fact["metrics"]["tokens"].values():
+            self.assertEqual(item["status"], "available")
+            self.assertIsNotNone(item["basis"])
+            self.assertIsNotNone(item["source_id"])
+        for item in fact["metrics"]["credits"].values():
+            self.assertEqual(item["status"], "available")
+        self.assertEqual(fact["metrics"]["credits"]["thread_total"]["value"], "10")
+        self.assertEqual(fact["metrics"]["credits"]["run_total"]["value"], "10")
+        child_raw = next(self.children.iterdir()).read_bytes()
+        session_meta_size = len(child_raw.splitlines(keepends=True)[0])
+        self.assertEqual(
+            fact["metrics"]["log_bytes"]["children"]["value"],
+            len(child_raw) - session_meta_size,
+        )
+        self.assertEqual(
+            fact["metrics"]["log_bytes"]["total"]["value"],
+            fact["metrics"]["log_bytes"]["parent"]["value"]
+            + fact["metrics"]["log_bytes"]["children"]["value"],
+        )
+        child_path = next(self.children.iterdir())
+        child_path.write_text(
+            child_path.read_text(encoding="utf-8")
+            + json.dumps(
+                {
+                    "timestamp": "2026-08-16T03:00:00+00:00",
+                    "type": "event_msg",
+                    "payload": {"type": "after-cutoff"},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        rebound = self._extract()
+        self.assertNotEqual(fact["sources"]["child_sha256"], rebound["sources"]["child_sha256"])
+        for key in ("parent", "children", "total"):
+            self.assertEqual(
+                fact["metrics"]["log_bytes"][key]["value"],
+                rebound["metrics"]["log_bytes"][key]["value"],
+            )
+        output = self.root / "fact.json"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-m",
+                "evaluation",
+                "production-facts",
+                "--parent",
+                str(self.parent),
+                "--children-root",
+                str(self.children),
+                "--repo",
+                str(self.repo),
+                "--base",
+                self.base,
+                "--cutoff",
+                "2026-08-16T02:00:00+00:00",
+                "--source-state",
+                "terminal",
+                "--output",
+                str(output),
+            ],
+            cwd=PACKAGE_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(json.loads(output.read_text())["schema_version"], "production-fact.v1")
+
+    def test_copied_history_active_dirty_unsupported_nested_and_failed_spawn(self):
+        copied = {"timestamp": "2026-08-16T00:59:59+00:00", "type": "turn_context", "payload": {"role": "primary"}}
+        self._write_valid_sources(extra_child=(copied,))
+        with self.assertRaisesRegex(EvaluationError, "copied pre-spawn"):
+            self._extract()
+
+        self._write_valid_sources(extra_parent=({"timestamp": self.spawn.replace(microsecond=4000).isoformat(), "type": "future_event", "payload": {}},))
+        (self.repo / "dirty.txt").write_text("dirty\n", encoding="utf-8")
+        fact = self._extract("active")
+        self.assertFalse(fact["causal_claim_eligible"])
+        self.assertFalse(fact["git_source"]["clean"])
+        self.assertEqual(fact["unsupported_event_count"]["value"], 1)
+        (self.repo / "dirty.txt").unlink()
+
+        nested_id = uuid7_for(self.spawn.replace(microsecond=4000))
+        nested = (
+            {"timestamp": self.spawn.replace(microsecond=3500).isoformat(), "type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent", "call_id": "nested", "arguments": json.dumps({"task_name": "nested"})}},
+            {"timestamp": self.spawn.replace(microsecond=3600).isoformat(), "type": "response_item", "payload": {"type": "function_call_output", "call_id": "nested", "output": json.dumps({"agent_id": nested_id})}},
+        )
+        self._write_valid_sources(extra_child=nested)
+        fact = self._extract()
+        self.assertEqual(fact["metrics"]["spawns"]["nested"]["value"], 1)
+        self.assertFalse(fact["promotion_claim_eligible"])
+
+        for path in self.children.iterdir():
+            path.unlink()
+        write_jsonl(
+            self.parent,
+            [
+                {"timestamp": self.spawn.isoformat(), "type": "response_item", "payload": {"type": "function_call", "name": "spawn_agent", "call_id": "failed", "arguments": json.dumps({"task_name": "failed"})}},
+                {"timestamp": self.spawn.replace(microsecond=1000).isoformat(), "type": "response_item", "payload": {"type": "function_call_output", "call_id": "failed", "is_error": True, "output": "failed to spawn"}},
+            ],
+        )
+        fact = self._extract()
+        self.assertEqual(fact["metrics"]["spawns"]["failed"]["value"], 1)
+        self.assertFalse(fact["completion_claim_eligible"])
+
+    def test_metric_status_equivalence_and_divergent_git(self):
+        with self.assertRaisesRegex(EvaluationError, "available metric"):
+            _metric(1, None, None)
+        with self.assertRaisesRegex(EvaluationError, "unavailable metric"):
+            _metric(None, "basis", "source")
+        fact = self._extract()
+        numeric_unavailable = copy.deepcopy(fact)
+        numeric_unavailable["metrics"]["tokens"]["total_tokens"]["status"] = "unavailable"
+        with self.assertRaisesRegex(EvaluationError, "unavailable status requires null"):
+            validate_production_fact(numeric_unavailable)
+        null_available = copy.deepcopy(fact)
+        null_available["metrics"]["tokens"]["total_tokens"]["value"] = None
+        with self.assertRaisesRegex(EvaluationError, "available status requires non-null"):
+            validate_production_fact(null_available)
+        subprocess.run(["git", "-C", str(self.repo), "checkout", "-q", "--orphan", "divergent"], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "rm", "-q", "-f", "tracked.txt"], check=True)
+        (self.repo / "other.txt").write_text("other\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.repo), "add", "other.txt"], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "commit", "-qm", "divergent"], check=True)
+        fact = self._extract()
+        self.assertFalse(fact["git_source"]["base_is_ancestor"])
+        self.assertFalse(fact["causal_claim_eligible"])
+
+    def test_credit_records_fail_closed_and_never_derive_from_tokens(self):
+        source_paths = [self.parent, *self.children.iterdir()]
+        for path in source_paths:
+            events = [json.loads(line) for line in path.read_text().splitlines()]
+            write_jsonl(
+                path,
+                [
+                    event
+                    for event in events
+                    if event.get("payload", {}).get("type") != "billing_record"
+                ],
+            )
+        fact = self._extract()
+        self.assertTrue(
+            all(
+                metric["status"] == "unavailable" and metric["value"] is None
+                for metric in fact["metrics"]["credits"].values()
+            )
+        )
+        self.assertTrue(
+            all(metric["status"] == "available" for metric in fact["metrics"]["tokens"].values())
+        )
+        self.assertFalse(fact["promotion_claim_eligible"])
+
+        self._write_valid_sources()
+        child_path = next(self.children.iterdir())
+        child_events = [json.loads(line) for line in child_path.read_text().splitlines()]
+        billing = next(
+            event
+            for event in child_events
+            if event.get("payload", {}).get("type") == "billing_record"
+        )
+        child_events.insert(-1, copy.deepcopy(billing))
+        write_jsonl(child_path, child_events)
+        ambiguous = self._extract()
+        self.assertTrue(
+            all(
+                metric["status"] == "unavailable"
+                for metric in ambiguous["metrics"]["credits"].values()
+            )
+        )
+        self.assertFalse(ambiguous["promotion_claim_eligible"])
+
+        self._write_valid_sources()
+        parent_events = [json.loads(line) for line in self.parent.read_text().splitlines()]
+        run_record = next(
+            event
+            for event in parent_events
+            if event.get("payload", {}).get("scope") == "run"
+        )
+        run_record["payload"]["credits"]["uncached_input"] = "6"
+        run_record["payload"]["credits"]["total"] = "11"
+        write_jsonl(self.parent, parent_events)
+        with self.assertRaisesRegex(EvaluationError, "do not match complete thread"):
+            self._extract()
 
 
 if __name__ == "__main__":

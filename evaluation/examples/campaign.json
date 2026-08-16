@@ -36,8 +36,11 @@
         "evidence_tester"
       ],
       "fixture_family": "public-development",
+      "fixture_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "holdout": false,
       "instance_id": "development-smoke",
+      "prompt_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "rubric_sha256": "225bfb839fbb7dbf0ab3c05ea75ed9c09fb759288b85d82ac001d6e144a348e0",
       "runs": {
         "baseline": {
           "child_count": 1,
@@ -220,5 +223,5 @@
       "task_class": "test-triage"
     }
   ],
-  "schema_version": 1
+  "schema_version": 2
 }

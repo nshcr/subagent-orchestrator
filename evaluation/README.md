@@ -13,6 +13,14 @@ python -m evaluation report --campaign campaign.json \
   --sealed-holdout /outside/repository/sealed-results.json \
   --output report.json
 python -m evaluation smoke
+python -m evaluation production-facts \
+  --parent /absolute/parent-rollout.jsonl \
+  --children-root /absolute/child-rollouts \
+  --repo /absolute/repository --base BASE_REV \
+  --cutoff 2026-08-16T12:00:00+08:00 --source-state terminal \
+  --output /absolute/production-fact.json
+python -m evaluation evidence-tier \
+  --input implemented.json --input verified-local.json
 ```
 
 The sealed file has `schema_version`, `campaign_id`, frozen execution order,
@@ -41,10 +49,12 @@ recorded attempts above 1. Reviews and repairs use `child` when delegated and
 by the stable thread ID. Failed and cancelled attempts remain in credit totals.
 Every record also preserves role, nullable parent ID, terminal state, model,
 effort, service tier, raw token decomposition, and exact decimal
-credit categories plus total. Validation reconciles expected thread/receiver
-IDs, child and retry counts, terminal/cost completeness, parent topology, and
-the token and credit arithmetic before a report can be emitted. Custom receiver
-roles must equal the instance's single class-policy role; baseline roles must
+credit categories plus total. Exact cost records require four non-null decimal
+categories with valid arithmetic; explicitly unavailable cost requires
+`cost_complete=false` and four null categories. Validation reconciles expected
+thread/receiver IDs, child and retry counts, terminal state, parent topology,
+and all available token and credit arithmetic before a report can be emitted.
+Custom receiver roles must equal the instance's single class-policy role; baseline roles must
 come from a disjoint campaign allowlist. Child-to-child parents remain rejected
 here because this reporter promotes the four governed custom leaf roles. The
 built-in bounded-peer lane is a baseline runtime capability, not a fifth
@@ -59,10 +69,20 @@ orders remain separate in the report. Process exit/completion, routing violation
 terminal state, role compliance, recursion, token completeness, and cost
 completeness are all reported; any defect in either arm blocks promotion.
 
-Promotion is paired: both baseline and custom arms must pass every quality check
-and contamination audit with zero critical failures and zero scope violations.
-Quality improvement or a 10% median-credit reduction is considered only after
-that two-arm integrity gate passes.
+Promotion is paired and Pareto-safe. Every instance freezes SHA-256 identities
+for its fixture and prompt; neither digest may be reused within or across the
+development and sealed inputs. Execution identities and order remain unique.
+Both arms must use the same grader and sorted `(id, critical, max_score)` rubric
+signature. The report publishes a digest of that signature.
+
+Normalized quality is compared on every paired instance, never by pooling raw
+scores across different scales. One negative custom delta or any integrity
+defect blocks both retention and promotion. An efficiency PASS additionally
+requires complete exact credit evidence, positive baseline credits, every
+paired custom/baseline ratio at most `1.00`, and class and overall aggregate
+ratios at most `1.00`. When quality is tied, both the overall paired median and
+aggregate ratios must be at most `0.90`. Raw token counts are never treated as
+exact credits.
 
 Each paired instance is also fail-closed for comparability. Baseline and custom
 must use the same `grader_sha256` and the same rubric signature after sorting by
@@ -81,10 +101,61 @@ valid records and clean contamination audits. The archived runner hash must equa
 the sealed runner hash.
 
 Class policy distinguishes ordinary `elective` promotion from a
-`mandatory_named_gate`. Elective classes use the quality-first/10%-credit rule.
-A mandatory named gate may report `mandatory-custom` without the 10% saving only
-when higher-level policy requires that exact role, no callable built-in
-equivalent exists, the availability/removal probe is hash-bound, the role was
-restored after the probe, and all evidence, sealed quality, integrity, and
-independence gates pass with no custom quality loss. This is safety retention,
-not an elective promotion or a reusable cost exception.
+`mandatory_named_gate`. Elective classes require `efficiency_promotion=PASS`.
+A mandatory named gate exposes two independent results:
+`governance_retention` covers frozen evidence, integrity, and per-instance
+quality non-regression; `efficiency_promotion` adds the exact Pareto cost gates.
+A retained gate therefore reports `retained-efficient` or
+`retained-not-efficient`. Cost regression or unavailable cost evidence can
+never produce an efficiency PASS, while integrity or quality regression blocks
+retention itself.
+
+## Production facts
+
+`production-facts` emits `production-fact.v1` from one parent rollout, its exact
+child rollout directory, and a Git repository at an explicit base revision and
+cutoff. All input and output paths must be absolute and existing input types are
+checked. A child must have one unambiguous parent spawn receipt and a UUIDv7
+lineage. Accounting begins at its first post-spawn `turn_context`; copied
+pre-spawn history, duplicate receivers, missing outputs, and orphan child logs
+are rejected.
+
+The fact binds parser and complete raw-source hashes, Git revisions and trees,
+hashed changed paths, commit/path/numstat/staged denominators, token decomposition,
+explicit thread/run credits, spawn/start/failure counts, role and fork observations,
+messages, waits, compactions, concurrency intervals, and admitted source byte
+counts. Parent bytes stop at the cutoff. Child bytes start at the first admitted
+post-spawn `turn_context`, so pre-start `session_meta` and other lineage-only bytes
+remain source-bound but do not enter child or total accounting. Path strings are
+SHA-256 hashed by default.
+
+Credit availability requires exactly one explicit thread record in every admitted
+source and exactly one run record in the parent source. Records use an `event_msg`
+payload with `type=billing_record`, `scope=thread|run`, one `thread_id` or `run_id`,
+and exact decimal `credits` categories `uncached_input`, `cached_input`, `output`,
+and `total`. Each record total, the thread aggregate, and the run aggregate must
+reconcile. Missing, partial, or ambiguous billing evidence makes every credit
+metric unavailable; contradictory arithmetic is rejected. The parser never
+derives credits from raw tokens and emits no per-role, per-wait, or per-tool credit
+estimate.
+
+Every reported measurement, including values below `metrics` and the two source
+quality denominators, has exactly `{status,basis,source_id,value}`.
+`unavailable` is equivalent to a null value and null provenance; an available
+value requires parser basis and a source digest. Any unavailable required metric,
+active/incomplete source, dirty or divergent Git tree, unsupported event,
+failed/nested spawn, or missing terminal observation makes completion, causal,
+and promotion claim eligibility false. The fact remains observational evidence,
+not a causal claim.
+
+## Evidence tiers
+
+`evidence-tier.schema.json` and the `evidence-tier` command validate the exact
+monotonic chain `implemented -> verified-local -> verified-ci -> verified-target
+-> pilot-signed`. Each successor names the immediately preceding tier and the
+SHA-256 of that predecessor's canonical JSON. Revision and package identity stay
+constant across the chain. Each tier has an exact provenance object: source/diff
+receipts, local command/environment/result, CI provider/run/revision/result,
+target/environment/revision/package/receipt, then pilot authority/time/signature.
+Narrative proxies, missing fields, a skipped tier, mismatched identities, or an
+omitted pilot authority fail validation.

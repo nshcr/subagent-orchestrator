@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "campaign_id", "configuration_hashes", "allowed_baseline_roles", "class_policies", "execution_order", "instances"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "campaign_id": {"$ref": "#/$defs/string"},
     "configuration_hashes": {
       "type": "object",
@@ -86,11 +86,14 @@
     "instance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["instance_id", "task_class", "fixture_family", "scenario", "expected_roles", "holdout", "arm_order", "runs"],
+      "required": ["instance_id", "task_class", "fixture_family", "fixture_sha256", "prompt_sha256", "rubric_sha256", "scenario", "expected_roles", "holdout", "arm_order", "runs"],
       "properties": {
         "instance_id": {"$ref": "#/$defs/string"},
         "task_class": {"$ref": "#/$defs/string"},
         "fixture_family": {"$ref": "#/$defs/string"},
+        "fixture_sha256": {"$ref": "#/$defs/sha256"},
+        "prompt_sha256": {"$ref": "#/$defs/sha256"},
+        "rubric_sha256": {"$ref": "#/$defs/sha256"},
         "scenario": {"$ref": "#/$defs/string"},
         "expected_roles": {"$ref": "#/$defs/stringList"},
         "holdout": {"type": "boolean"},
@@ -151,7 +154,14 @@
         "service_tier": {"const": "default"},
         "tokens": {"$ref": "#/$defs/tokens"},
         "credits": {"$ref": "#/$defs/credits"}
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"cost_complete": {"const": true}}},
+          "then": {"properties": {"credits": {"$ref": "#/$defs/exactCredits"}}},
+          "else": {"properties": {"credits": {"$ref": "#/$defs/unavailableCredits"}}}
+        }
+      ]
     },
     "tokens": {
       "type": "object",
@@ -171,10 +181,28 @@
       "additionalProperties": false,
       "required": ["uncached_input", "cached_input", "output", "total"],
       "properties": {
-        "uncached_input": {"$ref": "#/$defs/decimal"},
-        "cached_input": {"$ref": "#/$defs/decimal"},
-        "output": {"$ref": "#/$defs/decimal"},
-        "total": {"$ref": "#/$defs/decimal"}
+        "uncached_input": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
+        "cached_input": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
+        "output": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]},
+        "total": {"oneOf": [{"$ref": "#/$defs/decimal"}, {"type": "null"}]}
+      }
+    },
+    "exactCredits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uncached_input", "cached_input", "output", "total"],
+      "properties": {
+        "uncached_input": {"$ref": "#/$defs/decimal"}, "cached_input": {"$ref": "#/$defs/decimal"},
+        "output": {"$ref": "#/$defs/decimal"}, "total": {"$ref": "#/$defs/decimal"}
+      }
+    },
+    "unavailableCredits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uncached_input", "cached_input", "output", "total"],
+      "properties": {
+        "uncached_input": {"type": "null"}, "cached_input": {"type": "null"},
+        "output": {"type": "null"}, "total": {"type": "null"}
       }
     },
     "check": {

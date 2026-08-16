@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from decimal import Decimal, InvalidOperation
+import hashlib
 import json
 import re
 import sys
@@ -17,7 +18,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 EXAMPLES_ROOT = Path(__file__).resolve().parent / "examples"
 ARMS = {"baseline", "custom"}
 TOKEN_KEYS = {
@@ -63,6 +64,9 @@ INSTANCE_KEYS = {
     "instance_id",
     "task_class",
     "fixture_family",
+    "fixture_sha256",
+    "prompt_sha256",
+    "rubric_sha256",
     "scenario",
     "expected_roles",
     "holdout",
@@ -282,9 +286,9 @@ def _validate_run(
         _require_boolean(thread["terminal"], f"{thread_location}.terminal")
         if not thread["terminal"]:
             raise EvaluationError(f"{thread_location} is nonterminal")
-        _require_boolean(thread["cost_complete"], f"{thread_location}.cost_complete")
-        if not thread["cost_complete"]:
-            raise EvaluationError(f"{thread_location} has incomplete cost evidence")
+        cost_complete = _require_boolean(
+            thread["cost_complete"], f"{thread_location}.cost_complete"
+        )
         parent_thread_id = thread["parent_thread_id"]
         if parent_thread_id is not None:
             _require_string(parent_thread_id, f"{thread_location}.parent_thread_id")
@@ -339,15 +343,24 @@ def _validate_run(
         credits = _require_exact_keys(
             thread["credits"], CREDIT_KEYS, f"{thread_location}.credits"
         )
-        parsed_credits = {
-            key: _require_decimal(value, f"{thread_location}.credits.{key}")
-            for key, value in credits.items()
-        }
-        if parsed_credits["total"] != sum(
-            (parsed_credits[key] for key in CREDIT_CATEGORY_KEYS), Decimal(0)
-        ):
+        if cost_complete:
+            if any(value is None for value in credits.values()):
+                raise EvaluationError(
+                    f"{thread_location} complete cost evidence cannot contain null"
+                )
+            parsed_credits = {
+                key: _require_decimal(value, f"{thread_location}.credits.{key}")
+                for key, value in credits.items()
+            }
+            if parsed_credits["total"] != sum(
+                (parsed_credits[key] for key in CREDIT_CATEGORY_KEYS), Decimal(0)
+            ):
+                raise EvaluationError(
+                    f"{thread_location}.credits total does not match category sum"
+                )
+        elif any(value is not None for value in credits.values()):
             raise EvaluationError(
-                f"{thread_location}.credits total does not match category sum"
+                f"{thread_location} unavailable cost evidence must use null categories"
             )
 
     for thread_id, attempts in attempts_by_thread.items():
@@ -464,6 +477,8 @@ def _validate_instance(
     instance_id = _require_string(instance["instance_id"], f"{location}.instance_id")
     for key in ("task_class", "fixture_family", "scenario"):
         _require_string(instance[key], f"{location}.{key}")
+    _require_sha256(instance["fixture_sha256"], f"{location}.fixture_sha256")
+    _require_sha256(instance["prompt_sha256"], f"{location}.prompt_sha256")
     expected_roles = _require_string_list(
         instance["expected_roles"], f"{location}.expected_roles"
     )
@@ -500,6 +515,14 @@ def _validate_instance(
             f"{location} paired rubric mismatch; expected identical "
             "(id, critical, max_score) signatures"
         )
+    rubric_sha256 = hashlib.sha256(
+        json.dumps(
+            rubric_signatures["baseline"], separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+    _require_sha256(instance["rubric_sha256"], f"{location}.rubric_sha256")
+    if instance["rubric_sha256"] != rubric_sha256:
+        raise EvaluationError(f"{location}.rubric_sha256 does not match frozen rubric")
     return instance_id
 
 
@@ -621,6 +644,8 @@ def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
     if not isinstance(instances, list) or not instances:
         raise EvaluationError(f"{label}.instances must be a non-empty list")
     seen = set()
+    seen_fixtures: dict[str, str] = {}
+    seen_prompts: dict[str, str] = {}
     for index, instance in enumerate(instances):
         instance_id = _validate_instance(
             instance,
@@ -632,6 +657,16 @@ def validate_campaign(document: dict, *, sealed_holdout: bool = False) -> None:
         if instance_id in seen:
             raise EvaluationError(f"duplicate instance_id in {label}: {instance_id}")
         seen.add(instance_id)
+        for field, observed in (
+            ("fixture_sha256", seen_fixtures),
+            ("prompt_sha256", seen_prompts),
+        ):
+            digest = instance[field]
+            if digest in observed:
+                raise EvaluationError(
+                    f"duplicate {field} in {label}: {instance_id} and {observed[digest]}"
+                )
+            observed[digest] = instance_id
 
     execution_order = document["execution_order"]
     if not isinstance(execution_order, list):
@@ -713,9 +748,17 @@ def _median(values: Iterable[Decimal]) -> Decimal:
 
 def _run_summary(run: dict) -> dict:
     checks = run["quality_checks"]
-    credits = sum(
-        (_require_decimal(thread["credits"]["total"], "credit") for thread in run["threads"]),
-        Decimal(0),
+    cost_complete = all(thread["cost_complete"] for thread in run["threads"])
+    credits = (
+        sum(
+            (
+                _require_decimal(thread["credits"]["total"], "credit")
+                for thread in run["threads"]
+            ),
+            Decimal(0),
+        )
+        if cost_complete
+        else None
     )
     tokens = {
         key: sum(thread["tokens"][key] for thread in run["threads"])
@@ -728,7 +771,7 @@ def _run_summary(run: dict) -> dict:
         "completion_status": run["completion_status"],
         "contamination_audit": dict(sorted(run["contamination_audit"].items())),
         "contamination_audit_passed": run["contamination_audit"]["passed"],
-        "cost_complete": all(thread["cost_complete"] for thread in run["threads"]),
+        "cost_complete": cost_complete,
         "critical_failures": sum(
             1 for check in checks if check["critical"] and not check["passed"]
         ),
@@ -768,7 +811,11 @@ def _run_summary(run: dict) -> dict:
         "threads": [
             {
                 "credits": {
-                    key: _decimal_text(_require_decimal(value, "credit"))
+                    key: (
+                        _decimal_text(_require_decimal(value, "credit"))
+                        if value is not None
+                        else None
+                    )
                     for key, value in sorted(thread["credits"].items())
                 },
                 "attempt": thread["attempt"],
@@ -790,18 +837,24 @@ def _run_summary(run: dict) -> dict:
         ],
         "tokens": tokens,
         "total_tokens": tokens["total_tokens"],
-        "total_credits": _decimal_text(credits),
+        "total_credits": _decimal_text(credits) if credits is not None else None,
         "wall_time_ms": run["wall_time_ms"],
     }
 
 
-def _quality_compare(left: dict, right: dict) -> int:
-    cross_left = left["quality_score"] * right["quality_max"]
-    cross_right = right["quality_score"] * left["quality_max"]
-    return (cross_left > cross_right) - (cross_left < cross_right)
+def _ratio(numerator: Decimal, denominator: Decimal) -> Decimal | None:
+    return numerator / denominator if denominator > 0 else None
 
 
-def _class_summary(task_class: str, instances: list[dict], policy: dict) -> dict:
+def _class_summary(
+    task_class: str,
+    instances: list[dict],
+    policy: dict,
+    *,
+    overall_baseline: Decimal | None,
+    overall_custom: Decimal | None,
+    overall_pair_ratios: list[Decimal] | None,
+) -> dict:
     arm_totals = {}
     for arm in sorted(ARMS):
         summaries = [instance["arms"][arm] for instance in instances]
@@ -817,12 +870,16 @@ def _class_summary(task_class: str, instances: list[dict], policy: dict) -> dict
                 and item["routing_compliant"]
                 and not item["recursion_detected"]
                 and item["all_threads_terminal"]
-                and item["cost_complete"]
                 and item["process_completed"]
                 for item in summaries
             ),
-            "median_total_credits": _decimal_text(
-                _median(Decimal(item["total_credits"]) for item in summaries)
+            "cost_complete": all(item["cost_complete"] for item in summaries),
+            "median_total_credits": (
+                _decimal_text(
+                    _median(Decimal(item["total_credits"]) for item in summaries)
+                )
+                if all(item["cost_complete"] for item in summaries)
+                else None
             ),
             "quality_max": sum(item["quality_max"] for item in summaries),
             "quality_score": sum(item["quality_score"] for item in summaries),
@@ -832,8 +889,15 @@ def _class_summary(task_class: str, instances: list[dict], policy: dict) -> dict
             "routing_violation_count": sum(
                 len(item["routing_violations"]) for item in summaries
             ),
-            "total_credits": _decimal_text(
-                sum((Decimal(item["total_credits"]) for item in summaries), Decimal(0))
+            "total_credits": (
+                _decimal_text(
+                    sum(
+                        (Decimal(item["total_credits"]) for item in summaries),
+                        Decimal(0),
+                    )
+                )
+                if all(item["cost_complete"] for item in summaries)
+                else None
             ),
             "total_tokens": sum(item["total_tokens"] for item in summaries),
         }
@@ -855,36 +919,102 @@ def _class_summary(task_class: str, instances: list[dict], policy: dict) -> dict
         and arm["evidence_integrity_passed"]
         for arm in (baseline, custom)
     )
-    quality = _quality_compare(custom, baseline)
-    baseline_median = Decimal(baseline["median_total_credits"])
-    custom_median = Decimal(custom["median_total_credits"])
-    credit_threshold_met = baseline_median > 0 and custom_median <= (
-        baseline_median * Decimal("0.9")
+    quality_deltas = []
+    for instance in instances:
+        baseline_run = instance["arms"]["baseline"]
+        custom_run = instance["arms"]["custom"]
+        left = custom_run["quality_score"] * baseline_run["quality_max"]
+        right = baseline_run["quality_score"] * custom_run["quality_max"]
+        quality_deltas.append((left > right) - (left < right))
+    quality_non_regression = all(delta >= 0 for delta in quality_deltas)
+    quality_improved = quality_non_regression and any(
+        delta > 0 for delta in quality_deltas
     )
-    if policy["decision_mode"] == "mandatory_named_gate":
-        promoted = evidence_complete and paired_integrity_passed and quality >= 0
-        recommendation = "mandatory-custom" if promoted else "primary-default"
-    else:
-        promoted = evidence_complete and paired_integrity_passed and (
-            quality > 0 or (quality == 0 and credit_threshold_met)
-        )
-        recommendation = "custom" if promoted else "primary-default"
+    quality_tied = quality_non_regression and all(
+        delta == 0 for delta in quality_deltas
+    )
 
-    reasons = []
+    cost_complete = baseline["cost_complete"] and custom["cost_complete"]
+    pair_ratios: list[Decimal] = []
+    positive_baselines = cost_complete
+    if cost_complete:
+        for instance in instances:
+            baseline_cost = Decimal(instance["arms"]["baseline"]["total_credits"])
+            custom_cost = Decimal(instance["arms"]["custom"]["total_credits"])
+            if baseline_cost <= 0:
+                positive_baselines = False
+                break
+            pair_ratios.append(custom_cost / baseline_cost)
+    class_ratio = (
+        _ratio(Decimal(custom["total_credits"]), Decimal(baseline["total_credits"]))
+        if cost_complete
+        else None
+    )
+    overall_ratio = (
+        _ratio(overall_custom, overall_baseline)
+        if overall_custom is not None and overall_baseline is not None
+        else None
+    )
+    paired_median_ratio = (
+        _median(overall_pair_ratios) if overall_pair_ratios else None
+    )
+    cost_non_regression = (
+        positive_baselines
+        and bool(pair_ratios)
+        and overall_pair_ratios is not None
+        and all(ratio <= Decimal("1") for ratio in overall_pair_ratios)
+        and class_ratio is not None
+        and class_ratio <= Decimal("1")
+        and overall_ratio is not None
+        and overall_ratio <= Decimal("1")
+    )
+    tie_efficiency = (
+        not quality_tied
+        or (
+            paired_median_ratio is not None
+            and paired_median_ratio <= Decimal("0.9")
+            and class_ratio is not None
+            and class_ratio <= Decimal("0.9")
+            and overall_ratio is not None
+            and overall_ratio <= Decimal("0.9")
+        )
+    )
+    retention_passed = (
+        evidence_complete and paired_integrity_passed and quality_non_regression
+    )
+    efficiency_passed = retention_passed and cost_non_regression and tie_efficiency
+    if policy["decision_mode"] == "mandatory_named_gate":
+        if retention_passed:
+            recommendation = (
+                "retained-efficient" if efficiency_passed else "retained-not-efficient"
+            )
+        else:
+            recommendation = "primary-default"
+    else:
+        recommendation = "custom" if efficiency_passed else "primary-default"
+
+    retention_reasons = []
     if not evidence_complete:
-        reasons.append(
+        retention_reasons.append(
             "requires three fixture families, one sealed holdout, and both arm orders"
         )
     if not paired_integrity_passed:
-        reasons.append("paired baseline/custom integrity gate failed")
-    if quality < 0:
-        reasons.append("custom verified quality is lower")
-    elif (
-        policy["decision_mode"] == "elective"
-        and quality == 0
-        and not credit_threshold_met
-    ):
-        reasons.append("indistinguishable quality without 10% median credit reduction")
+        retention_reasons.append("paired baseline/custom integrity gate failed")
+    if not quality_non_regression:
+        retention_reasons.append(
+            "custom normalized quality regresses on at least one paired instance"
+        )
+    efficiency_reasons = list(retention_reasons)
+    if not cost_complete:
+        efficiency_reasons.append("exact end-to-end credit evidence is unavailable")
+    elif not positive_baselines:
+        efficiency_reasons.append("efficiency requires positive exact baseline credits")
+    elif not cost_non_regression:
+        efficiency_reasons.append("paired, class, or overall aggregate credits regress")
+    elif quality_tied and not tie_efficiency:
+        efficiency_reasons.append(
+            "quality tie requires 10% paired-median and aggregate savings"
+        )
 
     return {
         "arms": arm_totals,
@@ -893,11 +1023,38 @@ def _class_summary(task_class: str, instances: list[dict], policy: dict) -> dict
         "fixture_families": families,
         "instance_count": len(instances),
         "paired_integrity_passed": paired_integrity_passed,
+        "quality_non_regression": quality_non_regression,
+        "quality_outcome": "improved" if quality_improved else ("tied" if quality_tied else "regressed"),
+        "pair_credit_ratios": [_decimal_text(value) for value in pair_ratios],
+        "class_credit_ratio": _decimal_text(class_ratio) if class_ratio is not None else None,
+        "overall_credit_ratio": _decimal_text(overall_ratio) if overall_ratio is not None else None,
+        "paired_median_credit_ratio": (
+            _decimal_text(paired_median_ratio) if paired_median_ratio is not None else None
+        ),
+        "overall_paired_median_credit_ratio": (
+            _decimal_text(paired_median_ratio) if paired_median_ratio is not None else None
+        ),
         "policy": dict(sorted(policy.items())),
         "decision_mode": policy["decision_mode"],
         "custom_role": policy["custom_role"],
         "recommendation": recommendation,
-        "recommendation_reasons": reasons,
+        "recommendation_reasons": efficiency_reasons,
+        "governance_retention": {
+            "decision": (
+                "PASS" if retention_passed else "BLOCK"
+            ) if policy["decision_mode"] == "mandatory_named_gate" else "not-applicable",
+            "eligible": retention_passed if policy["decision_mode"] == "mandatory_named_gate" else False,
+            "reasons": (
+                retention_reasons
+                if policy["decision_mode"] == "mandatory_named_gate"
+                else []
+            ),
+        },
+        "efficiency_promotion": {
+            "decision": "PASS" if efficiency_passed else "BLOCK",
+            "eligible": efficiency_passed,
+            "reasons": efficiency_reasons,
+        },
         "sealed_holdout_count": sealed_count,
         "task_class": task_class,
     }
@@ -932,6 +1089,10 @@ def build_report(campaign: dict, sealed_holdout: dict | None = None) -> dict:
     ids = [instance["instance_id"] for instance in all_instances]
     if len(ids) != len(set(ids)):
         raise EvaluationError("instance_id collides across campaign and sealed holdout")
+    for field in ("fixture_sha256", "prompt_sha256"):
+        digests = [instance[field] for instance in all_instances]
+        if len(digests) != len(set(digests)):
+            raise EvaluationError(f"{field} collides across campaign and sealed holdout")
 
     instance_reports = []
     for instance in sorted(all_instances, key=lambda item: item["instance_id"]):
@@ -942,14 +1103,51 @@ def build_report(campaign: dict, sealed_holdout: dict | None = None) -> dict:
                     arm: _run_summary(instance["runs"][arm]) for arm in sorted(ARMS)
                 },
                 "fixture_family": instance["fixture_family"],
+                "fixture_sha256": instance["fixture_sha256"],
                 "holdout": instance["holdout"],
                 "instance_id": instance["instance_id"],
+                "prompt_sha256": instance["prompt_sha256"],
+                "rubric_sha256": instance["rubric_sha256"],
                 "scenario": instance["scenario"],
                 "task_class": instance["task_class"],
             }
         )
 
     classes = []
+    cost_complete = all(
+        report["arms"][arm]["cost_complete"]
+        for report in instance_reports
+        for arm in sorted(ARMS)
+    )
+    overall_baseline = (
+        sum(
+            (Decimal(report["arms"]["baseline"]["total_credits"]) for report in instance_reports),
+            Decimal(0),
+        )
+        if cost_complete
+        else None
+    )
+    overall_custom = (
+        sum(
+            (Decimal(report["arms"]["custom"]["total_credits"]) for report in instance_reports),
+            Decimal(0),
+        )
+        if cost_complete
+        else None
+    )
+    overall_pair_ratios = (
+        [
+            Decimal(report["arms"]["custom"]["total_credits"])
+            / Decimal(report["arms"]["baseline"]["total_credits"])
+            for report in instance_reports
+        ]
+        if cost_complete
+        and all(
+            Decimal(report["arms"]["baseline"]["total_credits"]) > 0
+            for report in instance_reports
+        )
+        else None
+    )
     task_classes = sorted({instance["task_class"] for instance in instance_reports})
     unknown_classes = set(task_classes) - set(campaign["class_policies"])
     if unknown_classes:
@@ -961,7 +1159,14 @@ def build_report(campaign: dict, sealed_holdout: dict | None = None) -> dict:
             instance for instance in instance_reports if instance["task_class"] == task_class
         ]
         classes.append(
-            _class_summary(task_class, selected, campaign["class_policies"][task_class])
+            _class_summary(
+                task_class,
+                selected,
+                campaign["class_policies"][task_class],
+                overall_baseline=overall_baseline,
+                overall_custom=overall_custom,
+                overall_pair_ratios=overall_pair_ratios,
+            )
         )
 
     return {
@@ -1014,12 +1219,53 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "smoke",
         help="validate bundled public example evidence and deterministic reporting",
     )
+    facts = subparsers.add_parser(
+        "production-facts", help="extract production-fact.v1 from rollout and Git sources"
+    )
+    facts.add_argument("--parent", type=Path, required=True)
+    facts.add_argument("--children-root", type=Path, required=True)
+    facts.add_argument("--repo", type=Path, required=True)
+    facts.add_argument("--base", required=True)
+    facts.add_argument("--cutoff", required=True)
+    facts.add_argument(
+        "--source-state", choices=("terminal", "active", "incomplete"), required=True
+    )
+    facts.add_argument("--output", type=Path, required=True)
+    tiers = subparsers.add_parser(
+        "evidence-tier", help="validate an exact monotonic evidence-tier chain"
+    )
+    tiers.add_argument("--input", type=Path, action="append", required=True)
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = parse_args(argv)
     try:
+        if arguments.command == "production-facts":
+            from .production_facts import extract_production_facts, parse_cutoff
+
+            if not arguments.output.is_absolute():
+                raise EvaluationError("--output must be an absolute path")
+            if not arguments.output.parent.is_dir():
+                raise EvaluationError("--output parent must be an existing directory")
+            report = extract_production_facts(
+                parent=arguments.parent,
+                children_root=arguments.children_root,
+                repo=arguments.repo,
+                base=arguments.base,
+                cutoff=parse_cutoff(arguments.cutoff),
+                source_state=arguments.source_state,
+            )
+            _write_report(report, arguments.output)
+            return 0
+        if arguments.command == "evidence-tier":
+            from .evidence_tiers import load_evidence_chain
+
+            documents = load_evidence_chain(arguments.input)
+            print(
+                f"PASS: evidence tier chain is valid through {documents[-1]['tier']}"
+            )
+            return 0
         if arguments.command == "smoke":
             campaign = load_json(EXAMPLES_ROOT / "campaign.json")
             holdout = load_json(EXAMPLES_ROOT / "sealed-holdout.json")
@@ -1036,7 +1282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("PASS: evaluation campaign evidence is valid")
         else:
             _write_report(build_report(campaign, holdout), arguments.output)
-    except EvaluationError as error:
+    except (EvaluationError, OSError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
     return 0

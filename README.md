@@ -188,15 +188,24 @@ python3 -B -m evaluation report --campaign campaign.json \
   --sealed-holdout /outside/repository/sealed-results.json \
   --output report.json
 python3 -B -m evaluation smoke
+python3 -B -m evaluation production-facts \
+  --parent /absolute/parent.jsonl --children-root /absolute/children \
+  --repo /absolute/repo --base BASE_REV --cutoff 2026-08-16T12:00:00+08:00 \
+  --source-state terminal --output /absolute/production-fact.json
+python3 -B -m evaluation evidence-tier \
+  --input implemented.json --input verified-local.json
 ```
 
 Each billed primary, child, review, repair, failed-attempt, or retry task records
-its actual model, effort, service tier, tokens, and credits. Reports use exact
-decimal arithmetic, require stable acceptance and contamination evidence, and
-keep wall time as telemetry only. Promotion remains conservative unless each
-task class covers three fixture families, both arm orders, a sealed holdout, and
-the quality-first/Pareto gate. See [`evaluation/README.md`](evaluation/README.md)
-for the evidence boundary and schemas.
+its actual model, effort, service tier, tokens, and exact credits. Reports compare
+normalized quality per pair, reject reused fixture/prompt identities, require
+non-regressing pair/class/overall costs, and keep mandatory governance retention
+separate from efficiency promotion. `production-fact.v1` extracts hash-bound,
+privacy-preserving rollout/Git observations and independently records only
+explicit, reconciled thread/run credits without token-based estimation, while
+the evidence-tier validator enforces an unskippable predecessor-digest chain.
+See [`evaluation/README.md`](evaluation/README.md) for the evidence boundary and
+schemas.
 
 ## Package layout
 

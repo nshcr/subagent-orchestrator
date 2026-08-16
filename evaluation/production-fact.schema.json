@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/subagent-orchestrator/evaluation/production-fact.schema.json",
+  "title": "Production Fact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "parser", "sources", "cutoff", "source_state", "git_source", "metrics", "unsupported_event_count", "unavailable_metric_count", "completion_claim_eligible", "causal_claim_eligible", "promotion_claim_eligible"],
+  "properties": {
+    "schema_version": {"const": "production-fact.v1"},
+    "parser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sha256"],
+      "properties": {"version": {"const": "production-fact-parser.v1"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["combined_sha256", "parent_sha256", "child_sha256", "repo_path_sha256"],
+      "properties": {
+        "combined_sha256": {"$ref": "#/$defs/sha256"},
+        "parent_sha256": {"$ref": "#/$defs/sha256"},
+        "child_sha256": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+        "repo_path_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "cutoff": {"type": "string", "minLength": 1},
+    "source_state": {"enum": ["terminal", "active", "incomplete"]},
+    "git_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_revision", "base_tree", "head_revision", "head_tree", "base_is_ancestor", "clean", "committed_path_sha256", "staged_path_sha256"],
+      "properties": {
+        "base_revision": {"type": "string", "minLength": 1},
+        "base_tree": {"type": "string", "minLength": 1},
+        "head_revision": {"type": "string", "minLength": 1},
+        "head_tree": {"type": "string", "minLength": 1},
+        "base_is_ancestor": {"type": "boolean"},
+        "clean": {"type": "boolean"},
+        "committed_path_sha256": {"$ref": "#/$defs/sha256List"},
+        "staged_path_sha256": {"$ref": "#/$defs/sha256List"}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens", "credits", "spawns", "roles", "forks", "messages", "waits", "compactions", "concurrency", "log_bytes", "git_denominators"],
+      "properties": {
+        "tokens": {"$ref": "#/$defs/tokenMetrics"},
+        "credits": {"$ref": "#/$defs/creditMetrics"},
+        "spawns": {"$ref": "#/$defs/spawnMetrics"},
+        "roles": {"$ref": "#/$defs/roleMetrics"},
+        "forks": {"$ref": "#/$defs/forkMetrics"},
+        "messages": {"$ref": "#/$defs/messageMetrics"},
+        "waits": {"$ref": "#/$defs/waitMetrics"},
+        "compactions": {"$ref": "#/$defs/countMetrics"},
+        "concurrency": {"$ref": "#/$defs/concurrencyMetrics"},
+        "log_bytes": {"$ref": "#/$defs/logMetrics"},
+        "git_denominators": {"$ref": "#/$defs/gitMetrics"}
+      }
+    },
+    "unsupported_event_count": {"$ref": "#/$defs/metric"},
+    "unavailable_metric_count": {"$ref": "#/$defs/metric"},
+    "completion_claim_eligible": {"type": "boolean"},
+    "causal_claim_eligible": {"type": "boolean"},
+    "promotion_claim_eligible": {"type": "boolean"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sha256List": {"type": "array", "items": {"$ref": "#/$defs/sha256"}, "uniqueItems": true},
+    "metric": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "basis", "source_id", "value"],
+          "properties": {"status": {"const": "available"}, "basis": {"type": "string", "minLength": 1}, "source_id": {"$ref": "#/$defs/sha256"}, "value": {"not": {"type": "null"}}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "basis", "source_id", "value"],
+          "properties": {"status": {"const": "unavailable"}, "basis": {"type": "null"}, "source_id": {"type": "null"}, "value": {"type": "null"}}
+        }
+      ]
+    },
+    "tokenMetrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens"],
+      "properties": {
+        "input_tokens": {"$ref": "#/$defs/metric"}, "cached_input_tokens": {"$ref": "#/$defs/metric"},
+        "cache_write_input_tokens": {"$ref": "#/$defs/metric"},
+        "output_tokens": {"$ref": "#/$defs/metric"}, "reasoning_output_tokens": {"$ref": "#/$defs/metric"},
+        "total_tokens": {"$ref": "#/$defs/metric"}
+      }
+    },
+    "creditMetrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["thread_records", "thread_uncached_input", "thread_cached_input", "thread_output", "thread_total", "run_uncached_input", "run_cached_input", "run_output", "run_total"],
+      "properties": {
+        "thread_records": {"$ref": "#/$defs/threadCreditRecordsMetric"},
+        "thread_uncached_input": {"$ref": "#/$defs/exactCreditMetric"},
+        "thread_cached_input": {"$ref": "#/$defs/exactCreditMetric"},
+        "thread_output": {"$ref": "#/$defs/exactCreditMetric"},
+        "thread_total": {"$ref": "#/$defs/exactCreditMetric"},
+        "run_uncached_input": {"$ref": "#/$defs/exactCreditMetric"},
+        "run_cached_input": {"$ref": "#/$defs/exactCreditMetric"},
+        "run_output": {"$ref": "#/$defs/exactCreditMetric"},
+        "run_total": {"$ref": "#/$defs/exactCreditMetric"}
+      }
+    },
+    "unavailableMetric": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "basis", "source_id", "value"],
+      "properties": {"status": {"const": "unavailable"}, "basis": {"type": "null"}, "source_id": {"type": "null"}, "value": {"type": "null"}}
+    },
+    "exactCreditMetric": {
+      "oneOf": [
+        {"$ref": "#/$defs/unavailableMetric"},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "basis", "source_id", "value"],
+          "properties": {
+            "status": {"const": "available"}, "basis": {"const": "explicit-thread-run-billing-record.v1"},
+            "source_id": {"$ref": "#/$defs/sha256"}, "value": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"}
+          }
+        }
+      ]
+    },
+    "threadCreditRecordsMetric": {
+      "oneOf": [
+        {"$ref": "#/$defs/unavailableMetric"},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "basis", "source_id", "value"],
+          "properties": {
+            "status": {"const": "available"}, "basis": {"const": "explicit-thread-run-billing-record.v1"},
+            "source_id": {"$ref": "#/$defs/sha256"},
+            "value": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/threadCreditRecord"}}
+          }
+        }
+      ]
+    },
+    "threadCreditRecord": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_id_sha256", "uncached_input", "cached_input", "output", "total"],
+      "properties": {
+        "record_id_sha256": {"$ref": "#/$defs/sha256"},
+        "uncached_input": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"},
+        "cached_input": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"},
+        "output": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"},
+        "total": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"}
+      }
+    },
+    "spawnMetrics": {"type": "object", "additionalProperties": false, "required": ["attempted", "started", "failed", "nested"], "properties": {"attempted": {"$ref": "#/$defs/metric"}, "started": {"$ref": "#/$defs/metric"}, "failed": {"$ref": "#/$defs/metric"}, "nested": {"$ref": "#/$defs/metric"}}},
+    "roleMetrics": {"type": "object", "additionalProperties": false, "required": ["observed", "unavailable", "distribution"], "properties": {"observed": {"$ref": "#/$defs/metric"}, "unavailable": {"$ref": "#/$defs/metric"}, "distribution": {"$ref": "#/$defs/metric"}}},
+    "forkMetrics": {"type": "object", "additionalProperties": false, "required": ["all", "none", "partial"], "properties": {"all": {"$ref": "#/$defs/metric"}, "none": {"$ref": "#/$defs/metric"}, "partial": {"$ref": "#/$defs/metric"}}},
+    "messageMetrics": {"type": "object", "additionalProperties": false, "required": ["sent", "send_message", "followup_task"], "properties": {"sent": {"$ref": "#/$defs/metric"}, "send_message": {"$ref": "#/$defs/metric"}, "followup_task": {"$ref": "#/$defs/metric"}}},
+    "waitMetrics": {"type": "object", "additionalProperties": false, "required": ["calls"], "properties": {"calls": {"$ref": "#/$defs/metric"}}},
+    "countMetrics": {"type": "object", "additionalProperties": false, "required": ["count"], "properties": {"count": {"$ref": "#/$defs/metric"}}},
+    "concurrencyMetrics": {"type": "object", "additionalProperties": false, "required": ["intervals", "max_active_children"], "properties": {"intervals": {"$ref": "#/$defs/metric"}, "max_active_children": {"$ref": "#/$defs/metric"}}},
+    "logMetrics": {"type": "object", "additionalProperties": false, "required": ["parent", "children", "total"], "properties": {"parent": {"$ref": "#/$defs/metric"}, "children": {"$ref": "#/$defs/metric"}, "total": {"$ref": "#/$defs/metric"}}},
+    "gitMetrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["commit_count", "path_count", "numstat_rows", "numstat_additions", "numstat_deletions", "staged_path_count", "staged_numstat_rows", "staged_additions", "staged_deletions"],
+      "properties": {
+        "commit_count": {"$ref": "#/$defs/metric"}, "path_count": {"$ref": "#/$defs/metric"},
+        "numstat_rows": {"$ref": "#/$defs/metric"}, "numstat_additions": {"$ref": "#/$defs/metric"},
+        "numstat_deletions": {"$ref": "#/$defs/metric"}, "staged_path_count": {"$ref": "#/$defs/metric"},
+        "staged_numstat_rows": {"$ref": "#/$defs/metric"}, "staged_additions": {"$ref": "#/$defs/metric"},
+        "staged_deletions": {"$ref": "#/$defs/metric"}
+      }
+    }
+  }
+}
