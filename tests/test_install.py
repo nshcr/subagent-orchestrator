@@ -66,8 +66,7 @@ spec.loader.exec_module(module)
 module.MANIFEST_PATH = Path(sys.argv.pop(1))
 raise SystemExit(module.main())
 """
-        return subprocess.run(
-            [
+        command = [
                 sys.executable,
                 "-B",
                 "-c",
@@ -80,7 +79,25 @@ raise SystemExit(module.main())
                 agents_language,
                 action,
                 *extra_args,
-            ],
+            ]
+        if action == "--apply" and "--plan-receipt" not in extra_args:
+            check_command = command[:-len(extra_args) if extra_args else None]
+            check_command[-1] = "--check"
+            check_command.extend(("--format", "json"))
+            checked = subprocess.run(
+                check_command,
+                cwd=PACKAGE_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if checked.returncode != 0:
+                return checked
+            receipt_path = Path(self.temporary.name) / "plan-receipt.json"
+            receipt_path.write_text(checked.stdout)
+            command.extend(("--plan-receipt", str(receipt_path)))
+        return subprocess.run(
+            command,
             cwd=PACKAGE_ROOT,
             text=True,
             capture_output=True,
@@ -138,6 +155,152 @@ raise SystemExit(module.main())
         self.assertIn("WOULD_TOUCH AGENTS.md ", result.stdout)
         self.assertFalse(self.codex_home.exists())
 
+    def test_check_json_emits_strict_target_bound_plan_receipt(self):
+        result = self.run_installer("--check", extra_args=("--format", "json"))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        receipt = INSTALL_MODULE.validate_plan_receipt(json.loads(result.stdout))
+        self.assertEqual(receipt["target"]["realpath"], str(self.codex_home.resolve()))
+        self.assertEqual(receipt["source"]["source_revision"], None)
+        self.assertEqual(
+            receipt["source"]["source_revision_status"],
+            "unavailable-archive-identity-used",
+        )
+        self.assertTrue(receipt["targets"])
+        self.assertFalse(self.codex_home.exists())
+
+    def test_source_identity_requires_clean_git_and_allows_archive_fallback(self):
+        source_root = Path(self.temporary.name) / "git-source"
+        source_root.mkdir()
+        migration = source_root / "install-migrations.json"
+        migration.write_text("{}\n")
+        manifest = {
+            "files": [
+                {
+                    "path": "install-migrations.json",
+                    "sha256": hashlib.sha256(migration.read_bytes()).hexdigest(),
+                    "size": len(migration.read_bytes()),
+                }
+            ]
+        }
+        source_manifest = source_root / "manifest.json"
+        source_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        subprocess.run(["git", "init", "-q", str(source_root)], check=True)
+        subprocess.run(["git", "-C", str(source_root), "add", "."], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(source_root),
+                "-c",
+                "user.name=Installer Test",
+                "-c",
+                "user.email=installer@example.invalid",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-qm",
+                "fixture",
+            ],
+            check=True,
+        )
+        contract_hash = "1" * 64
+        with mock.patch.object(INSTALL_MODULE, "PACKAGE_ROOT", source_root), mock.patch.object(
+            INSTALL_MODULE, "MANIFEST_PATH", source_manifest
+        ), mock.patch.object(
+            INSTALL_MODULE, "install_contract_sha256", return_value=contract_hash
+        ):
+            clean = INSTALL_MODULE.source_package_identity()
+            expected_head = subprocess.run(
+                ["git", "-C", str(source_root), "rev-parse", "HEAD"],
+                text=True,
+                capture_output=True,
+                check=True,
+            ).stdout.strip()
+            self.assertEqual(clean["source_revision"], expected_head)
+            self.assertEqual(clean["source_revision_status"], "verified-clean-git")
+
+            dirty_untracked = source_root / "untracked.txt"
+            dirty_untracked.write_text("dirty\n")
+            with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "source is dirty"):
+                INSTALL_MODULE.source_package_identity()
+
+            # A test/release manifest outside the default package path has no
+            # claim of Git provenance and therefore uses archive identity.
+            dirty_untracked.unlink()
+            alternate_manifest = source_root / "archive-manifest.json"
+            alternate_manifest.write_text(source_manifest.read_text())
+            with mock.patch.object(INSTALL_MODULE, "MANIFEST_PATH", alternate_manifest):
+                archive = INSTALL_MODULE.source_package_identity()
+            self.assertIsNone(archive["source_revision"])
+            self.assertEqual(
+                archive["source_revision_status"],
+                "unavailable-archive-identity-used",
+            )
+
+    def test_receipts_and_managed_journals_reject_duplicate_json_keys(self):
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        plan_path = Path(self.temporary.name) / "duplicate-plan.json"
+        plan_text = json.dumps(plan, sort_keys=True)
+        plan_path.write_text(plan_text.replace("{", '{"format_version":1,', 1))
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "duplicate key"):
+            INSTALL_MODULE.apply_install_with_receipt(
+                self.codex_home, "en", plan_path
+            )
+
+        _, restore_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        restore_text = restore_path.read_text()
+        duplicate_restore = Path(self.temporary.name) / "duplicate-restore.json"
+        duplicate_restore.write_text(
+            restore_text.replace("{", '{"receipt_digest":"' + "0" * 64 + '",', 1)
+        )
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "duplicate key"):
+            INSTALL_MODULE.restore_install(self.codex_home, duplicate_restore)
+
+        for relative, label in (
+            (INSTALL_MODULE.JOURNAL_RELATIVE, "install transaction"),
+            (
+                INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE,
+                "receipt-bound apply transaction",
+            ),
+            (INSTALL_MODULE.RESTORE_JOURNAL_RELATIVE, "restore transaction"),
+        ):
+            path = self.codex_home / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('{"format_version":1,"format_version":1}\n')
+            with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "duplicate key"):
+                if relative == INSTALL_MODULE.JOURNAL_RELATIVE:
+                    INSTALL_MODULE.read_journal(self.codex_home)
+                else:
+                    INSTALL_MODULE.read_managed_json(
+                        self.codex_home, relative, label
+                    )
+            path.unlink()
+
+    def test_apply_cli_requires_a_plan_receipt(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(INSTALLER),
+                "--codex-home",
+                str(self.codex_home),
+                "--agents-language",
+                "en",
+                "--apply",
+            ],
+            cwd=PACKAGE_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--apply requires --plan-receipt", result.stderr)
+        self.assertFalse(self.codex_home.exists())
+
     def test_doctor_is_read_only_for_an_uninstalled_home(self):
         result = self.run_installer("--doctor")
 
@@ -159,7 +322,188 @@ raise SystemExit(module.main())
         self.assertEqual(report["targets"], [])
         self.assertEqual(report["quarantined"], [])
         self.assertEqual(report["retirement_receipts"], [])
+        self.assertEqual(report["restore_receipts"], [])
         self.assertFalse(self.codex_home.exists())
+
+    def test_receipt_bound_apply_and_restore_round_trip_modes_and_absence(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior_agents = b"# personal policy\n"
+        agents.write_bytes(prior_agents)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+
+        self.assertTrue(touched)
+        self.assertIsNotNone(receipt_path)
+        restore = INSTALL_MODULE.read_restore_receipt(receipt_path)
+        agents_target = next(
+            target for target in restore["targets"] if target["relative"] == "AGENTS.md"
+        )
+        prior_backup = self.codex_home / agents_target["prior_backup_relative"]
+        self.assertEqual(prior_backup.read_bytes(), prior_agents)
+        self.assertEqual(prior_backup.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(
+            next(
+                target
+                for target in restore["targets"]
+                if target["relative"] == "config.toml"
+            )["prior_exists"]
+        )
+
+        restored = INSTALL_MODULE.restore_install(self.codex_home, restore)
+
+        self.assertEqual(len(restored), len(restore["targets"]))
+        self.assertEqual(agents.read_bytes(), prior_agents)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
+        self.assertFalse((self.codex_home / "config.toml").exists())
+        candidate_backup = self.codex_home / INSTALL_MODULE.vault_relative(
+            "candidate", restore["receipt_digest"], "AGENTS.md"
+        )
+        self.assertEqual(
+            hashlib.sha256(candidate_backup.read_bytes()).hexdigest(),
+            agents_target["candidate_sha256"],
+        )
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+        self.assertEqual(report["restore_receipts"][0]["status"], "RESTORED")
+
+    def test_plan_receipt_rejects_target_source_and_schema_drift(self):
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        self.codex_home.mkdir()
+        (self.codex_home / "AGENTS.md").write_text("concurrent target\n")
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "target or install plan drifted"):
+            INSTALL_MODULE.apply_install_with_receipt(self.codex_home, "en", plan)
+
+        self.codex_home = Path(self.temporary.name) / "second-home"
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "another target identity"):
+            INSTALL_MODULE.apply_install_with_receipt(self.codex_home, "en", plan)
+
+        self.codex_home = Path(plan["target"]["realpath"])
+        manifest = json.loads(self.test_manifest.read_text())
+        manifest["test_source_drift"] = True
+        self.test_manifest.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        clean_home = Path(self.temporary.name) / "source-drift-home"
+        source_plan = dict(plan)
+        source_plan["target"] = INSTALL_MODULE.target_identity(clean_home)
+        digest_input = dict(source_plan)
+        digest_input.pop("plan_digest")
+        source_plan["plan_digest"] = INSTALL_MODULE.canonical_json_hash(digest_input)
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "source package drifted"):
+            INSTALL_MODULE.apply_install_with_receipt(clean_home, "en", source_plan)
+
+        malformed = dict(plan)
+        malformed["unexpected"] = True
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "unknown schema"):
+            INSTALL_MODULE.validate_plan_receipt(malformed)
+        tampered = json.loads(json.dumps(plan))
+        tampered["targets"][0]["desired_mode"] = 0o600
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "digest mismatch"):
+            INSTALL_MODULE.validate_plan_receipt(tampered)
+
+    def test_restore_rejects_candidate_drift_cross_home_and_vault_tamper(self):
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        _, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        restore = INSTALL_MODULE.read_restore_receipt(receipt_path)
+        (self.codex_home / "AGENTS.md").write_text("candidate drift\n")
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "candidate postimage drifted"):
+            INSTALL_MODULE.restore_install(self.codex_home, restore)
+
+        another = Path(self.temporary.name) / "another-home"
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "another target identity"):
+            INSTALL_MODULE.restore_install(another, restore)
+
+        # Restore the candidate bytes, then corrupt a prior vault artifact.
+        agents_target = next(
+            target for target in restore["targets"] if target["relative"] == "AGENTS.md"
+        )
+        (self.codex_home / "AGENTS.md").write_bytes(
+            (INSTALL_MODULE.PAYLOAD_ROOT / "AGENTS.section.en.md").read_bytes()
+        )
+        # AGENTS.md contains a merged document, so use the receipt-bound hash from
+        # the displaced candidate preserved by a fresh installation instead.
+        self.codex_home = Path(self.temporary.name) / "vault-home"
+        self.codex_home.mkdir()
+        original = self.codex_home / "AGENTS.md"
+        original.write_text("# original\n")
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        _, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        restore = INSTALL_MODULE.read_restore_receipt(receipt_path)
+        target = next(item for item in restore["targets"] if item["relative"] == "AGENTS.md")
+        (self.codex_home / target["prior_backup_relative"]).write_text("tampered vault\n")
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "prior restore vault mismatch"):
+            INSTALL_MODULE.restore_install(self.codex_home, restore)
+
+    def test_restore_failure_is_resumable_and_keeps_candidate_receipts(self):
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        _, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        restore = INSTALL_MODULE.read_restore_receipt(receipt_path)
+        original_restore = INSTALL_MODULE.atomic_restore_prior
+        calls = 0
+
+        def fail_second(codex_home, target):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise OSError("injected restore failure")
+            return original_restore(codex_home, target)
+
+        with mock.patch.object(
+            INSTALL_MODULE, "atomic_restore_prior", side_effect=fail_second
+        ):
+            with self.assertRaisesRegex(OSError, "injected restore failure"):
+                INSTALL_MODULE.restore_install(self.codex_home, restore)
+
+        self.assertTrue(
+            (self.codex_home / INSTALL_MODULE.RESTORE_JOURNAL_RELATIVE).is_file()
+        )
+        report = INSTALL_MODULE.doctor_report(self.codex_home, "en")
+        self.assertEqual(report["status"], "RESTORE_PARTIAL")
+        INSTALL_MODULE.restore_install(self.codex_home, restore)
+        self.assertFalse(
+            (self.codex_home / INSTALL_MODULE.RESTORE_JOURNAL_RELATIVE).exists()
+        )
+        self.assertTrue(receipt_path.is_file())
+
+    def test_restore_uses_the_same_target_lock(self):
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        _, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+        restore = INSTALL_MODULE.read_restore_receipt(receipt_path)
+        lock = INSTALL_MODULE.lock_path(self.codex_home)
+        lock.write_text("held\n")
+
+        with self.assertRaisesRegex(INSTALL_MODULE.InstallError, "target lock"):
+            INSTALL_MODULE.restore_install(self.codex_home, restore)
+
+        self.assertEqual(lock.read_text(), "held\n")
+        self.assertTrue((self.codex_home / "AGENTS.md").is_file())
+
+    def test_check_uses_target_lock_and_symlink_home_is_rejected(self):
+        lock = INSTALL_MODULE.lock_path(self.codex_home)
+        lock.write_text("held\n")
+        result = self.run_installer("--check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("target lock", result.stderr)
+        lock.unlink()
+
+        real = Path(self.temporary.name) / "real-home"
+        real.mkdir()
+        linked = Path(self.temporary.name) / "linked-home"
+        linked.symlink_to(real, target_is_directory=True)
+        self.codex_home = linked
+        result = self.run_installer("--check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--codex-home is a symlink", result.stderr)
 
     def test_apply_renders_role_paths_and_is_idempotent(self):
         first = self.run_installer("--apply")
@@ -924,6 +1268,9 @@ raise SystemExit(module.main())
         self.assertEqual(staged.read_bytes(), unrelated)
 
     def test_partial_transaction_receipt_doctor_and_idempotent_recovery(self):
+        receipt = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        receipt_path = Path(self.temporary.name) / "partial-plan-receipt.json"
+        receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
         original_atomic_write = INSTALL_MODULE.atomic_write
         calls = 0
 
@@ -948,6 +1295,8 @@ raise SystemExit(module.main())
                 "--agents-language",
                 "en",
                 "--apply",
+                "--plan-receipt",
+                str(receipt_path),
             ],
         ):
             stdout = io.StringIO()
@@ -965,13 +1314,23 @@ raise SystemExit(module.main())
         self.assertIn("DOCTOR PARTIAL_RECOVERABLE", diagnosis)
         self.assertIn("TARGET AGENTS.md DESIRED", diagnosis)
 
-        recovered = INSTALL_MODULE.apply_install(self.codex_home, "en")
+        recovered, restore_receipt = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", receipt
+        )
         self.assertTrue(recovered)
+        self.assertIsNotNone(restore_receipt)
         self.assertFalse(journal_path.exists())
         healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
         self.assertTrue(healthy)
-        self.assertEqual(diagnosis, ["DOCTOR HEALTHY"])
-        self.assertEqual(INSTALL_MODULE.apply_install(self.codex_home, "en"), [])
+        self.assertEqual(diagnosis[0], "DOCTOR HEALTHY")
+        self.assertTrue(any(line.startswith("RESTORE_RECEIPT ") for line in diagnosis))
+        current_receipt = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+        self.assertEqual(
+            INSTALL_MODULE.apply_install_with_receipt(
+                self.codex_home, "en", current_receipt
+            ),
+            ([], None),
+        )
 
     def test_concurrent_apply_lock_is_refused_without_target_writes(self):
         path = INSTALL_MODULE.lock_path(self.codex_home)

@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -339,21 +340,46 @@ def run(command: list[str]) -> str:
 
 def verify_hermetic_install() -> None:
     with tempfile.TemporaryDirectory() as temporary:
+        archive_root = Path(temporary) / "manifest-archive"
+        archive_root.mkdir()
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        for item in manifest["files"]:
+            source = ROOT / item["path"]
+            destination = archive_root / item["path"]
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        shutil.copy2(MANIFEST, archive_root / "manifest.json")
         for language in ("en", "zh"):
             codex_home = Path(temporary) / f"codex-home-{language}"
             command = [
                 sys.executable,
                 "-B",
-                str(ROOT / "install.py"),
+                str(archive_root / "install.py"),
                 "--codex-home",
                 str(codex_home),
                 "--agents-language",
                 language,
             ]
-            check_output = run(command + ["--check"])
-            if "WOULD_TOUCH" not in check_output:
-                fail(f"{language}: empty-home preflight produced no touched-path hashes")
-            run(command + ["--apply"])
+            check_output = run(command + ["--check", "--format", "json"])
+            try:
+                plan_receipt = json.loads(check_output)
+            except ValueError as error:
+                fail(f"{language}: empty-home preflight emitted invalid JSON: {error}")
+            if (
+                not isinstance(plan_receipt, dict)
+                or plan_receipt.get("format_version") != 1
+                or plan_receipt.get("package_id") != "subagent-orchestrator"
+                or not isinstance(plan_receipt.get("targets"), list)
+                or not plan_receipt["targets"]
+            ):
+                fail(f"{language}: empty-home preflight emitted an invalid plan receipt")
+            receipt_path = Path(temporary) / f"plan-receipt-{language}.json"
+            try:
+                with receipt_path.open("x", encoding="utf-8") as stream:
+                    stream.write(check_output)
+            except OSError as error:
+                fail(f"{language}: cannot preserve plan receipt: {error}")
+            run(command + ["--apply", "--plan-receipt", str(receipt_path)])
             second_check = run(command + ["--check"])
             if "0 path(s) would change" not in second_check:
                 fail(f"{language}: installer is not idempotent")

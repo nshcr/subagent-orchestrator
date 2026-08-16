@@ -30,8 +30,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "fecab539e4d55bc25474412960e0fe52c9554b2f103fb14a9d04fefb190f3821",
-      "size": 10772
+      "sha256": "9b29f7353cd433822710bc826b1bcc92fdd87daa959ca3ad074201242ce072c6",
+      "size": 12814
     },
     {
       "path": "build_manifest.py",
@@ -110,8 +110,8 @@
     },
     {
       "path": "install.py",
-      "sha256": "f3735304fa811ff54f84b8cb9acc6084f394f010d083f3fbd819054f31c8cfb5",
-      "size": 59446
+      "sha256": "631b1f3467903a1ea0a11120aa411047a9bba6c77f8909a14c88d01c719f06a6",
+      "size": 101741
     },
     {
       "path": "payload/AGENTS.section.en.md",
@@ -210,8 +210,8 @@
     },
     {
       "path": "tests/test_install.py",
-      "sha256": "e3a1719d012b86d8513a1fbc3251a0539d87e5aab02edb8a98cb5777ac491a78",
-      "size": 46114
+      "sha256": "aedeb2db6352b2fc5b8c059e1622436477f1ecdf1dbe39bebb2ba3a9027d92b1",
+      "size": 62814
     },
     {
       "path": "tests/test_manifest.py",
@@ -225,8 +225,8 @@
     },
     {
       "path": "validate.py",
-      "sha256": "7438dac63d419d469f6ac708885b53c120e49612155a7464a86184b9f06237f8",
-      "size": 15262
+      "sha256": "e656b625efc2592e3f962c498305938059758c0d415de48ad8fec47c064d1de5",
+      "size": 16619
     }
   ],
   "format_version": 1,

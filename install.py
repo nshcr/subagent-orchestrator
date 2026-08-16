@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import tempfile
 import tomllib
@@ -39,6 +40,14 @@ CONFIG_KEYS = (
 )
 STATE_RELATIVE = Path("skills") / SKILL_NAME / ".managed-package-state.json"
 JOURNAL_RELATIVE = Path("skills") / SKILL_NAME / ".install-transaction.json"
+APPLY_RECEIPT_JOURNAL_RELATIVE = (
+    Path("skills") / SKILL_NAME / ".receipt-apply-transaction.json"
+)
+RESTORE_JOURNAL_RELATIVE = (
+    Path("skills") / SKILL_NAME / ".receipt-restore-transaction.json"
+)
+RESTORE_VAULT_RELATIVE = Path("skills") / SKILL_NAME / ".restore-vault"
+RESTORE_RECEIPTS_RELATIVE = Path("skills") / SKILL_NAME / ".restore-receipts"
 QUARANTINE_RELATIVE = Path("skills") / SKILL_NAME / ".retired"
 STAGING_RELATIVE = Path("skills") / SKILL_NAME / ".retirement-receipts"
 AGENTS_HEADING = "## Subagents and parallelism"
@@ -162,6 +171,23 @@ def canonical_json_hash(value: object) -> str:
     )
 
 
+def strict_json_loads(content: str, label: str) -> object:
+    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise InstallError(f"{label} contains duplicate key: {key}")
+            result[key] = value
+        return result
+
+    try:
+        return json.loads(content, object_pairs_hook=reject_duplicates)
+    except InstallError:
+        raise
+    except ValueError as error:
+        raise InstallError(f"{label} is invalid JSON: {error}") from error
+
+
 def load_manifest() -> dict:
     try:
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
@@ -279,6 +305,8 @@ def install_contract_sha256(catalog: dict | None = None) -> str:
 def validate_codex_home(raw: Path) -> Path:
     if not raw.is_absolute():
         raise InstallError("--codex-home must be an absolute path")
+    if raw.is_symlink():
+        raise InstallError(f"--codex-home is a symlink: {raw}")
     resolved = raw.resolve(strict=False)
     if resolved == Path(resolved.anchor):
         raise InstallError("refusing to use a filesystem root as --codex-home")
@@ -983,7 +1011,9 @@ def apply_lock(codex_home: Path) -> Iterator[None]:
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError as error:
-        raise InstallError(f"another installer holds apply lock: {path}") from error
+        raise InstallError(
+            f"another installer holds apply lock (target lock): {path}"
+        ) from error
     try:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(content)
@@ -996,6 +1026,378 @@ def apply_lock(codex_home: Path) -> Iterator[None]:
                 path.unlink()
         except FileNotFoundError:
             pass
+
+
+def source_package_identity() -> dict:
+    """Return a reproducible identity for a manifest-verified source archive.
+
+    A real checkout must be clean and exactly bound to HEAD. Only a source with
+    no discoverable Git metadata may use the manifest-verified archive mode.
+    """
+    manifest = load_manifest()
+    archive_entries = [
+        {
+            "path": item["path"],
+            "sha256": item["sha256"],
+            "size": item["size"],
+        }
+        for item in sorted(manifest["files"], key=lambda item: item["path"])
+    ]
+    identity = {
+        "archive_sha256": canonical_json_hash(archive_entries),
+        "install_contract_sha256": install_contract_sha256(),
+        "manifest_sha256": sha256_bytes(MANIFEST_PATH.read_bytes()),
+        "source_revision": None,
+        "source_revision_status": "unavailable-archive-identity-used",
+    }
+    default_manifest = PACKAGE_ROOT / "manifest.json"
+    if MANIFEST_PATH.resolve(strict=False) != default_manifest.resolve(strict=False):
+        return identity
+    try:
+        discovered = subprocess.run(
+            ["git", "-C", str(PACKAGE_ROOT), "rev-parse", "--show-toplevel"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as error:
+        if (PACKAGE_ROOT / ".git").exists():
+            raise InstallError(f"cannot verify Git source identity: {error}") from error
+        return identity
+    if discovered.returncode != 0:
+        if (PACKAGE_ROOT / ".git").exists() or (PACKAGE_ROOT / ".git").is_symlink():
+            raise InstallError(
+                "package has Git metadata but its worktree identity is unverifiable"
+            )
+        return identity
+    try:
+        git_root = Path(discovered.stdout.strip()).resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise InstallError(f"Git worktree root is invalid: {error}") from error
+    if git_root != PACKAGE_ROOT.resolve(strict=True):
+        raise InstallError(
+            f"package source is inside an unexpected Git worktree: {git_root}"
+        )
+    head_result = subprocess.run(
+        ["git", "-C", str(PACKAGE_ROOT), "rev-parse", "--verify", "HEAD"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    head = head_result.stdout.strip()
+    if head_result.returncode != 0 or re.fullmatch(r"[0-9a-f]{40,64}", head) is None:
+        raise InstallError("Git source has no valid HEAD revision")
+    tracked = ["manifest.json", *(item["path"] for item in manifest["files"])]
+    for relative in tracked:
+        result = subprocess.run(
+            ["git", "-C", str(PACKAGE_ROOT), "cat-file", "-e", f"{head}:{relative}"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise InstallError(f"Git HEAD does not track package path: {relative}")
+    status = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(PACKAGE_ROOT),
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if status.returncode != 0:
+        raise InstallError(f"cannot verify clean Git source: {status.stderr.strip()}")
+    if status.stdout:
+        raise InstallError("Git package source is dirty; use a clean checkout or archive")
+    identity["source_revision"] = head
+    identity["source_revision_status"] = "verified-clean-git"
+    return identity
+
+
+def target_identity(codex_home: Path) -> dict:
+    codex_home = validate_codex_home(codex_home)
+    if codex_home.exists() and not codex_home.is_dir():
+        raise InstallError(f"--codex-home is not a directory: {codex_home}")
+    anchor = codex_home
+    while not anchor.exists():
+        if anchor == anchor.parent:
+            raise InstallError("cannot identify target filesystem")
+        anchor = anchor.parent
+    return {
+        "device": os.stat(anchor, follow_symlinks=False).st_dev,
+        "realpath": str(codex_home),
+    }
+
+
+def planned_mode(plan: PlannedWrite) -> int | None:
+    if plan.content is None:
+        return None
+    if plan.expected_prior_exists:
+        return plan.path.stat(follow_symlinks=False).st_mode & 0o777
+    return 0o644
+
+
+def plan_receipt_document(
+    codex_home: Path,
+    agents_language: str,
+    plans: list[PlannedWrite] | None = None,
+) -> dict:
+    codex_home = validate_codex_home(codex_home)
+    if plans is None:
+        plans, _ = plan_install(codex_home, agents_language)
+    document = {
+        "agents_language": agents_language,
+        "format_version": 1,
+        "package_id": SKILL_NAME,
+        "plan_digest": None,
+        "source": source_package_identity(),
+        "target": target_identity(codex_home),
+        "targets": [
+            {
+                "desired_exists": plan.content is not None,
+                "desired_mode": planned_mode(plan),
+                "desired_sha256": plan.desired_sha256,
+                "managed_key": plan.managed_key,
+                "operation": plan.operation,
+                "prior_exists": plan.expected_prior_exists,
+                "prior_mode": (
+                    plan.path.stat(follow_symlinks=False).st_mode & 0o777
+                    if plan.expected_prior_exists
+                    else None
+                ),
+                "prior_sha256": plan.expected_prior_sha256,
+                "relative": plan.relative,
+            }
+            for plan in plans
+        ],
+    }
+    digest_input = dict(document)
+    digest_input.pop("plan_digest")
+    document["plan_digest"] = canonical_json_hash(digest_input)
+    return document
+
+
+def validate_source_identity(value: object) -> dict:
+    expected_keys = {
+        "archive_sha256",
+        "install_contract_sha256",
+        "manifest_sha256",
+        "source_revision",
+        "source_revision_status",
+    }
+    if not isinstance(value, dict) or set(value) != expected_keys:
+        raise InstallError("receipt source identity has an unknown schema")
+    for key in ("archive_sha256", "install_contract_sha256", "manifest_sha256"):
+        if not validate_optional_hash(value[key]) or value[key] is None:
+            raise InstallError(f"receipt source identity has invalid {key}")
+    if value["source_revision"] is not None:
+        if not isinstance(value["source_revision"], str) or not value["source_revision"]:
+            raise InstallError("receipt source revision is invalid")
+    if value["source_revision_status"] not in {
+        "verified-clean-git",
+        "unavailable-archive-identity-used",
+    }:
+        raise InstallError("receipt source revision status is invalid")
+    return value
+
+
+def validate_target_identity(value: object) -> dict:
+    if not isinstance(value, dict) or set(value) != {"device", "realpath"}:
+        raise InstallError("receipt target identity has an unknown schema")
+    if not isinstance(value["device"], int) or value["device"] < 0:
+        raise InstallError("receipt target device is invalid")
+    if not isinstance(value["realpath"], str) or not Path(value["realpath"]).is_absolute():
+        raise InstallError("receipt target realpath is invalid")
+    return value
+
+
+def validate_plan_receipt(document: object) -> dict:
+    expected_keys = {
+        "agents_language",
+        "format_version",
+        "package_id",
+        "plan_digest",
+        "source",
+        "target",
+        "targets",
+    }
+    if not isinstance(document, dict) or set(document) != expected_keys:
+        raise InstallError("plan receipt has an unknown schema")
+    if document["format_version"] != 1 or document["package_id"] != SKILL_NAME:
+        raise InstallError("plan receipt identity mismatch")
+    if document["agents_language"] not in AGENTS_SECTION_FILES:
+        raise InstallError("plan receipt has an invalid AGENTS language")
+    validate_source_identity(document["source"])
+    validate_target_identity(document["target"])
+    if not validate_optional_hash(document["plan_digest"]) or document["plan_digest"] is None:
+        raise InstallError("plan receipt has an invalid digest")
+    targets = document["targets"]
+    if not isinstance(targets, list):
+        raise InstallError("plan receipt targets must be a list")
+    target_keys = {
+        "desired_exists",
+        "desired_mode",
+        "desired_sha256",
+        "managed_key",
+        "operation",
+        "prior_exists",
+        "prior_mode",
+        "prior_sha256",
+        "relative",
+    }
+    seen = set()
+    for target in targets:
+        if not isinstance(target, dict) or set(target) != target_keys:
+            raise InstallError("plan receipt has an invalid target schema")
+        relative = target["relative"]
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+            or relative in seen
+        ):
+            raise InstallError(f"plan receipt has an unsafe or duplicate target: {relative!r}")
+        if target["operation"] not in {"write", "quarantine"}:
+            raise InstallError(f"plan receipt has an invalid operation: {relative}")
+        if not isinstance(target["prior_exists"], bool) or not isinstance(
+            target["desired_exists"], bool
+        ):
+            raise InstallError(f"plan receipt has invalid existence state: {relative}")
+        for prefix in ("prior", "desired"):
+            exists = target[f"{prefix}_exists"]
+            digest = target[f"{prefix}_sha256"]
+            mode = target[f"{prefix}_mode"]
+            if exists:
+                if not validate_optional_hash(digest) or digest is None:
+                    raise InstallError(f"plan receipt has invalid {prefix} hash: {relative}")
+                if not isinstance(mode, int) or not 0 <= mode <= 0o777:
+                    raise InstallError(f"plan receipt has invalid {prefix} mode: {relative}")
+            elif digest is not None or mode is not None:
+                raise InstallError(f"plan receipt has inconsistent {prefix} absence: {relative}")
+        if target["operation"] == "write" and not target["desired_exists"]:
+            raise InstallError(f"plan receipt write is absent: {relative}")
+        if target["operation"] == "quarantine" and target["desired_exists"]:
+            raise InstallError(f"plan receipt quarantine is not absent: {relative}")
+        if target["managed_key"] is not None and not isinstance(target["managed_key"], str):
+            raise InstallError(f"plan receipt managed key is invalid: {relative}")
+        seen.add(relative)
+    digest_input = dict(document)
+    digest_input.pop("plan_digest")
+    if canonical_json_hash(digest_input) != document["plan_digest"]:
+        raise InstallError("plan receipt digest mismatch")
+    return document
+
+
+def read_strict_json(path: Path, label: str) -> object:
+    if not path.is_absolute():
+        raise InstallError(f"--{label}-receipt must be an absolute path")
+    if path.is_symlink():
+        raise InstallError(f"{label} receipt is a symlink: {path}")
+    if not path.is_file():
+        raise InstallError(f"{label} receipt is not a regular file: {path}")
+    try:
+        return strict_json_loads(
+            path.read_text(encoding="utf-8"), f"{label} receipt"
+        )
+    except (OSError, UnicodeError) as error:
+        raise InstallError(f"{label} receipt is unreadable: {error}") from error
+
+
+def read_plan_receipt(path: Path) -> dict:
+    return validate_plan_receipt(read_strict_json(path, "plan"))
+
+
+def verify_plan_receipt_current(
+    receipt: dict,
+    codex_home: Path,
+    agents_language: str,
+) -> list[PlannedWrite]:
+    if receipt["agents_language"] != agents_language:
+        raise InstallError("plan receipt AGENTS language mismatch")
+    if receipt["target"] != target_identity(codex_home):
+        raise InstallError("plan receipt belongs to another target identity")
+    if receipt["source"] != source_package_identity():
+        raise InstallError("source package drifted after check")
+    plans, _ = plan_install(codex_home, agents_language)
+    if receipt != plan_receipt_document(codex_home, agents_language, plans):
+        raise InstallError("target or install plan drifted after check")
+    return plans
+
+
+def fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def write_new_json(path: Path, document: dict, mode: int = 0o600) -> None:
+    if path.exists() or path.is_symlink():
+        raise InstallError(f"refusing to replace receipt artifact: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write((json.dumps(document, indent=2, sort_keys=True) + "\n").encode())
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
+        os.link(temporary, path)
+        fsync_directory(path.parent)
+    except FileExistsError as error:
+        raise InstallError(f"receipt artifact appeared concurrently: {path}") from error
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def vault_relative(kind: str, plan_digest: str, relative: str) -> Path:
+    path_id = sha256_bytes(relative.encode())
+    return RESTORE_VAULT_RELATIVE / kind / plan_digest / path_id / Path(relative).name
+
+
+def preserve_hardlink(
+    source: Path,
+    destination: Path,
+    codex_home: Path,
+    expected_sha256: str,
+    expected_mode: int,
+) -> None:
+    existing = safe_existing_bytes(destination, codex_home)
+    if existing is not None:
+        if (
+            sha256_bytes(existing) != expected_sha256
+            or destination.stat(follow_symlinks=False).st_mode & 0o777 != expected_mode
+            or not same_physical_file(source, destination)
+        ):
+            raise InstallError(f"restore vault artifact mismatch: {destination}")
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(source, destination)
+    except FileExistsError as error:
+        raise InstallError(f"restore vault artifact appeared concurrently: {destination}") from error
+    linked = safe_existing_bytes(destination, codex_home)
+    if (
+        linked is None
+        or sha256_bytes(linked) != expected_sha256
+        or not same_physical_file(source, destination)
+    ):
+        raise InstallError(f"failed to preserve hard-linked restore bytes: {source}")
+    descriptor = os.open(destination, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    fsync_directory(destination.parent)
 
 
 def journal_document(plans: list[PlannedWrite], agents_language: str) -> dict:
@@ -1152,8 +1554,8 @@ def read_journal(codex_home: Path) -> dict | None:
     if content is None:
         return None
     try:
-        document = json.loads(content.decode())
-    except (UnicodeError, ValueError) as error:
+        document = strict_json_loads(content.decode(), "install transaction")
+    except UnicodeError as error:
         raise InstallError(f"install transaction is unreadable: {error}") from error
     return validate_journal(document)
 
@@ -1326,6 +1728,507 @@ def apply_install(
         return touched
 
 
+def validate_apply_receipt_journal(document: object) -> dict:
+    if not isinstance(document, dict) or set(document) != {
+        "format_version",
+        "package_id",
+        "plan_digest",
+        "restore_targets",
+        "source",
+        "target",
+    }:
+        raise InstallError("receipt-bound apply transaction has an unknown schema")
+    if document["format_version"] != 1 or document["package_id"] != SKILL_NAME:
+        raise InstallError("receipt-bound apply transaction identity mismatch")
+    if not validate_optional_hash(document["plan_digest"]) or document["plan_digest"] is None:
+        raise InstallError("receipt-bound apply transaction has an invalid plan digest")
+    validate_source_identity(document["source"])
+    validate_target_identity(document["target"])
+    if not isinstance(document["restore_targets"], list):
+        raise InstallError("receipt-bound apply transaction has invalid targets")
+    expected = {
+        "candidate_exists",
+        "candidate_mode",
+        "candidate_sha256",
+        "prior_backup_relative",
+        "prior_exists",
+        "prior_mode",
+        "prior_sha256",
+        "relative",
+    }
+    seen = set()
+    for target in document["restore_targets"]:
+        if not isinstance(target, dict) or set(target) != expected:
+            raise InstallError("receipt-bound apply transaction has an invalid target")
+        relative = target["relative"]
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+            or relative in seen
+        ):
+            raise InstallError(
+                "receipt-bound apply transaction has unsafe or duplicate targets"
+            )
+        for prefix in ("prior", "candidate"):
+            exists = target[f"{prefix}_exists"]
+            digest = target[f"{prefix}_sha256"]
+            mode = target[f"{prefix}_mode"]
+            if not isinstance(exists, bool):
+                raise InstallError(
+                    f"receipt-bound apply transaction has invalid {prefix} existence: {relative}"
+                )
+            if exists:
+                if not validate_optional_hash(digest) or digest is None:
+                    raise InstallError(
+                        f"receipt-bound apply transaction has invalid {prefix} hash: {relative}"
+                    )
+                if not isinstance(mode, int) or not 0 <= mode <= 0o777:
+                    raise InstallError(
+                        f"receipt-bound apply transaction has invalid {prefix} mode: {relative}"
+                    )
+            elif digest is not None or mode is not None:
+                raise InstallError(
+                    f"receipt-bound apply transaction has inconsistent {prefix} absence: {relative}"
+                )
+        expected_backup = (
+            str(vault_relative("prior", document["plan_digest"], relative))
+            if target["prior_exists"]
+            else None
+        )
+        if target["prior_backup_relative"] != expected_backup:
+            raise InstallError(
+                f"receipt-bound apply transaction has invalid prior vault path: {relative}"
+            )
+        seen.add(relative)
+    return document
+
+
+def read_managed_json(codex_home: Path, relative: Path, label: str) -> dict | None:
+    content = safe_existing_bytes(codex_home / relative, codex_home)
+    if content is None:
+        return None
+    try:
+        return strict_json_loads(content.decode(), label)
+    except UnicodeError as error:
+        raise InstallError(f"{label} is unreadable: {error}") from error
+
+
+def verify_restore_target_backups(codex_home: Path, targets: list[dict]) -> None:
+    for target in targets:
+        backup_relative = target["prior_backup_relative"]
+        if target["prior_exists"]:
+            if not isinstance(backup_relative, str):
+                raise InstallError(f"missing prior backup: {target['relative']}")
+            backup = safe_existing_bytes(codex_home / backup_relative, codex_home)
+            if (
+                backup is None
+                or sha256_bytes(backup) != target["prior_sha256"]
+                or (codex_home / backup_relative).stat(follow_symlinks=False).st_mode
+                & 0o777
+                != target["prior_mode"]
+            ):
+                raise InstallError(f"prior restore vault mismatch: {target['relative']}")
+        elif backup_relative is not None:
+            raise InstallError(f"absent prior has a restore vault path: {target['relative']}")
+
+
+def prepare_receipt_bound_apply(
+    codex_home: Path,
+    receipt: dict,
+    plans: list[PlannedWrite],
+) -> dict:
+    targets = []
+    receipt_targets = {target["relative"]: target for target in receipt["targets"]}
+    for plan in plans:
+        target = receipt_targets[plan.relative]
+        backup_relative = None
+        if target["prior_exists"]:
+            backup_relative = str(
+                vault_relative("prior", receipt["plan_digest"], plan.relative)
+            )
+            preserve_hardlink(
+                plan.path,
+                codex_home / backup_relative,
+                codex_home,
+                target["prior_sha256"],
+                target["prior_mode"],
+            )
+        targets.append(
+            {
+                "candidate_exists": target["desired_exists"],
+                "candidate_mode": target["desired_mode"],
+                "candidate_sha256": target["desired_sha256"],
+                "prior_backup_relative": backup_relative,
+                "prior_exists": target["prior_exists"],
+                "prior_mode": target["prior_mode"],
+                "prior_sha256": target["prior_sha256"],
+                "relative": plan.relative,
+            }
+        )
+    document = {
+        "format_version": 1,
+        "package_id": SKILL_NAME,
+        "plan_digest": receipt["plan_digest"],
+        "restore_targets": targets,
+        "source": receipt["source"],
+        "target": receipt["target"],
+    }
+    write_new_json(codex_home / APPLY_RECEIPT_JOURNAL_RELATIVE, document)
+    return document
+
+
+def restore_receipt_document(apply_document: dict) -> dict:
+    document = {
+        "format_version": 1,
+        "package_id": SKILL_NAME,
+        "plan_digest": apply_document["plan_digest"],
+        "receipt_digest": None,
+        "source": apply_document["source"],
+        "target": apply_document["target"],
+        "targets": apply_document["restore_targets"],
+    }
+    digest_input = dict(document)
+    digest_input.pop("receipt_digest")
+    document["receipt_digest"] = canonical_json_hash(digest_input)
+    return document
+
+
+def validate_restore_receipt(document: object) -> dict:
+    if not isinstance(document, dict) or set(document) != {
+        "format_version",
+        "package_id",
+        "plan_digest",
+        "receipt_digest",
+        "source",
+        "target",
+        "targets",
+    }:
+        raise InstallError("restore receipt has an unknown schema")
+    if document["format_version"] != 1 or document["package_id"] != SKILL_NAME:
+        raise InstallError("restore receipt identity mismatch")
+    validate_source_identity(document["source"])
+    validate_target_identity(document["target"])
+    for name in ("plan_digest", "receipt_digest"):
+        if not validate_optional_hash(document[name]) or document[name] is None:
+            raise InstallError(f"restore receipt has an invalid {name}")
+    if not isinstance(document["targets"], list) or not document["targets"]:
+        raise InstallError("restore receipt has no targets")
+    apply_like = {
+        "format_version": 1,
+        "package_id": SKILL_NAME,
+        "plan_digest": document["plan_digest"],
+        "restore_targets": document["targets"],
+        "source": document["source"],
+        "target": document["target"],
+    }
+    validate_apply_receipt_journal(apply_like)
+    digest_input = dict(document)
+    digest_input.pop("receipt_digest")
+    if canonical_json_hash(digest_input) != document["receipt_digest"]:
+        raise InstallError("restore receipt digest mismatch")
+    return document
+
+
+def apply_install_with_receipt(
+    codex_home: Path,
+    agents_language: str,
+    receipt: dict | Path,
+    on_touched: Callable[[str, str], None] | None = None,
+) -> tuple[list[tuple[str, str]], Path | None]:
+    codex_home = validate_codex_home(codex_home)
+    with apply_lock(codex_home):
+        receipt = (
+            read_plan_receipt(receipt)
+            if isinstance(receipt, Path)
+            else validate_plan_receipt(receipt)
+        )
+        restore_journal = read_managed_json(
+            codex_home, RESTORE_JOURNAL_RELATIVE, "restore transaction"
+        )
+        if restore_journal is not None:
+            raise InstallError("cannot apply while a restore transaction is unfinished")
+        apply_document_raw = read_managed_json(
+            codex_home,
+            APPLY_RECEIPT_JOURNAL_RELATIVE,
+            "receipt-bound apply transaction",
+        )
+        journal = read_journal(codex_home)
+        if apply_document_raw is None:
+            if journal is not None:
+                raise InstallError(
+                    "unfinished unbound install transaction; continue it through the compatible internal recovery path"
+                )
+            plans = verify_plan_receipt_current(receipt, codex_home, agents_language)
+            if not plans:
+                return [], None
+            apply_document = prepare_receipt_bound_apply(codex_home, receipt, plans)
+            journal = journal_document(plans, agents_language)
+            create_journal(codex_home, journal)
+        else:
+            apply_document = validate_apply_receipt_journal(apply_document_raw)
+            if (
+                apply_document["plan_digest"] != receipt["plan_digest"]
+                or apply_document["source"] != receipt["source"]
+                or apply_document["target"] != receipt["target"]
+                or receipt["agents_language"] != agents_language
+            ):
+                raise InstallError("unfinished apply belongs to another plan receipt")
+            if receipt["source"] != source_package_identity():
+                raise InstallError("source package drifted during apply recovery")
+            if receipt["target"] != target_identity(codex_home):
+                raise InstallError("target identity changed during apply recovery")
+            if journal is None:
+                raise InstallError("receipt-bound apply transaction is missing its install journal")
+            if journal["install_contract_sha256"] != install_contract_sha256():
+                raise InstallError("unfinished apply belongs to another install contract")
+            if journal["agents_language"] != agents_language:
+                raise InstallError("unfinished apply uses a different AGENTS language")
+            status, _ = classify_journal(codex_home, journal)
+            if status == "PARTIAL_CONFLICT":
+                raise InstallError("unfinished apply has conflicting targets")
+            plans, _ = plan_install(codex_home, agents_language, journal)
+            validate_recovery_plan(plans, journal)
+        verify_restore_target_backups(codex_home, apply_document["restore_targets"])
+        touched = apply_plans(plans, codex_home, on_touched)
+        finish_journal(codex_home, journal)
+        for target in apply_document["restore_targets"]:
+            current = safe_existing_bytes(codex_home / target["relative"], codex_home)
+            actual_hash = sha256_bytes(current) if current is not None else None
+            actual_mode = (
+                (codex_home / target["relative"]).stat(follow_symlinks=False).st_mode
+                & 0o777
+                if current is not None
+                else None
+            )
+            if (
+                (current is not None) != target["candidate_exists"]
+                or actual_hash != target["candidate_sha256"]
+                or actual_mode != target["candidate_mode"]
+            ):
+                raise InstallError(f"candidate postimage mismatch: {target['relative']}")
+        restore_receipt = restore_receipt_document(apply_document)
+        receipt_path = (
+            codex_home
+            / RESTORE_RECEIPTS_RELATIVE
+            / f"{restore_receipt['receipt_digest']}.json"
+        )
+        existing = safe_existing_bytes(receipt_path, codex_home)
+        expected_bytes = (
+            json.dumps(restore_receipt, indent=2, sort_keys=True) + "\n"
+        ).encode()
+        if existing is None:
+            write_new_json(receipt_path, restore_receipt)
+        elif existing != expected_bytes:
+            raise InstallError("restore receipt path collision")
+        meta_path = codex_home / APPLY_RECEIPT_JOURNAL_RELATIVE
+        current_meta = read_managed_json(
+            codex_home,
+            APPLY_RECEIPT_JOURNAL_RELATIVE,
+            "receipt-bound apply transaction",
+        )
+        if validate_apply_receipt_journal(current_meta) != apply_document:
+            raise InstallError("receipt-bound apply transaction changed before cleanup")
+        meta_path.unlink()
+        fsync_directory(meta_path.parent)
+        return touched, receipt_path
+
+
+def read_restore_receipt(path: Path) -> dict:
+    return validate_restore_receipt(read_strict_json(path, "restore"))
+
+
+def file_state(path: Path, codex_home: Path) -> tuple[bool, str | None, int | None]:
+    content = safe_existing_bytes(path, codex_home)
+    if content is None:
+        return False, None, None
+    return (
+        True,
+        sha256_bytes(content),
+        path.stat(follow_symlinks=False).st_mode & 0o777,
+    )
+
+
+def state_matches(target: dict, prefix: str, state: tuple[bool, str | None, int | None]) -> bool:
+    return state == (
+        target[f"{prefix}_exists"],
+        target[f"{prefix}_sha256"],
+        target[f"{prefix}_mode"],
+    )
+
+
+def validate_restore_journal(document: object) -> dict:
+    if not isinstance(document, dict) or set(document) != {
+        "candidate_backups",
+        "format_version",
+        "package_id",
+        "receipt_digest",
+        "target",
+    }:
+        raise InstallError("restore transaction has an unknown schema")
+    if document["format_version"] != 1 or document["package_id"] != SKILL_NAME:
+        raise InstallError("restore transaction identity mismatch")
+    if not validate_optional_hash(document["receipt_digest"]) or document["receipt_digest"] is None:
+        raise InstallError("restore transaction has an invalid receipt digest")
+    validate_target_identity(document["target"])
+    if not isinstance(document["candidate_backups"], dict) or not all(
+        isinstance(key, str) and (value is None or isinstance(value, str))
+        for key, value in document["candidate_backups"].items()
+    ):
+        raise InstallError("restore transaction has invalid candidate backups")
+    return document
+
+
+def atomic_restore_prior(codex_home: Path, target: dict) -> None:
+    path = codex_home / target["relative"]
+    current = file_state(path, codex_home)
+    if state_matches(target, "prior", current):
+        return
+    if not state_matches(target, "candidate", current):
+        raise InstallError(f"restore target drifted: {target['relative']}")
+    if not target["prior_exists"]:
+        path.unlink()
+        fsync_directory(path.parent)
+        return
+    backup = codex_home / target["prior_backup_relative"]
+    backup_content = safe_existing_bytes(backup, codex_home)
+    if backup_content is None or sha256_bytes(backup_content) != target["prior_sha256"]:
+        raise InstallError(f"prior restore vault mismatch: {target['relative']}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.restore.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(backup_content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, target["prior_mode"])
+        if not state_matches(target, "candidate", file_state(path, codex_home)):
+            raise InstallError(f"restore target drifted: {target['relative']}")
+        os.replace(temporary, path)
+        fsync_directory(path.parent)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def restore_install(
+    codex_home: Path,
+    receipt: dict | Path,
+    on_restored: Callable[[str, str], None] | None = None,
+) -> list[tuple[str, str]]:
+    codex_home = validate_codex_home(codex_home)
+    with apply_lock(codex_home):
+        receipt = (
+            read_restore_receipt(receipt)
+            if isinstance(receipt, Path)
+            else validate_restore_receipt(receipt)
+        )
+        if receipt["target"] != target_identity(codex_home):
+            raise InstallError("restore receipt belongs to another target identity")
+        if receipt["source"] != source_package_identity():
+            raise InstallError("restore receipt belongs to another source package")
+        if read_journal(codex_home) is not None or read_managed_json(
+            codex_home,
+            APPLY_RECEIPT_JOURNAL_RELATIVE,
+            "receipt-bound apply transaction",
+        ) is not None:
+            raise InstallError("cannot restore while an apply transaction is unfinished")
+        verify_restore_target_backups(codex_home, receipt["targets"])
+        journal_raw = read_managed_json(
+            codex_home, RESTORE_JOURNAL_RELATIVE, "restore transaction"
+        )
+        if journal_raw is None:
+            for target in receipt["targets"]:
+                if not state_matches(
+                    target,
+                    "candidate",
+                    file_state(codex_home / target["relative"], codex_home),
+                ):
+                    raise InstallError(
+                        f"candidate postimage drifted before restore: {target['relative']}"
+                    )
+            candidate_backups = {}
+            for target in receipt["targets"]:
+                backup_relative = None
+                if target["candidate_exists"]:
+                    backup_relative = str(
+                        vault_relative(
+                            "candidate", receipt["receipt_digest"], target["relative"]
+                        )
+                    )
+                    preserve_hardlink(
+                        codex_home / target["relative"],
+                        codex_home / backup_relative,
+                        codex_home,
+                        target["candidate_sha256"],
+                        target["candidate_mode"],
+                    )
+                candidate_backups[target["relative"]] = backup_relative
+            journal = {
+                "candidate_backups": candidate_backups,
+                "format_version": 1,
+                "package_id": SKILL_NAME,
+                "receipt_digest": receipt["receipt_digest"],
+                "target": receipt["target"],
+            }
+            write_new_json(codex_home / RESTORE_JOURNAL_RELATIVE, journal)
+        else:
+            journal = validate_restore_journal(journal_raw)
+            if (
+                journal["receipt_digest"] != receipt["receipt_digest"]
+                or journal["target"] != receipt["target"]
+                or set(journal["candidate_backups"])
+                != {target["relative"] for target in receipt["targets"]}
+            ):
+                raise InstallError("unfinished restore belongs to another receipt")
+        for target in receipt["targets"]:
+            candidate_backup = journal["candidate_backups"][target["relative"]]
+            expected_candidate_backup = (
+                str(
+                    vault_relative(
+                        "candidate", receipt["receipt_digest"], target["relative"]
+                    )
+                )
+                if target["candidate_exists"]
+                else None
+            )
+            if candidate_backup != expected_candidate_backup:
+                raise InstallError(
+                    f"restore transaction has invalid candidate vault path: {target['relative']}"
+                )
+            if target["candidate_exists"]:
+                candidate = safe_existing_bytes(
+                    codex_home / candidate_backup, codex_home
+                )
+                if (
+                    candidate is None
+                    or sha256_bytes(candidate) != target["candidate_sha256"]
+                    or (codex_home / candidate_backup).stat(follow_symlinks=False).st_mode
+                    & 0o777
+                    != target["candidate_mode"]
+                ):
+                    raise InstallError(f"candidate restore vault mismatch: {target['relative']}")
+            elif candidate_backup is not None:
+                raise InstallError(f"absent candidate has a vault path: {target['relative']}")
+            atomic_restore_prior(codex_home, target)
+            result = target["prior_sha256"] or "<absent>"
+            if on_restored is not None:
+                on_restored(target["relative"], result)
+        journal_path = codex_home / RESTORE_JOURNAL_RELATIVE
+        if validate_restore_journal(
+            read_managed_json(codex_home, RESTORE_JOURNAL_RELATIVE, "restore transaction")
+        ) != journal:
+            raise InstallError("restore transaction changed before cleanup")
+        journal_path.unlink()
+        fsync_directory(journal_path.parent)
+        return [
+            (target["relative"], target["prior_sha256"] or "<absent>")
+            for target in receipt["targets"]
+        ]
+
+
 def artifact_receipts(
     codex_home: Path,
     root_relative: Path,
@@ -1386,6 +2289,65 @@ def retirement_staging_receipts(codex_home: Path) -> list[str]:
     ]
 
 
+def restore_receipt_reports(codex_home: Path) -> list[dict[str, str]]:
+    root = codex_home / RESTORE_RECEIPTS_RELATIVE
+    if root.is_symlink():
+        raise InstallError(f"restore receipt root is a symlink: {root}")
+    if not root.exists():
+        return []
+    if not root.is_dir():
+        raise InstallError(f"restore receipt root is not a directory: {root}")
+    reports = []
+    for path in sorted(root.glob("*.json")):
+        if path.is_symlink() or not path.is_file():
+            raise InstallError(f"invalid restore receipt artifact: {path}")
+        try:
+            receipt = validate_restore_receipt(
+                strict_json_loads(path.read_text(encoding="utf-8"), "restore receipt")
+            )
+        except UnicodeError as error:
+            raise InstallError(f"restore receipt is unreadable: {path}: {error}") from error
+        if receipt["target"] != target_identity(codex_home):
+            raise InstallError(f"restore receipt target identity mismatch: {path}")
+        verify_restore_target_backups(codex_home, receipt["targets"])
+        states = []
+        for target in receipt["targets"]:
+            current = file_state(codex_home / target["relative"], codex_home)
+            if state_matches(target, "candidate", current):
+                states.append("candidate")
+            elif state_matches(target, "prior", current):
+                states.append("prior")
+            else:
+                states.append("conflict")
+        if "conflict" in states:
+            status = "CONFLICT"
+        elif set(states) == {"candidate"}:
+            status = "READY"
+        elif set(states) == {"prior"}:
+            status = "RESTORED"
+            for target in receipt["targets"]:
+                if not target["candidate_exists"]:
+                    continue
+                candidate = codex_home / vault_relative(
+                    "candidate", receipt["receipt_digest"], target["relative"]
+                )
+                content = safe_existing_bytes(candidate, codex_home)
+                if content is None or sha256_bytes(content) != target["candidate_sha256"]:
+                    raise InstallError(
+                        f"displaced candidate vault mismatch: {target['relative']}"
+                    )
+        else:
+            status = "PARTIAL"
+        reports.append(
+            {
+                "receipt_digest": receipt["receipt_digest"],
+                "receipt_path": str(path.relative_to(codex_home)),
+                "status": status,
+            }
+        )
+    return reports
+
+
 def doctor_report(codex_home: Path, agents_language: str) -> dict:
     """Return a stable, read-only diagnostic report for text or JSON rendering."""
     codex_home = validate_codex_home(codex_home)
@@ -1400,10 +2362,23 @@ def doctor_report(codex_home: Path, agents_language: str) -> dict:
         "package_id": SKILL_NAME,
         "quarantined": [],
         "retirement_receipts": [],
+        "restore_receipts": [],
         "status": "ACTIVE_APPLY" if locked else "UNKNOWN",
         "targets": [],
     }
     if locked:
+        return report
+    restore_journal = read_managed_json(
+        codex_home, RESTORE_JOURNAL_RELATIVE, "restore transaction"
+    )
+    if restore_journal is not None:
+        validate_restore_journal(restore_journal)
+        report["status"] = "RESTORE_PARTIAL"
+        report["targets"] = [
+            {"path": relative, "state": "RESTORE_PENDING"}
+            for relative in sorted(restore_journal["candidate_backups"])
+        ]
+        report["restore_receipts"] = restore_receipt_reports(codex_home)
         return report
     journal = read_journal(codex_home)
     if journal is not None:
@@ -1440,6 +2415,7 @@ def doctor_report(codex_home: Path, agents_language: str) -> dict:
         STAGING_RELATIVE,
         "retirement receipt",
     )
+    report["restore_receipts"] = restore_receipt_reports(codex_home)
     return report
 
 
@@ -1454,6 +2430,10 @@ def render_doctor_report(report: dict) -> list[str]:
         lines.append(f"DOCTOR {status}")
     lines.extend(
         f"TARGET {target['path']} {target['state']}" for target in report["targets"]
+    )
+    lines.extend(
+        "RESTORE_RECEIPT {receipt_path} {status} {receipt_digest}".format(**receipt)
+        for receipt in report["restore_receipts"]
     )
     lines.extend(
         "QUARANTINED {original_path} {receipt_path} {sha256}".format(**receipt)
@@ -1486,6 +2466,12 @@ def main() -> int:
     action.add_argument("--check", action="store_true", help="preflight without writes")
     action.add_argument("--apply", action="store_true", help="apply the preflighted writes")
     action.add_argument(
+        "--restore-receipt",
+        type=Path,
+        metavar="ABS",
+        help="restore exact prior state from a target-bound receipt",
+    )
+    action.add_argument(
         "--doctor",
         action="store_true",
         help="diagnose managed state and unfinished transactions without writes",
@@ -1494,11 +2480,21 @@ def main() -> int:
         "--format",
         choices=("text", "json"),
         default="text",
-        help="doctor output format (default: text)",
+        help="check or doctor output format (default: text)",
+    )
+    parser.add_argument(
+        "--plan-receipt",
+        type=Path,
+        metavar="ABS",
+        help="strict JSON receipt previously emitted by --check --format json",
     )
     args = parser.parse_args()
-    if args.format != "text" and not args.doctor:
-        parser.error("--format is only valid with --doctor")
+    if args.format != "text" and not (args.doctor or args.check):
+        parser.error("--format is only valid with --check or --doctor")
+    if args.apply and args.plan_receipt is None:
+        parser.error("--apply requires --plan-receipt ABS")
+    if not args.apply and args.plan_receipt is not None:
+        parser.error("--plan-receipt is only valid with --apply")
     try:
         codex_home = validate_codex_home(args.codex_home)
         if args.doctor:
@@ -1509,17 +2505,35 @@ def main() -> int:
                 for line in render_doctor_report(report):
                     print(line)
             return 0 if report["healthy"] else 1
+        if args.restore_receipt is not None:
+            restored = restore_install(
+                codex_home,
+                args.restore_receipt,
+                lambda relative, actual: print(
+                    f"RESTORED {relative} {actual}", flush=True
+                ),
+            )
+            print(f"PASS: restored {len(restored)} path(s)")
+            return 0
         if args.apply:
-            touched = apply_install(
+            touched, restore_receipt_path = apply_install_with_receipt(
                 codex_home,
                 args.agents_language,
+                args.plan_receipt,
                 lambda relative, actual: print(
                     f"TOUCHED {relative} {actual}", flush=True
                 ),
             )
+            if restore_receipt_path is not None:
+                print(f"RESTORE_RECEIPT {restore_receipt_path}")
             print(f"PASS: installed {len(touched)} changed path(s)")
             return 0
-        plans, _ = plan_install(codex_home, args.agents_language)
+        with apply_lock(codex_home):
+            plans, _ = plan_install(codex_home, args.agents_language)
+            receipt = plan_receipt_document(codex_home, args.agents_language, plans)
+        if args.format == "json":
+            print(json.dumps(receipt, indent=2, sort_keys=True))
+            return 0
         for plan in plans:
             desired = plan.desired_sha256 or "<absent>"
             print(f"WOULD_TOUCH {plan.relative} {desired}")

@@ -62,16 +62,30 @@ Run the read-only preflight first, then apply the same plan. Replace the example
 with the absolute path to your Codex home.
 
 ```bash
-python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --check
-python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --apply
+python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --check --format json > /absolute/path/to/plan-receipt.json
+python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --apply --plan-receipt /absolute/path/to/plan-receipt.json
+python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --restore-receipt /absolute/path/from/RESTORE_RECEIPT
 python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --doctor
 python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --doctor --format json
 ```
 
 `--check` does not create the target directory or write files. It reports every
-planned path and content SHA-256. `--apply` uses the same fail-closed checks.
+planned path and content SHA-256 in text mode. Its JSON form is a strict plan
+receipt binding the target realpath and device, language, manifest-verified
+source archive, install contract, and every prior and desired hash, mode, and
+absence. A source in a Git worktree is accepted only when the package root is
+the worktree root, HEAD tracks the manifest and every declared package path, and
+the complete worktree including untracked files is clean; the receipt records
+that exact HEAD. A manifest-verified release archive with no discoverable Git
+metadata (or an explicitly substituted test manifest) uses the reproducible
+archive identity and records that no revision was available. A dirty or nested
+Git source fails instead of silently falling back, and the installer never
+fabricates a commit identity. `--apply` requires this receipt and consumes and recomputes it
+while holding the same target-scoped lock used by check and restore. Source,
+target, plan, symlink, device, or receipt drift fails closed.
 `--doctor` is read-only and classifies the current installation, active apply
-lock, unfinished transaction, and any quarantined retired artifacts. Add
+lock, unfinished apply or restore transaction, retained restore receipts, and
+any quarantined retired artifacts. Add
 `--format json` for a stable machine-readable diagnostic receipt.
 Choose `--agents-language en` for English or `--agents-language zh` for Simplified
 Chinese. The installer writes exactly one policy section and can safely switch a
@@ -106,22 +120,36 @@ restored or left at a journal-owned recovery path.
 
 Apply uses an exclusive target-scoped lock, an all-target precondition gate,
 same-directory temporary files, `fsync`, atomic replacement, and a durable
-transaction journal. Atomicity is per file, not across the complete plan. If a
+transaction journal. Before its first managed replacement, it hard-links every
+existing prior file into a digest-addressed target-local restore vault and
+records its exact mode; prior absence is recorded explicitly. Atomicity is per
+file, not across the complete plan. If a
 late change or interruption stops an apply, already completed `TOUCHED` receipts
 are flushed and the journal remains for read-only diagnosis and idempotent
-forward recovery with the same package and language. Conflicting partial state
-fails closed; the installer never silently rolls it back or overwrites it.
+forward recovery with the same package, language, and plan receipt. Conflicting
+partial state fails closed; the installer never silently rolls it back or
+overwrites it.
 A crash can leave either the source and quarantine links or the quarantine and
 staging links. `--doctor` reports both recoverable states, and the next matching
 apply finishes the journal forward without replacing any existing path. A
 verified staging link remains afterward as a read-only retirement receipt.
 
-The installer provides no automatic uninstaller. Review `--doctor`,
+Successful apply emits an absolute `RESTORE_RECEIPT` path. Restore first verifies
+every candidate postimage, then hard-links all displaced candidate bytes into a
+separate vault before restoring prior bytes and modes or removing paths whose
+prior state was absent. Its journal is independent and resumable with the same
+receipt. Cross-home receipts, incomplete or modified receipts, vault damage,
+candidate drift, and concurrent changes fail closed. Both prior backups and
+displaced candidate bytes are retained for readback; restore is not a generic
+uninstaller and cannot overwrite later user changes.
+
+Review `--doctor`,
 `skills/subagent-orchestrator/.managed-package-state.json`, any
-`.install-transaction.json`, `.retired/`, or `.retirement-receipts/` evidence,
-plus `AGENTS.md` and `config.toml`, before removing an installation manually. A
-stale apply lock also requires manual inspection; there is intentionally no
-force-unlock flag.
+`.install-transaction.json`, receipt-bound apply/restore journal,
+`.restore-receipts/`, `.restore-vault/`, `.retired/`, or
+`.retirement-receipts/` evidence, plus `AGENTS.md` and `config.toml`, before any
+manual cleanup. A stale target lock also requires manual inspection; there is
+intentionally no force-unlock flag.
 
 ## Validate
 
