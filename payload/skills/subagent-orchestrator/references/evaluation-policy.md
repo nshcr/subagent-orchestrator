@@ -7,7 +7,7 @@ Apply this lexicographic order without weighted averaging:
 1. Preserve authorization, safety, correctness, and evidence integrity.
 2. Prefer higher stable verified quality.
 3. When quality is indistinguishable, prefer lower end-to-end ChatGPT credits.
-4. When evidence is insufficient or unstable, use primary/default.
+4. When evidence is insufficient or unstable, use primary.
 
 Never trade verified quality for lower credits. Record wall time only as
 telemetry; never use it for routing, promotion, rejection, or tie-breaking.
@@ -41,10 +41,12 @@ opening at least one sealed holdout instance per class. Tested agents must not b
 able to read grader logic or expected answers. A role instruction or eligibility
 change invalidates prior promotion evidence for the affected class until a new
 sealed holdout passes; never tune against the holdout and then count it as unseen.
-A lifecycle-only scheduling change that preserves role instructions, eligibility,
-evidence schemas, and scoring requires targeted state-machine conformance rather
-than class re-promotion. It must cover a delayed child across multiple wait
-windows, an independent peer, authorized cancellation, and terminal collection.
+A topology-only scheduling change that preserves custom role instructions,
+eligibility, evidence schemas, and scoring does not invalidate those role
+promotions. It requires deterministic state-machine conformance plus a current
+client capability receipt before activation. Cover a delayed child across
+multiple wait windows, an independent peer, bounded nested spawn and messaging,
+permission inheritance, authorized cancellation, and full-tree terminal collection.
 
 Score evidence-grounded capability rather than surface form. A copied label,
 keyword, prescribed phrase, or checklist item earns no credit without the
@@ -62,7 +64,8 @@ Promotion requires all of the following:
 - higher verified quality, or indistinguishable quality with median aggregate
   custom credits at least 10% below baseline;
 - complete end-to-end credit accounting;
-- no recursive delegation, overlapping writers, or primary reconstruction.
+- no unbounded or unauthorized recursive delegation, overlapping writers, or
+  primary reconstruction.
 
 The 10% credit threshold governs elective custom promotion. An explicitly
 mandatory named governance gate remains installed when no callable built-in
@@ -73,7 +76,7 @@ experiment never retires `risk_reviewer`: a failed candidate effort returns the
 role to its last accepted fixed effort and leaves the named gate installed.
 
 Retire an installed role with no promoted class. Failure demotes only the
-affected class; unsupported work remains primary/default.
+affected class; unsupported work remains primary.
 
 ## Promoted registry
 
@@ -86,7 +89,9 @@ affected class; unsupported work remains primary/default.
   installed as the mandatory named governance control, not as an elective
   cost-promoted class. `risk_reviewer_max` is only its fixed-effort escalation
   variant and never owns an independent promoted class.
-- Primary/default: every other class.
+- Built-in `explorer`, `worker`, and `default`: baseline leaf or capability-gated
+  bounded-peer routes; they are not promoted custom classes.
+- Primary: every unsupported or capability-unverified class.
 
 ## Evidence and provenance
 

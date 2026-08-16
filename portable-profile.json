@@ -22,10 +22,31 @@
     "model_hint": "gpt-5.6-sol",
     "reasoning_effort_hint": "high"
   },
+  "builtin_routes": [
+    {
+      "id": "explorer",
+      "topology": "leaf",
+      "eligibility": "material narrow read-only codebase question whose focused scan replaces primary exploration"
+    },
+    {
+      "id": "worker",
+      "topology": "leaf",
+      "eligibility": "scoped implementation or fix with settled strategy and disjoint writer ownership"
+    },
+    {
+      "id": "default",
+      "topology": "bounded-peer",
+      "eligibility": "material dependency graph where direct evidence handoff avoids primary relay and current client capability is proven",
+      "delegation_depth": 1,
+      "leaf_descendant_cap": 2
+    }
+  ],
   "concurrency": {
     "runtime_thread_cap": 16,
-    "qualified_custom_child_cap": 3,
-    "fourth_custom_child_requires_user_authorization": true,
+    "qualified_direct_child_cap": 3,
+    "fourth_direct_child_requires_user_authorization": true,
+    "bounded_peer_coordinator_cap": 1,
+    "bounded_peer_leaf_descendant_cap": 2,
     "wait_timeout_is_terminal": false
   },
   "roles": [
@@ -72,9 +93,16 @@
   ],
   "handoff": {
     "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
-    "non_recursive": true,
     "state_bound": true,
+    "context_default": "fresh",
+    "governed_custom_roles_non_recursive": true,
+    "bounded_peer_delegation_depth": 1,
+    "peer_messages": "evidence-or-dependency-only",
     "required_typed_fields": {
+      "topology": "leaf-or-bounded-peer",
+      "delegation_depth": "zero-or-one",
+      "message_peers": "none-or-task-names-plus-evidence-dependency-purpose",
+      "context_policy": "fresh-or-inherited-plus-material-reason",
       "acceptance_fields": "not-applicable-or-one-or-more-exact-output-heading-labels",
       "named_invariants": "not-applicable-or-one-or-more-exact-gate-invariants",
       "escalation_receipt": "not-applicable-or-prior-terminal-line-plus-sufficient-evidence-plus-competing-explanations-plus-irreversible-decision",
@@ -83,11 +111,13 @@
     "user_facing_language": "user-preferred",
     "model_facing_language": "English"
   },
-  "unsupported_work_route": "primary-or-default",
+  "unsupported_work_route": "primary",
   "adapter_requirements": [
     "preserve-role-eligibility",
     "preserve-permission-boundaries",
-    "preserve-non-recursion",
+    "preserve-governed-leaf-non-recursion",
+    "preserve-bounded-peer-depth",
+    "preserve-peer-message-boundary",
     "preserve-terminal-collection",
     "preserve-output-language-contract",
     "treat-model-and-effort-values-as-client-specific-hints"

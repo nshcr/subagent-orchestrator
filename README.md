@@ -3,7 +3,8 @@
 A quality-first subagent orchestration bundle for OpenAI Codex. It installs four
 bounded custom roles, a routing skill, and a portable client-neutral profile.
 Delegation is used only when it replaces material primary work or supplies a
-required independent gate.
+required independent gate. Built-in agents also provide generic leaf work and a
+capability-gated bounded-peer lane without broadening the custom roles.
 
 > [!IMPORTANT]
 > This is an unofficial community project and is not affiliated with or endorsed
@@ -21,6 +22,20 @@ required independent gate.
 
 The default remains a single agent. Complexity, file count, and spare concurrency
 do not qualify a task for delegation.
+
+## Collaboration topology
+
+- `explorer` and `worker` are built-in leaf routes for material read-only scans
+  and scoped, ownership-safe implementation.
+- A collaboration-capable built-in `default` agent may coordinate at most two
+  built-in leaf descendants through one additional delegation level when direct
+  evidence handoff avoids material primary relay.
+- Peer messages carry evidence, dependency status, or artifact receipts only.
+  Custom roles remain parent-routed leaves, and the primary retains authorization,
+  writer ownership, integration, and final acceptance.
+- If the current client cannot prove nested spawn, direct messaging, permission
+  inheritance, and full-tree terminal collection, routing fails closed to leaf
+  agents or the primary.
 
 ## Requirements
 
@@ -131,8 +146,9 @@ After installation, validate a target from the installed skill directory:
 python3 -B scripts/validate-routing-config.py --codex-home /absolute/path/to/.codex
 ```
 
-A local PASS proves only the file contract and hermetic tests. It does not prove
-model availability, account access, client reload state, or current role quality.
+A local PASS proves only the file contract, hermetic tests, and deterministic
+topology conformance. It does not prove model availability, account access,
+client reload state, live bounded-peer capability, or current role quality.
 
 After changing any published file, rebuild the deterministic manifest:
 
@@ -162,7 +178,8 @@ review before being accepted into the lifecycle catalog.
 The standard-library-only `evaluation` package validates paired baseline/custom
 campaign evidence and emits deterministic JSON reports. It never invokes models,
 graders, or the network. Development evidence and externally executed sealed
-holdout evidence are separate inputs:
+holdout evidence are separate inputs. This scaffold promotes custom leaf roles;
+bounded-peer activation uses the separate current-client capability gate:
 
 ```bash
 python3 -B -m evaluation validate --campaign campaign.json \

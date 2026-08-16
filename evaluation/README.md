@@ -45,8 +45,11 @@ credit categories plus total. Validation reconciles expected thread/receiver
 IDs, child and retry counts, terminal/cost completeness, parent topology, and
 the token and credit arithmetic before a report can be emitted. Custom receiver
 roles must equal the instance's single class-policy role; baseline roles must
-come from a disjoint campaign allowlist. Child-to-child parents are rejected as
-recursive delegation.
+come from a disjoint campaign allowlist. Child-to-child parents remain rejected
+here because this reporter promotes the four governed custom leaf roles. The
+built-in bounded-peer lane is a baseline runtime capability, not a fifth
+promoted class; its session-local capability receipt is evaluated by the routing
+and lifecycle gate and must not be injected as custom-role promotion evidence.
 
 The campaign freezes a pricing-provenance hash and an exact global execution
 order. Each instance must occur exactly twice in that order and its two entries

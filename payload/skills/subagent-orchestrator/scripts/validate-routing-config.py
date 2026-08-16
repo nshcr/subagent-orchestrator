@@ -112,40 +112,44 @@ ROLE_INSTRUCTION_SHA256 = {
     "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
 }
 REFERENCE_SHA256 = {
-    "routing-policy.md": "0d0855ddb0786b88ed6fa64f9c1c44fd81b28e2e154c061749b8e7241eb80449",
-    "evaluation-policy.md": "38fa07a6215427bbdf6949b050c19e0d39e3bd7ed39a879505c378ca660f13b4",
-    "delegation-contracts.md": "bae9bb3eeb2370c8bfdf9d6a6fcd38ed255eb6cd8bf8f037297321dde55ca264",
+    "routing-policy.md": "2b50c5bedd653476710d490de5b77784d90cd6d8f0b1e90681357c657aadcde0",
+    "evaluation-policy.md": "aea59b820434f7e3022aa7db93a6d13b4c5f6c7be954e5067bd4d7fd888f0173",
+    "delegation-contracts.md": "842306b06c7501bdda207ed91357e16bddf3da17a3bf83822c29977e3640867f",
 }
-SKILL_SHA256 = "5b1b53b90fff700d9bb803e87050db285b13d353eae029f6a9088253364827dc"
+SKILL_SHA256 = "99ac84463ff80ac6b5fd0131e0d36dd96efadc0484d72f975688758c44936972"
 GLOBAL_POLICY_SHA256 = {
-    "## Subagents and parallelism": "f4bfedfca74f3c0b071329655002f788b08e0bbd8207ea549a4496d26f41068c",
-    "## 子代理与并行": "8c25829e558be9a16ed32b0ff1ee21d2b6bc6d017c503e8953c9d80379e2ca7f",
+    "## Subagents and parallelism": "14d15f56754528d65d25a2434f0dfc88587c63b533309164d83433d718295bd4",
+    "## 子代理与并行": "6cc3694505f0c58cc3fab99971a93aa2cf2204ebcf44963cdb039a81b60556f4",
 }
 GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
         "Default to a single agent",
         "Use `$subagent-orchestrator` only",
         "idle capacity alone do not qualify",
-        "follow the skill's current routing, ownership, handoff, waiting, and gate rules",
+        "follow the skill's current routing, topology, ownership, handoff, waiting, and gate rules",
         "high-risk final states require a fresh, independent, read-only review",
         "The primary always retains authorization, scope, conflict handling, integration, and final acceptance",
-        "children cannot expand authority or delegate recursively",
-        "every required child must reach a terminal state before the primary ends",
+        "children cannot expand authority",
+        "governed roles remain leaves",
+        "only a skill-qualified bounded peer may delegate one level",
+        "every required descendant must reach a terminal state before the primary ends",
     ),
     "## 子代理与并行": (
         "默认单代理",
         "使用 `$subagent-orchestrator`",
         "空闲并发本身不构成委派理由",
-        "遵循该 skill 当前的路由、所有权、交接、等待和门禁规则",
+        "遵循该 skill 当前的路由、拓扑、所有权、交接、等待和门禁规则",
         "高风险最终状态必须接受 fresh、独立、只读审阅",
         "主代理始终保留授权、范围、冲突处理、整合和最终验收",
-        "子代理不得扩权或递归委派",
-        "所有必需子任务在主代理结束前必须到达终态",
+        "子代理不得扩权",
+        "治理角色保持叶子",
+        "仅 skill 准入的受限协作代理可继续委派一层",
+        "所有必需后代在主代理结束前必须到达终态",
     ),
 }
 LIFECYCLE_ASSET_SHA256 = {
-    "scripts/lifecycle_conformance.py": "20f079efefc871617e83abf6c047433d9ab9e840a784fc53e156dabbfa45371b",
-    "tests/fixtures/lifecycle-trace.json": "f61c224b5ab8ef26dd1a0c0010ac3b5525499647f90771945d52468817c94535",
+    "scripts/lifecycle_conformance.py": "4f0ee07cd211e300d1a7e8403611d227bf7cc34d9143b4041201ae0f8c591add",
+    "tests/fixtures/lifecycle-trace.json": "54c26f25b74909e8df7aa3aedea90926b6a0a7283bc4be8a940b6fdd018f8e42",
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",
@@ -415,23 +419,25 @@ def validate_lifecycle_assets(
 def validate_skill_entry(checks: Checks, skill: str) -> None:
     require_markers(checks, skill, "SKILL.md", (
         "name: subagent-orchestrator",
-        "Route and supervise explicit subagent requests and evidence-backed specialist work.",
-        "Preserve required children to terminal unless cancellation is authorized.",
+        "Route and supervise explicit subagent requests, bounded built-in collaboration, and evidence-backed specialist work.",
+        "Preserve every required descendant to terminal unless cancellation is authorized.",
         "Keep this file as the workflow entrypoint.",
         "Start primary-only.",
         "If neither substitution nor required independence is present, stay primary.",
-        "Before selecting any custom role, read the objective and promoted registry",
-        "Keep unsupported or unstable classes on primary/default.",
+        "Read [routing policy](references/routing-policy.md) whenever delegation is",
+        "Before selecting a custom role or bounded-peer topology",
+        "Keep unsupported, unstable, or capability-unverified classes on primary.",
         "Create one task-local handoff",
         "Start every already-qualified, mutually independent child allowed by the routing policy",
         "never create filler work merely to occupy capacity",
-        "wait for every required child to reach a terminal state",
+        "wait for every required child and",
+        "descendant to reach a terminal state",
         "Treat a wait timeout as observation-only",
         "not as failure, a stall, or permission to interrupt",
         "If a child remains running, report useful progress",
         "and wait again",
         "Never interrupt or replace a child for silence, elapsed wall time, token or credit use",
-        "Never start a replacement while the original is running.",
+        "Never start a replacement while the original or a required descendant is",
         "Accept only state-bound evidence",
         "rebuilding transferred work or rewriting an owned artifact",
         "Keep authorization, writer ownership, conflict handling, synthesis, and final acceptance with the primary.",
@@ -469,20 +475,31 @@ def validate_references(
         "| Material bounded log corpus | `evidence_tester` |",
         "| Named unresolved cross-component boundary | `boundary_mapper` |",
         "| Required independent high-risk final gate | fresh `risk_reviewer` |",
-        "| Any other, ambiguous, simple, resolved, mechanical, or open-ended class | Primary/default |",
+        "| Material narrow read-only codebase question | built-in `explorer` leaf |",
+        "| Scoped implementation or fix | built-in `worker` leaf |",
+        "| Material dependency graph needing direct evidence handoff | built-in `default` bounded peer |",
+        "| Any other, ambiguous, simple, resolved, mechanical, or open-ended class | Primary |",
         "An artifact request alone never qualifies a task.",
         "Acceptance fields define the evidence schema, not expected conclusions.",
         "never route because a prompt contains words copied from a role description",
-        "A short single log, a small direct diagnosis, or a narrow test failure remains primary/default",
+        "A short single log, a small direct diagnosis, or a narrow test failure remains primary",
+        "Governed custom roles are parent-routed leaves",
+        "Built-in `explorer` and `worker` are leaves by default.",
+        "one additional level to at most two",
+        "Peer messages may carry only task-local evidence, dependency status, or an",
+        "They cannot change authorization, scope, acceptance",
+        "If the current client cannot prove nested spawn, direct messaging, permission",
+        "fail closed to built-in leaves",
         "Start every already-qualified child whose bounded work is mutually independent",
-        "Allow up to three active custom children by default",
+        "Allow up to three active direct children by default",
         "a fourth requires explicit user authorization",
+        "Allow at most one bounded-peer coordinator with two leaf descendants.",
         "Capacity alone never justifies delegation.",
         "Never serialize an already-qualified independent child solely because another child is slow.",
         "Add a newly discovered child only for new failure evidence",
-        "Shared writes remain serial.",
+        "Shared writes, migrations, dependent mutations, and final integration remain serial.",
         "no callable built-in equivalent exists",
-        "fixed default effort is `xhigh`, independent of the primary/default effort",
+        "fixed default effort is `xhigh`, independent of primary or built-in default effort",
         "Accept an `xhigh` PASS without a confidence-seeking rerun.",
         "For missing evidence, obtain the evidence or keep the gate blocked",
         "Start one fresh `risk_reviewer_max` only when the available evidence is sufficient",
@@ -506,10 +523,12 @@ def validate_references(
         "Freeze the role instructions, routing policy, task fixtures, and graders",
         "at least one sealed holdout instance per class",
         "A role instruction or eligibility change invalidates prior promotion evidence",
-        "A lifecycle-only scheduling change that preserves role instructions, eligibility",
-        "requires targeted state-machine conformance rather than class re-promotion",
-        "a delayed child across multiple wait windows, an independent peer",
-        "authorized cancellation, and terminal collection",
+        "A topology-only scheduling change that preserves custom role instructions",
+        "does not invalidate those role",
+        "requires deterministic state-machine conformance plus a current",
+        "a delayed child across",
+        "bounded nested spawn and messaging",
+        "authorized cancellation, and full-tree terminal collection",
         "A copied label, keyword, prescribed phrase, or checklist item earns no credit",
         "false blockers",
         "stable acceptance across distinct fixture families",
@@ -535,11 +554,15 @@ def validate_references(
         "Concurrent peers: <none | non-overlapping task names>",
         "User deadline: <none | explicit user condition>",
         "Cancellation authority: <user cancel/replace, concrete safety/scope violation",
+        "Topology: <leaf | bounded-peer>",
+        "Delegation depth: <0 | 1>",
+        "Message peers: <none | task names + evidence/dependency purpose>",
+        "Context policy: <fresh | inherited + material reason>",
         "Acceptance fields: <not-applicable | one or more exact output-heading labels>",
         "Named invariants: <not-applicable | one or more exact gate invariants>",
         "Escalation receipt: <not-applicable | prior terminal line + sufficient evidence",
         "Artifact contract: <none | path or body + format + writer + transfer rule>",
-        "These four fields are typed and must always be present.",
+        "The four routing fields and four evidence fields are typed and must always be",
         "`not-applicable` and `none` are literal values, not permission to omit a field.",
         "The primary must set `Output audience` explicitly.",
         "For `user-facing` output, use the user's preferred language.",
@@ -555,7 +578,12 @@ def validate_references(
         "Every spawned child must reach a terminal state before the primary ends.",
         "Do not start a replacement while the original remains running.",
         "continue independent work or wait again",
-        "fork_turns=\"none\"",
+        "Use fresh context by default",
+        "Inherit only the smallest history needed for material prior decisions",
+        "For `Topology: leaf`, require depth zero and `Message peers: none`",
+        "For `Topology: bounded-peer`, require a collaboration-capable built-in route",
+        "at most two leaf descendants",
+        "Messages transfer evidence or dependency status only; they never amend a handoff.",
         "Preserve one writer per path.",
         "the primary samples but does not rewrite it",
         "ARTIFACT_BODY_BEGIN",
@@ -565,11 +593,13 @@ def validate_references(
         "final non-empty line before `ARTIFACT_BODY_END`",
         "nothing may follow except that marker",
         "The primary always owns authorization, conflict handling, integration, and final acceptance.",
-        "Every custom role is non-recursive.",
+        "Every custom role remains a non-recursive governed leaf.",
         "## Portable adapter contract",
         "`preserve-role-eligibility`",
         "`preserve-permission-boundaries`",
-        "`preserve-non-recursion`",
+        "`preserve-governed-leaf-non-recursion`",
+        "`preserve-bounded-peer-depth`",
+        "`preserve-peer-message-boundary`",
         "`preserve-terminal-collection`",
         "`preserve-output-language-contract`",
         "`treat-model-and-effort-values-as-client-specific-hints`",
@@ -708,7 +738,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         ("evaluation-policy.md", evaluation),
         ("delegation-contracts.md", delegation),
     ):
-        checks.require(len(text.splitlines()) <= 100, f"{relative} exceeds 100-line noise budget")
+        checks.require(len(text.splitlines()) <= 110, f"{relative} exceeds 110-line noise budget")
     checks.require('display_name: "Subagent Orchestrator"' in yaml_text, "openai.yaml display name mismatch")
     checks.require(
         'short_description: "Evidence-backed delegation routing"' in yaml_text,
@@ -746,12 +776,13 @@ def main() -> int:
     print("- risk_reviewer_max: fixed max runtime variant; no independent task class")
     print("- primary: launch model and reasoning effort are unconstrained")
     print("- default subagent: gpt-5.6-sol high")
-    print("- concurrency: up to three qualified custom children; configured thread cap 16")
-    print("- lifecycle: wait timeouts are non-terminal; required children are collected")
-    print("- lifecycle conformance: exact-hash trace and negative transitions passed")
+    print("- built-in routes: explorer/worker leaves; capability-gated default bounded peer")
+    print("- concurrency: three direct children; one bounded peer with two leaf descendants; thread cap 16")
+    print("- lifecycle: wait timeouts are non-terminal; required task trees are collected")
+    print("- lifecycle conformance: bounded depth, peer messaging, cancellation, and terminal collection passed")
     print("- objective: verified quality first; end-to-end credits second")
     print("- wall time: telemetry only")
-    print("- unsupported classes: primary/default; no dormant custom roles installed")
+    print("- unsupported classes: primary; no dormant custom roles installed")
     return 0
 
 

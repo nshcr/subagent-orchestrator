@@ -50,6 +50,8 @@ AGENTS_SECTION_FILES = {
 ACCEPTED_GLOBAL_POLICY_SHA256 = {
     "57ac581a53881ce2152755d425c4e4c9e3608c29fd4257d500e1c7677aca467f",
     "37d9a41d324d5fbc259baf8f893288aaef70003b0259b6de95b6ab0a76e392e2",
+    "f4bfedfca74f3c0b071329655002f788b08e0bbd8207ea549a4496d26f41068c",
+    "8c25829e558be9a16ed32b0ff1ee21d2b6bc6d017c503e8953c9d80379e2ca7f",
 }
 ACCEPTED_STATE_MANIFESTS = {
     # Package states written by accepted predecessor bundles.
@@ -75,6 +77,7 @@ ACCEPTED_PREDECESSORS = {
     },
     "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": {
         "62fd8158fd9b0b2c8ac765df3f0665bf92e62e9bf3e278e0c618fd4005a7376e",
+        "06cb869d981a0b76fbcd018fda95541af39b62a902fde2a2721d6743f457c2b2",
     },
 }
 

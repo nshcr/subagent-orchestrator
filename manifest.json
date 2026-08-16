@@ -30,8 +30,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "8840256d9914bbe20f6cdae2b50985e0a9e0d9dd0d6482d8fd6aedef21ccfa8a",
-      "size": 9144
+      "sha256": "0cbe4ea1ceabb93e7dae66292e2bee15d8bf7355ee430d00a119a7bcea256223",
+      "size": 10213
     },
     {
       "path": "build_manifest.py",
@@ -40,8 +40,8 @@
     },
     {
       "path": "evaluation/README.md",
-      "sha256": "eb6c944b7b001842a10e56adf5e69c0c0d42f7e125d2740526db6a75c169556d",
-      "size": 5247
+      "sha256": "df0d1774d816801724a4be251ee067c813cb305a1257f1d1310f07d0440ad85a",
+      "size": 5535
     },
     {
       "path": "evaluation/__init__.py",
@@ -80,23 +80,23 @@
     },
     {
       "path": "install-migrations.json",
-      "sha256": "86018133208e80fee4d5d844a9f29e366987bff488629cccce07b75e52251ff7",
-      "size": 126
+      "sha256": "85aee104ad7aa28bd0d58501e3c47f38d39748b28c004eabe660c77b3cd855bd",
+      "size": 200
     },
     {
       "path": "install.py",
-      "sha256": "773008bf2d424b836e006c1190da6f407e6042e18859da04e4599a7bcf785a33",
-      "size": 59226
+      "sha256": "f3735304fa811ff54f84b8cb9acc6084f394f010d083f3fbd819054f31c8cfb5",
+      "size": 59446
     },
     {
       "path": "payload/AGENTS.section.en.md",
-      "sha256": "0b27f9f0c3f41e95ac3acf316bf8faa7cc996535159fe1e72abde2367d9ccc49",
-      "size": 745
+      "sha256": "3cc3dedd1fb6898b58ce395be26a6214e44c092bc651ed7fda6e49dca423bf8a",
+      "size": 826
     },
     {
       "path": "payload/AGENTS.section.zh.md",
-      "sha256": "08e078888f5b3f1d5bff7dcb85f657be0bd057efa6e394a123f106c06ae6a2e0",
-      "size": 635
+      "sha256": "b4e6b768bfd169450937af5be9698fd891360a408d054aa62c1b9fc431f1d15a",
+      "size": 714
     },
     {
       "path": "payload/agents/boundary_mapper.toml",
@@ -125,8 +125,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/SKILL.md",
-      "sha256": "5b1b53b90fff700d9bb803e87050db285b13d353eae029f6a9088253364827dc",
-      "size": 2985
+      "sha256": "99ac84463ff80ac6b5fd0131e0d36dd96efadc0484d72f975688758c44936972",
+      "size": 3127
     },
     {
       "path": "payload/skills/subagent-orchestrator/agents/openai.yaml",
@@ -135,48 +135,48 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
-      "sha256": "bae9bb3eeb2370c8bfdf9d6a6fcd38ed255eb6cd8bf8f037297321dde55ca264",
-      "size": 4660
+      "sha256": "842306b06c7501bdda207ed91357e16bddf3da17a3bf83822c29977e3640867f",
+      "size": 5808
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/evaluation-policy.md",
-      "sha256": "38fa07a6215427bbdf6949b050c19e0d39e3bd7ed39a879505c378ca660f13b4",
-      "size": 5367
+      "sha256": "aea59b820434f7e3022aa7db93a6d13b4c5f6c7be954e5067bd4d7fd888f0173",
+      "size": 5692
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/routing-policy.md",
-      "sha256": "0d0855ddb0786b88ed6fa64f9c1c44fd81b28e2e154c061749b8e7241eb80449",
-      "size": 3468
+      "sha256": "2b50c5bedd653476710d490de5b77784d90cd6d8f0b1e90681357c657aadcde0",
+      "size": 4928
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/lifecycle_conformance.py",
-      "sha256": "20f079efefc871617e83abf6c047433d9ab9e840a784fc53e156dabbfa45371b",
-      "size": 5957
+      "sha256": "4f0ee07cd211e300d1a7e8403611d227bf7cc34d9143b4041201ae0f8c591add",
+      "size": 14532
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "add245274c2dee59ad09dc5d756ef5682594467b0e401397d790141c2c346977",
-      "size": 33824
+      "sha256": "294f0e4af60aa03d417b13a5bc011bc69e36c56777cebf90c3ce1893cf4465bb",
+      "size": 35952
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json",
-      "sha256": "f61c224b5ab8ef26dd1a0c0010ac3b5525499647f90771945d52468817c94535",
-      "size": 2785
+      "sha256": "54c26f25b74909e8df7aa3aedea90926b6a0a7283bc4be8a940b6fdd018f8e42",
+      "size": 6320
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_lifecycle_conformance.py",
-      "sha256": "61be44517b12093a429ce1a81a3f365381850e32deac73b6f8c212acde74f5ad",
-      "size": 4135
+      "sha256": "e5db6b19f5de2fe41f44af5468409891f3f5aaf54563ff77dc8e03ee0c38ac0c",
+      "size": 10290
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
-      "sha256": "315e329abcb42bdca088525a6f599c75e23a86d1578a140650a7b462121189b5",
-      "size": 38556
+      "sha256": "2b39e4e8cfac0fd266d1d7ed7e6de550180cfff47c071e84a2614a107d7640d6",
+      "size": 40761
     },
     {
       "path": "portable-profile.json",
-      "sha256": "90b9b136d5ef2217af24ace53029136eef18191541421b2e47a367f182dea020",
-      "size": 3643
+      "sha256": "f6c3151e829b0485d24c25265597b9dfc7bb7c38719b6b84b0312ab3608b3c85",
+      "size": 4815
     },
     {
       "path": "tests/test_evaluation.py",
@@ -185,8 +185,8 @@
     },
     {
       "path": "tests/test_install.py",
-      "sha256": "943fa510664a31151eabccada034b1414ea16222e879133e2a96be1d67765cc0",
-      "size": 42867
+      "sha256": "e3a1719d012b86d8513a1fbc3251a0539d87e5aab02edb8a98cb5777ac491a78",
+      "size": 46114
     },
     {
       "path": "tests/test_manifest.py",
@@ -195,16 +195,16 @@
     },
     {
       "path": "tests/test_profile.py",
-      "sha256": "0869b64a76e01bc7489fa90ef865929b0d901817549d94cd9438f0b2c14ca4b8",
-      "size": 4498
+      "sha256": "927a777da366559d025c3d0c86248620bc0650c3e51f79e46cc4e1515a086718",
+      "size": 5584
     },
     {
       "path": "validate.py",
-      "sha256": "61d8be35e9fef458194db28107ce16047470bd77f0cbad1554867a640c7f0fd5",
-      "size": 13260
+      "sha256": "7438dac63d419d469f6ac708885b53c120e49612155a7464a86184b9f06237f8",
+      "size": 15262
     }
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "package_version": "2026.08.14"
+  "package_version": "2026.08.16"
 }

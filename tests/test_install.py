@@ -190,6 +190,34 @@ raise SystemExit(module.main())
         self.assertIn("## Subagents and parallelism", agents_path.read_text())
         self.assertNotIn("## 子代理与并行", agents_path.read_text())
 
+    def test_current_two_bullet_policies_can_migrate_without_state(self):
+        predecessors = {
+            "en": """## Subagents and parallelism
+
+- Default to a single agent. Use `$subagent-orchestrator` only when the user explicitly requests delegation or parallel work, or when one bounded child can replace material primary work or provide a required independent gate; complexity, file count, decomposability, or idle capacity alone do not qualify.
+- Once delegated, follow the skill's current routing, ownership, handoff, waiting, and gate rules; high-risk final states require a fresh, independent, read-only review. The primary always retains authorization, scope, conflict handling, integration, and final acceptance; children cannot expand authority or delegate recursively, and every required child must reach a terminal state before the primary ends.
+""",
+            "zh": """## 子代理与并行
+
+- 默认单代理。仅当用户明确要求委派/并行，或一个边界清晰的子任务能替代可观的主代理工作或提供必需独立门禁时，使用 `$subagent-orchestrator`；复杂度、文件数、可拆分性或空闲并发本身不构成委派理由。
+- 委派后遵循该 skill 当前的路由、所有权、交接、等待和门禁规则；高风险最终状态必须接受 fresh、独立、只读审阅。主代理始终保留授权、范围、冲突处理、整合和最终验收；子代理不得扩权或递归委派，所有必需子任务在主代理结束前必须到达终态。
+""",
+        }
+        for language, predecessor in predecessors.items():
+            with self.subTest(language=language):
+                with tempfile.TemporaryDirectory() as temporary:
+                    original_home = self.codex_home
+                    self.codex_home = Path(temporary) / "codex-home"
+                    try:
+                        self.codex_home.mkdir()
+                        (self.codex_home / "AGENTS.md").write_text(predecessor)
+                        result = self.run_installer("--apply", language)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        installed = (self.codex_home / "AGENTS.md").read_text()
+                        self.assertIn("bounded peer" if language == "en" else "受限协作代理", installed)
+                    finally:
+                        self.codex_home = original_home
+
     def test_known_legacy_chinese_policy_can_migrate_without_state(self):
         self.codex_home.mkdir()
         predecessor = """## 子代理与并行
@@ -331,6 +359,26 @@ raise SystemExit(module.main())
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("install-contract lineage is not accepted", result.stderr)
+
+    def test_current_v2_install_contract_lineage_is_accepted(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = json.loads(self.state_path().read_text())
+        state["install_contract_sha256"] = (
+            "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483"
+        )
+        self.state_path().write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n"
+        )
+
+        result = self.run_installer("--apply")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        upgraded = json.loads(self.state_path().read_text())
+        self.assertNotEqual(
+            upgraded["install_contract_sha256"],
+            "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483",
+        )
 
     def test_all_target_recheck_rejects_drift_before_any_write(self):
         plans, _ = INSTALL_MODULE.plan_install(self.codex_home, "en")

@@ -1,13 +1,14 @@
 {
-  "version": 1,
-  "logical_default_cap": 3,
+  "version": 2,
+  "logical_direct_child_cap": 3,
+  "bounded_peer_leaf_cap": 2,
   "runtime_capacity": 16,
   "owner_hashes": {
-    "SKILL.md": "5b1b53b90fff700d9bb803e87050db285b13d353eae029f6a9088253364827dc",
-    "references/routing-policy.md": "0d0855ddb0786b88ed6fa64f9c1c44fd81b28e2e154c061749b8e7241eb80449",
-    "references/delegation-contracts.md": "bae9bb3eeb2370c8bfdf9d6a6fcd38ed255eb6cd8bf8f037297321dde55ca264",
-    "references/evaluation-policy.md": "38fa07a6215427bbdf6949b050c19e0d39e3bd7ed39a879505c378ca660f13b4",
-    "AGENTS.md#subagent-policy": "8c25829e558be9a16ed32b0ff1ee21d2b6bc6d017c503e8953c9d80379e2ca7f",
+    "SKILL.md": "99ac84463ff80ac6b5fd0131e0d36dd96efadc0484d72f975688758c44936972",
+    "references/routing-policy.md": "2b50c5bedd653476710d490de5b77784d90cd6d8f0b1e90681357c657aadcde0",
+    "references/delegation-contracts.md": "842306b06c7501bdda207ed91357e16bddf3da17a3bf83822c29977e3640867f",
+    "references/evaluation-policy.md": "aea59b820434f7e3022aa7db93a6d13b4c5f6c7be954e5067bd4d7fd888f0173",
+    "AGENTS.md#subagent-policy": "6cc3694505f0c58cc3fab99971a93aa2cf2204ebcf44963cdb039a81b60556f4",
     "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
   },
   "scenarios": [
@@ -17,20 +18,33 @@
         {
           "type": "spawn",
           "child": "slow_boundary",
+          "parent": "primary",
+          "route": "custom",
+          "agent_type": "boundary_mapper",
+          "topology": "leaf",
+          "delegation_depth": 0,
           "qualified": true,
           "required": true,
           "independent": true,
-          "ownership_safe": true
+          "ownership_safe": true,
+          "permission_inherited": true
         },
         {"type": "wait_timeout", "child": "slow_boundary"},
         {
           "type": "spawn",
           "child": "independent_gate",
+          "parent": "primary",
+          "route": "custom",
+          "agent_type": "risk_reviewer",
+          "topology": "leaf",
+          "delegation_depth": 0,
           "qualified": true,
           "required": true,
           "independent": true,
-          "ownership_safe": true
+          "ownership_safe": true,
+          "permission_inherited": true
         },
+        {"type": "delegation_request", "parent": "slow_boundary", "outcome": "rejected"},
         {"type": "wait_timeout", "child": "slow_boundary"},
         {
           "type": "cancel_request",
@@ -50,23 +64,114 @@
       ]
     },
     {
-      "name": "authorized_cancellation_acknowledgement",
+      "name": "bounded_peer_tree",
       "events": [
         {
           "type": "spawn",
-          "child": "cancelled_child",
+          "child": "peer_coordinator",
+          "parent": "primary",
+          "route": "built-in",
+          "agent_type": "default",
+          "topology": "bounded-peer",
+          "delegation_depth": 1,
           "qualified": true,
           "required": true,
           "independent": true,
-          "ownership_safe": true
+          "ownership_safe": true,
+          "permission_inherited": true
+        },
+        {
+          "type": "spawn",
+          "child": "peer_leaf_a",
+          "parent": "peer_coordinator",
+          "route": "built-in",
+          "agent_type": "explorer",
+          "topology": "leaf",
+          "delegation_depth": 0,
+          "qualified": true,
+          "required": true,
+          "independent": true,
+          "ownership_safe": true,
+          "permission_inherited": true
+        },
+        {
+          "type": "spawn",
+          "child": "peer_leaf_b",
+          "parent": "peer_coordinator",
+          "route": "built-in",
+          "agent_type": "worker",
+          "topology": "leaf",
+          "delegation_depth": 0,
+          "qualified": true,
+          "required": true,
+          "preauthorized_dependency": true,
+          "ownership_safe": true,
+          "permission_inherited": true
+        },
+        {
+          "type": "message",
+          "sender": "peer_leaf_a",
+          "recipient": "peer_leaf_b",
+          "purpose": "evidence",
+          "authorization_change": false,
+          "scope_change": false,
+          "acceptance_change": false,
+          "writer_ownership_change": false,
+          "topology_change": false,
+          "integration_change": false,
+          "final_acceptance_change": false
+        },
+        {"type": "receipt", "child": "peer_leaf_a"},
+        {"type": "receipt", "child": "peer_leaf_b"},
+        {"type": "receipt", "child": "peer_coordinator"},
+        {"type": "primary_finalize"}
+      ]
+    },
+    {
+      "name": "nested_authorized_cancellation",
+      "events": [
+        {
+          "type": "spawn",
+          "child": "cancelled_peer",
+          "parent": "primary",
+          "route": "built-in",
+          "agent_type": "default",
+          "topology": "bounded-peer",
+          "delegation_depth": 1,
+          "qualified": true,
+          "required": true,
+          "independent": true,
+          "ownership_safe": true,
+          "permission_inherited": true
+        },
+        {
+          "type": "spawn",
+          "child": "cancelled_leaf",
+          "parent": "cancelled_peer",
+          "route": "built-in",
+          "agent_type": "worker",
+          "topology": "leaf",
+          "delegation_depth": 0,
+          "qualified": true,
+          "required": true,
+          "preauthorized_dependency": true,
+          "ownership_safe": true,
+          "permission_inherited": true
         },
         {
           "type": "cancel_request",
-          "child": "cancelled_child",
+          "child": "cancelled_peer",
           "reason": "user_cancel",
           "outcome": "accepted"
         },
-        {"type": "cancel_ack", "child": "cancelled_child"},
+        {
+          "type": "cancel_request",
+          "child": "cancelled_leaf",
+          "reason": "user_cancel",
+          "outcome": "accepted"
+        },
+        {"type": "cancel_ack", "child": "cancelled_leaf"},
+        {"type": "cancel_ack", "child": "cancelled_peer"},
         {"type": "primary_finalize"}
       ]
     },
@@ -76,10 +181,16 @@
         {
           "type": "spawn",
           "child": "failed_child",
+          "parent": "primary",
+          "route": "built-in",
+          "agent_type": "explorer",
+          "topology": "leaf",
+          "delegation_depth": 0,
           "qualified": true,
           "required": true,
           "independent": true,
-          "ownership_safe": true
+          "ownership_safe": true,
+          "permission_inherited": true
         },
         {"type": "runtime_failure", "child": "failed_child"},
         {"type": "primary_finalize"}

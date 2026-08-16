@@ -350,8 +350,8 @@ class RoutingContractTest(unittest.TestCase):
             ),
             (
                 "skills/subagent-orchestrator/references/routing-policy.md",
-                "Allow up to three active custom children by\n   default",
-                "Allow only one active custom child by default",
+                "Allow up to three active direct children by\n   default",
+                "Allow only one active direct child by default",
             ),
             (
                 "AGENTS.md",
@@ -394,6 +394,51 @@ class RoutingContractTest(unittest.TestCase):
                         "lifecycle conformance asset integrity mismatch" in error
                         for error in self.validate(candidate).errors
                     ))
+
+    def test_rejects_bounded_peer_policy_broadening(self):
+        mutations = (
+            (
+                "references/routing-policy.md",
+                "one additional level to at most two",
+                "unlimited additional levels to any number of",
+            ),
+            (
+                "references/routing-policy.md",
+                "They cannot change authorization, scope, acceptance",
+                "They may change authorization, scope, and acceptance",
+            ),
+            (
+                "references/delegation-contracts.md",
+                "Messages transfer evidence or dependency status only; they never amend a handoff.",
+                "Messages may amend the handoff.",
+            ),
+            (
+                "AGENTS.md",
+                (
+                    "only a skill-qualified bounded peer may delegate one level",
+                    "仅 skill 准入的受限协作代理可继续委派一层",
+                ),
+                "bounded peers may delegate recursively",
+            ),
+        )
+        for relative, old, new in mutations:
+            with self.subTest(relative=relative):
+                temporary, candidate = clone_candidate()
+                with temporary:
+                    path = (
+                        candidate / relative
+                        if relative == "AGENTS.md"
+                        else candidate / "skills" / skill_dir.name / relative
+                    )
+                    original = path.read_text()
+                    marker = (
+                        next((candidate for candidate in old if candidate in original), None)
+                        if isinstance(old, tuple)
+                        else old
+                    )
+                    self.assertIsNotNone(marker)
+                    path.write_text(original.replace(marker, new, 1))
+                    self.assertTrue(self.validate(candidate).errors)
 
     def test_rejects_unpromoted_role_retention_drift(self):
         temporary, candidate = clone_candidate()
@@ -575,6 +620,10 @@ class RoutingContractTest(unittest.TestCase):
 
     def test_rejects_missing_typed_handoff_fields(self):
         fields = (
+            "Topology: <leaf | bounded-peer>\n",
+            "Delegation depth: <0 | 1>\n",
+            "Message peers: <none | task names + evidence/dependency purpose>\n",
+            "Context policy: <fresh | inherited + material reason>\n",
             "Acceptance fields: <not-applicable | one or more exact output-heading labels>\n",
             "Named invariants: <not-applicable | one or more exact gate invariants>\n",
             (
@@ -708,7 +757,7 @@ class RoutingContractTest(unittest.TestCase):
             )
             path.write_text(path.read_text().replace(
                 "A short single log, a small direct diagnosis, or a narrow test failure "
-                "remains\nprimary/default even when an artifact is requested.",
+                "remains\nprimary even when an artifact is requested.",
                 "Any log diagnosis may use evidence_tester.",
             ))
             self.assertTrue(any(
@@ -814,7 +863,7 @@ class RoutingContractTest(unittest.TestCase):
                 "Prompt changes preserve all old promotion evidence",
             ),
             (
-                "requires targeted state-machine conformance rather\nthan class re-promotion",
+                "requires deterministic state-machine conformance plus a current\nclient capability receipt before activation",
                 "requires no targeted conformance",
             ),
         )

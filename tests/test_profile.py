@@ -95,6 +95,35 @@ class PortableProfileContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
             self.validate()
 
+    def test_rejects_bounded_peer_route_or_cap_drift(self):
+        mutations = (
+            ("route", lambda document: document["builtin_routes"][2].update(topology="leaf")),
+            (
+                "depth",
+                lambda document: document["handoff"].update(
+                    bounded_peer_delegation_depth=2
+                ),
+            ),
+            (
+                "descendant-cap",
+                lambda document: document["concurrency"].update(
+                    bounded_peer_leaf_descendant_cap=3
+                ),
+            ),
+        )
+        for label, mutate in mutations:
+            with self.subTest(label=label):
+                document = json.loads(
+                    (PACKAGE_ROOT / "portable-profile.json").read_text(encoding="utf-8")
+                )
+                mutate(document)
+                self.write_profile(document)
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "built-in routes|handoff contract|concurrency",
+                ):
+                    self.validate()
+
     def test_rejects_duplicate_role_id(self):
         document = self.profile()
         document["roles"][1]["id"] = document["roles"][0]["id"]

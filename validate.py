@@ -76,7 +76,9 @@ ROLE_PROFILE_POLICY = {
 ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
     "preserve-permission-boundaries",
-    "preserve-non-recursion",
+    "preserve-governed-leaf-non-recursion",
+    "preserve-bounded-peer-depth",
+    "preserve-peer-message-boundary",
     "preserve-terminal-collection",
     "preserve-output-language-contract",
     "treat-model-and-effort-values-as-client-specific-hints",
@@ -179,10 +181,42 @@ def verify_portability() -> None:
         "reasoning_effort_hint": config["default_subagent_reasoning_effort"],
     }:
         fail("portable profile default child drifts from package config")
+    expected_builtin_routes = [
+        {
+            "id": "explorer",
+            "topology": "leaf",
+            "eligibility": (
+                "material narrow read-only codebase question whose focused scan "
+                "replaces primary exploration"
+            ),
+        },
+        {
+            "id": "worker",
+            "topology": "leaf",
+            "eligibility": (
+                "scoped implementation or fix with settled strategy and disjoint "
+                "writer ownership"
+            ),
+        },
+        {
+            "id": "default",
+            "topology": "bounded-peer",
+            "eligibility": (
+                "material dependency graph where direct evidence handoff avoids "
+                "primary relay and current client capability is proven"
+            ),
+            "delegation_depth": 1,
+            "leaf_descendant_cap": 2,
+        },
+    ]
+    if profile.get("builtin_routes") != expected_builtin_routes:
+        fail("portable profile built-in routes drift from routing ownership")
     if profile.get("concurrency") != {
         "runtime_thread_cap": config["max_concurrent_threads_per_session"],
-        "qualified_custom_child_cap": 3,
-        "fourth_custom_child_requires_user_authorization": True,
+        "qualified_direct_child_cap": 3,
+        "fourth_direct_child_requires_user_authorization": True,
+        "bounded_peer_coordinator_cap": 1,
+        "bounded_peer_leaf_descendant_cap": 2,
         "wait_timeout_is_terminal": False,
     }:
         fail("portable profile concurrency drifts from routing/config ownership")
@@ -230,6 +264,10 @@ def verify_portability() -> None:
                 fail(f"routing policy no longer proves profile role {role}: {marker}")
 
     expected_typed_fields = {
+        "topology": "leaf-or-bounded-peer",
+        "delegation_depth": "zero-or-one",
+        "message_peers": "none-or-task-names-plus-evidence-dependency-purpose",
+        "context_policy": "fresh-or-inherited-plus-material-reason",
         "acceptance_fields": "not-applicable-or-one-or-more-exact-output-heading-labels",
         "named_invariants": "not-applicable-or-one-or-more-exact-gate-invariants",
         "escalation_receipt": (
@@ -243,8 +281,11 @@ def verify_portability() -> None:
         "contract_reference": (
             "payload/skills/subagent-orchestrator/references/delegation-contracts.md"
         ),
-        "non_recursive": True,
         "state_bound": True,
+        "context_default": "fresh",
+        "governed_custom_roles_non_recursive": True,
+        "bounded_peer_delegation_depth": 1,
+        "peer_messages": "evidence-or-dependency-only",
         "required_typed_fields": expected_typed_fields,
         "user_facing_language": "user-preferred",
         "model_facing_language": "English",
@@ -255,6 +296,12 @@ def verify_portability() -> None:
         fail("portable profile handoff reference is missing")
     if profile.get("adapter_requirements") != ADAPTER_REQUIREMENTS:
         fail("portable profile adapter requirements mismatch")
+    if profile.get("unsupported_work_route") != "primary":
+        fail("portable profile unsupported work route must remain primary")
+    for route in expected_builtin_routes:
+        for marker in (f"built-in `{route['id']}`", route["topology"]):
+            if marker not in routing_policy:
+                fail(f"routing policy no longer proves built-in route {route['id']}: {marker}")
     delegation_contract = (ROOT / expected_handoff["contract_reference"]).read_text(
         encoding="utf-8"
     )
