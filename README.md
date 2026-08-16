@@ -285,10 +285,10 @@ python3 -B -m evaluation evidence-tier \
 
 Each billed primary, child, review, repair, failed-attempt, or retry task records
 its actual model, effort, service tier, tokens, and exact credits. Reports compare
-normalized quality per pair, require caller-trusted external quality admissions,
+normalized quality per pair, require package-key-authenticated external quality admissions,
 reject reused fixture/prompt identities and imbalanced arm order, require
 non-regressing pair/class/overall costs, and keep mandatory governance retention
-separate from efficiency promotion. `production-fact.v2` extracts hash-bound,
+separate from efficiency promotion. `production-fact.v3` extracts hash-bound,
 privacy-preserving rollout/Git observations and independently records only
 explicit, reconciled thread/run credits without token-based estimation, while
 the evidence-tier validator enforces an unskippable predecessor-digest chain.

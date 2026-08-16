@@ -252,5 +252,5 @@
       "task_class": "test-triage"
     }
   ],
-  "schema_version": 4
+  "schema_version": 5
 }

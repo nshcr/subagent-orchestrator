@@ -1,17 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.invalid/subagent-orchestrator/evaluation/production-fact.schema.json",
-  "title": "Production Fact v2",
+  "title": "Production Fact v3",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "parser", "sources", "cutoff", "source_state", "git_source", "metrics", "unsupported_event_count", "unavailable_metric_count", "completion_claim_eligible", "causal_claim_eligible", "promotion_claim_eligible"],
   "properties": {
-    "schema_version": {"const": "production-fact.v2"},
+    "schema_version": {"const": "production-fact.v3"},
     "parser": {
       "type": "object",
       "additionalProperties": false,
       "required": ["version", "sha256"],
-      "properties": {"version": {"const": "production-fact-parser.v2"}, "sha256": {"$ref": "#/$defs/sha256"}}
+      "properties": {"version": {"const": "production-fact-parser.v3"}, "sha256": {"$ref": "#/$defs/sha256"}}
     },
     "sources": {
       "type": "object",

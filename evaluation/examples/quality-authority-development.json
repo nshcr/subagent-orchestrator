@@ -76,6 +76,11 @@
   "authority_id": "trusted-development-harness",
   "authority_receipt_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
   "campaign_id": "public-smoke",
+  "campaign_sha256": "684846a98535de654cf32cf35f76e93bb39330d8b6fcad5b39ac42746cca8bcb",
   "evidence_scope": "development",
-  "schema_version": "quality-evidence-authority.v1"
+  "issuer_id": "evaluation-harness-2026",
+  "key_id": "rsa-2026-08",
+  "schema_version": "quality-evidence-authority.v2",
+  "signature_algorithm": "rsa-pkcs1-v1_5-sha256",
+  "signature_hex": "511b9f1bc04960454ba0966c79527319b2715d2356c713c32fdb23b3726d813ffb123b7b7963b02b3ab5d32ecd59d53116c5f78c6958bd8813f4520e277f9b4df4f2fdf8da9ad8499757e484c29d69e77e747778c98d9ca280f10175f2a23c7d7ee75a8004533dbb90b8bbf8cc93c101614ceffdac597d9ff58469f33ee44df7bb6f2bd9ab1880ae020162de5975c1fa2c15a241c1bb4b60faeacd2270fd5368acd38d69fdfe73d6bd6318a19a0a8cce0a9aa32a2eb25cd36d541cdac8910d3f4d59736963d5bacff3d6be7f21d436ad64aa9a0cc73a553edfe5b735af92072431ef7c36f1d0b3dcea47048657fd3b643d33c00b46414b5300f1d1e8f04e29f1"
 }

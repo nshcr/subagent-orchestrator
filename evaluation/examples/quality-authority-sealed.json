@@ -76,6 +76,11 @@
   "authority_id": "trusted-sealed-harness",
   "authority_receipt_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "campaign_id": "public-smoke",
+  "campaign_sha256": "369fb6f3eb2b786897ba6797d3da5e904ec25f7d67ae7b3733caabf71687cdfb",
   "evidence_scope": "sealed",
-  "schema_version": "quality-evidence-authority.v1"
+  "issuer_id": "evaluation-harness-2026",
+  "key_id": "rsa-2026-08",
+  "schema_version": "quality-evidence-authority.v2",
+  "signature_algorithm": "rsa-pkcs1-v1_5-sha256",
+  "signature_hex": "5044e80f99674c104512a21691c87c5c71f4796efcd9a9bce6cd5fc5ff81647fbbb5d55fc71d368f7a552b4c1ac0aa1d3cc5371b87e7e4da5932d8fd743a236ed4e8b6a2ec59a08d2010f4f9e19cec8a2304eda0cdd148ebafe17a69975f5d741d651502cc7239b13518dd4714ad28aea36fe8755641da46f0d2e532a2a1a39b63044467b02fc97dee4b1228c8199d96bbb530aba94f2a47adb0b89cbc4f067d98f97293b8a4b9c905b0968d0481fffd9c5336723e0a37de494c3a2587371946b8ee580a8ed1cc088c1bd5d5a9f5505e3b893fe6db4fe3b44d3a4d4bac39beb6a2cd33ff31d845eb9e4f634f32e6ddac985487a468d1d8cfb6535eab829cb853"
 }

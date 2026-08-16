@@ -15,8 +15,8 @@ import uuid
 from .campaign import EvaluationError, _reject_duplicate_keys
 
 
-SCHEMA_VERSION = "production-fact.v2"
-PARSER_VERSION = "production-fact-parser.v2"
+SCHEMA_VERSION = "production-fact.v3"
+PARSER_VERSION = "production-fact-parser.v3"
 SUPPORTED_EVENT_TYPES = {"session_meta", "turn_context", "response_item", "event_msg", "compacted"}
 TOKEN_NAMES = (
     "input_tokens",
@@ -297,38 +297,43 @@ def _decimal_text(value: Decimal) -> str:
     return text or "0"
 
 
-def _billing_records(events: list[dict], location: str) -> list[dict]:
+def _billing_records(events: list[dict], location: str) -> tuple[list[dict], int]:
     records = []
+    unsupported_envelopes = 0
     for event_index, event in enumerate(events):
         payload = _payload(event)
         if payload.get("type") != "billing_record":
             continue
-        scope = payload.get("scope", payload.get("billing_scope"))
+        if event.get("type") != "event_msg":
+            unsupported_envelopes += 1
+            continue
+        scope = payload.get("scope")
         if scope not in {"thread", "run"}:
             raise EvaluationError(
                 f"{location}[{event_index}] billing record scope is invalid"
             )
-        id_keys = ("thread_id", "record_id") if scope == "thread" else ("run_id", "record_id")
-        identifiers = [payload[key] for key in id_keys if key in payload]
-        if (
-            len(identifiers) != 1
-            or not isinstance(identifiers[0], str)
-            or not identifiers[0].strip()
-        ):
+        identity_key = "thread_id" if scope == "thread" else "run_id"
+        expected_keys = {"type", "scope", identity_key, "credits"}
+        if set(payload) != expected_keys:
+            raise EvaluationError(
+                f"{location}[{event_index}] billing record envelope keys mismatch"
+            )
+        identifier = payload[identity_key]
+        if not isinstance(identifier, str) or not identifier.strip():
             raise EvaluationError(
                 f"{location}[{event_index}] billing record identity is ambiguous"
             )
         records.append(
             {
                 "scope": scope,
-                "record_id": identifiers[0],
+                "record_id": identifier,
                 "credits": _credit_categories(
                     payload.get("credits"),
                     f"{location}[{event_index}].credits",
                 ),
             }
         )
-    return records
+    return records, unsupported_envelopes
 
 
 def _credit_values(source_events: list[list[dict]]) -> dict[str, object | None]:
@@ -337,10 +342,13 @@ def _credit_values(source_events: list[list[dict]]) -> dict[str, object | None]:
         **{f"thread_{key}": None for key in CREDIT_NAMES},
         **{f"run_{key}": None for key in CREDIT_NAMES},
     }
-    records_by_source = [
+    parsed_sources = [
         _billing_records(events, f"source[{index}]")
         for index, events in enumerate(source_events)
     ]
+    records_by_source = [records for records, _ in parsed_sources]
+    if any(unsupported for _, unsupported in parsed_sources):
+        return unavailable
     thread_records = [
         [record for record in records if record["scope"] == "thread"]
         for records in records_by_source
@@ -444,7 +452,11 @@ def _untracked_identity(repo: Path) -> str:
 
 
 def _git_metric_source_id(
-    git_source: dict, metric_name: str, basis: str, value: object
+    git_source: dict,
+    repo_path_sha256: str,
+    metric_name: str,
+    basis: str,
+    value: object,
 ) -> str:
     return _sha256(
         json.dumps(
@@ -452,8 +464,9 @@ def _git_metric_source_id(
                 "basis": basis,
                 "denominator_input": value,
                 "git_source": git_source,
+                "repo_path_sha256": repo_path_sha256,
                 "metric": metric_name,
-                "schema_version": "git-denominator-source.v2",
+                "schema_version": "git-denominator-source.v3",
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -591,7 +604,15 @@ def extract_production_facts(
 
     all_event_lists = [parent_events, *(item[0] for item in filtered_children)]
     all_events = [event for events in all_event_lists for event in events]
-    unsupported = sum(1 for event in all_events if event.get("type") not in SUPPORTED_EVENT_TYPES)
+    unsupported = sum(
+        1
+        for event in all_events
+        if event.get("type") not in SUPPORTED_EVENT_TYPES
+        or (
+            _payload(event).get("type") == "billing_record"
+            and event.get("type") != "event_msg"
+        )
+    )
     response_payloads = [_response(event) for event in all_events]
     call_names = [_call_name(payload) for payload in response_payloads]
     message_count = sum(name in {"send_message", "followup_task"} for name in call_names)
@@ -669,6 +690,7 @@ def extract_production_facts(
     credit_values = _credit_values(all_event_lists)
     credits_available = all(value is not None for value in credit_values.values())
     basis = PARSER_VERSION
+    repo_path_sha256 = _path_id(repo)
     metrics = {
         "tokens": {
             key: _metric(value, basis if value is not None else None, combined_source_id if value is not None else None)
@@ -756,7 +778,9 @@ def extract_production_facts(
             value,
             metric_basis if value is not None else None,
             (
-                _git_metric_source_id(git_source, name, metric_basis, value)
+                _git_metric_source_id(
+                    git_source, repo_path_sha256, name, metric_basis, value
+                )
                 if value is not None
                 else None
             ),
@@ -775,7 +799,7 @@ def extract_production_facts(
             "combined_sha256": combined_source_id,
             "parent_sha256": parent_source_id,
             "child_sha256": sorted(item[2] for item in filtered_children),
-            "repo_path_sha256": _path_id(repo),
+            "repo_path_sha256": repo_path_sha256,
         },
         "cutoff": cutoff.isoformat(),
         "source_state": source_state,
@@ -966,7 +990,11 @@ def validate_production_fact(document: dict) -> None:
                 raise EvaluationError(f"{location}.status is invalid")
             if group_name == "git_denominators" and status == "available":
                 expected_source_id = _git_metric_source_id(
-                    git_source, metric_name, metric["basis"], value
+                    git_source,
+                    sources["repo_path_sha256"],
+                    metric_name,
+                    metric["basis"],
+                    value,
                 )
                 if metric["source_id"] != expected_source_id:
                     raise EvaluationError(

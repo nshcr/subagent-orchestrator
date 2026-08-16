@@ -53,12 +53,18 @@ artifact sidecars, and execution-receipt sidecars must be preserved outside this
 repository and outside the tested agent's visibility boundary while their
 identities enter the report.
 
-These canonical SHA-256 checks prove deterministic payload binding, not signer
-authenticity by themselves. The caller or harness authenticates the issuing
-authority and preserves its sidecars outside the campaign; the reporter verifies
-only exact payload admission and does not claim a digital signature. Recomputing
-campaign hashes, results, receipts, artifacts, or source identities cannot update
-an unchanged authority admission.
+Canonical SHA-256 checks prove deterministic payload binding, while the
+`quality-evidence-authority.v2` signature authenticates the issuer against the
+package-anchored public-key registry in `trusted_quality_issuers.py`. The
+standard-library verifier accepts only RSA PKCS#1 v1.5 with SHA-256 and signs the
+canonical complete authority payload: campaign digest and identity, scope,
+authority identity and receipt, issuer/key/algorithm, and every admission. The
+corresponding private signing key is external harness custody and must never be
+included in this repository, package, examples, or tests. Changing the campaign,
+scope, result, receipt, artifact/source, grader, or authority admission therefore
+requires a new signature from that external issuer; self-recomputed hashes alone
+cannot establish trust. Key rotation is a reviewed package change to the public
+registry, not caller-controlled campaign data.
 
 Each arm records every billed primary, child, review, repair, failed-attempt, or
 retry thread separately, including its actual model, effort, service tier, token
@@ -144,7 +150,7 @@ retention itself.
 
 ## Production facts
 
-`production-facts` emits `production-fact.v2` from one parent rollout, its exact
+`production-facts` emits `production-fact.v3` from one parent rollout, its exact
 child rollout directory, and a Git repository at an explicit base revision and
 cutoff. All input and output paths must be absolute and existing input types are
 checked. A child must have one unambiguous parent spawn receipt and a UUIDv7
@@ -166,20 +172,25 @@ Token-named integers nested in unrelated supported events are ignored; malformed
 canonical snapshots are rejected.
 
 Every available Git denominator `source_id` canonically binds the metric name,
-basis and value plus base revision/tree, HEAD revision/tree, commit list and
-numstat inputs, index, staged patch, status, and worktree/untracked identities.
-Changing the base or index/worktree/staged state therefore cannot alias the same
-HEAD-based provenance.
+basis and value plus the explicit repository-path identity (`repo_path_sha256`),
+base revision/tree, HEAD revision/tree, commit list and numstat inputs, index,
+staged patch, status, and worktree/untracked identities. Changing the repository,
+base, or index/worktree/staged state therefore cannot alias the same HEAD-based
+provenance. Repeated extraction from the same repository and state is
+deterministic, while content-identical clones have distinct source IDs.
 
 Credit availability requires exactly one explicit thread record in every admitted
-source and exactly one run record in the parent source. Records use an `event_msg`
-payload with `type=billing_record`, `scope=thread|run`, one `thread_id` or `run_id`,
-and exact decimal `credits` categories `uncached_input`, `cached_input`, `output`,
-and `total`. Each record total, the thread aggregate, and the run aggregate must
-reconcile. Missing, partial, or ambiguous billing evidence makes every credit
-metric unavailable; contradictory arithmetic is rejected. The parser never
-derives credits from raw tokens and emits no per-role, per-wait, or per-tool credit
-estimate.
+source and exactly one run record in the parent source. The exact supported
+envelope has outer `event.type=event_msg` and a payload with
+`type=billing_record`, `scope=thread|run`, one `thread_id` or `run_id`, and exact
+decimal `credits` categories `uncached_input`, `cached_input`, `output`, and
+`total`; aliases are unsupported. A billing payload under `session_meta` or any
+other outer event type is excluded, counted as unsupported, and makes every
+credit metric unavailable. Each record total, the thread aggregate, and the run
+aggregate must reconcile. Missing, partial, ambiguous, or unsupported billing
+evidence makes every credit metric unavailable; contradictory arithmetic is
+rejected. The parser never derives credits from raw tokens and emits no per-role,
+per-wait, or per-tool credit estimate.
 
 Every reported measurement, including values below `metrics` and the two source
 quality denominators, has exactly `{status,basis,source_id,value}`.
@@ -193,16 +204,19 @@ visible as additional evidence limitations.
 
 ## Schema migration
 
-Campaign and sealed-holdout schema version 4 replaces version 3. Version 4 requires
-a separate caller-trusted quality-authority input; version 3 documents are rejected.
-Migration must be performed by the external grader/harness after verifying the
-preserved result, receipt, artifact, grader, and identity sidecars. Generating the
-authority from the campaign under test does not establish issuer authenticity.
+Campaign and sealed-holdout schema version 5 replaces version 4, and
+`quality-evidence-authority.v2` replaces v1. Version 5 binds the exact campaign
+digest and requires every external authority to carry a signature from a
+package-trusted issuer/key over its complete canonical payload. Version 4
+campaigns and v1 authorities are rejected. Migration must be performed and
+signed by the external grader/harness after verifying the preserved result,
+receipt, artifact, grader, campaign/scope, and identity sidecars; campaign or
+authority authors cannot mint package trust by recomputing hashes.
 
-`production-fact.v2` and `production-fact-parser.v2` replace their v1 counterparts.
-The JSON shape adds explicit Git state digests, token snapshots use canonical event
-semantics, and every Git denominator has state-complete provenance. Consumers that
-require v1 must be updated; v1 facts are not accepted as v2.
+`production-fact.v3` and `production-fact-parser.v3` replace their v2
+counterparts. Version 3 requires the exact outer `event_msg` billing envelope and
+includes explicit repository-path identity in every Git denominator source ID.
+Consumers that require v2 must be updated; v2 facts are not accepted as v3.
 
 ## Evidence tiers
 

@@ -11,14 +11,17 @@ from __future__ import annotations
 import argparse
 from decimal import Decimal, InvalidOperation
 import hashlib
+import hmac
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from .trusted_quality_issuers import TRUSTED_QUALITY_ISSUERS
 
-SCHEMA_VERSION = 4
+
+SCHEMA_VERSION = 5
 EXAMPLES_ROOT = Path(__file__).resolve().parent / "examples"
 ARMS = {"baseline", "custom"}
 TOKEN_KEYS = {
@@ -131,6 +134,11 @@ QUALITY_AUTHORITY_KEYS = {
     "authority_id",
     "authority_receipt_sha256",
     "admissions",
+    "issuer_id",
+    "key_id",
+    "signature_algorithm",
+    "signature_hex",
+    "campaign_sha256",
 }
 QUALITY_ADMISSION_KEYS = {
     "schema_version",
@@ -295,6 +303,58 @@ def _canonical_sha256(payload: dict) -> str:
     ).hexdigest()
 
 
+def _canonical_json_bytes(payload: dict) -> bytes:
+    return json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+
+
+def _quality_authority_signed_payload(authority: dict) -> dict:
+    return {key: value for key, value in authority.items() if key != "signature_hex"}
+
+
+def _verify_quality_authority_signature(authority: dict, label: str) -> None:
+    issuer_id = _require_string(authority["issuer_id"], f"{label}.issuer_id")
+    key_id = _require_string(authority["key_id"], f"{label}.key_id")
+    issuer = TRUSTED_QUALITY_ISSUERS.get(issuer_id)
+    if issuer is None:
+        raise EvaluationError(f"{label} issuer_id is not package-trusted")
+    key = issuer["keys"].get(key_id)
+    if key is None:
+        raise EvaluationError(f"{label} key_id is not package-trusted for issuer")
+    algorithm = authority["signature_algorithm"]
+    if algorithm != key["algorithm"]:
+        raise EvaluationError(f"{label} signature_algorithm does not match trusted key")
+    if authority["evidence_scope"] not in key["scopes"]:
+        raise EvaluationError(f"{label} trusted key is not authorized for evidence scope")
+    signature_hex = authority["signature_hex"]
+    modulus = key["modulus"]
+    width = (modulus.bit_length() + 7) // 8
+    if (
+        not isinstance(signature_hex, str)
+        or len(signature_hex) != width * 2
+        or not re.fullmatch(r"[0-9a-f]+", signature_hex)
+    ):
+        raise EvaluationError(f"{label}.signature_hex is not a canonical RSA signature")
+    signature = int(signature_hex, 16)
+    if signature >= modulus:
+        raise EvaluationError(f"{label}.signature_hex is outside the trusted RSA key")
+    encoded = pow(signature, key["exponent"], modulus).to_bytes(width, "big")
+    digest = hashlib.sha256(
+        _canonical_json_bytes(_quality_authority_signed_payload(authority))
+    ).digest()
+    digest_info = bytes.fromhex("3031300d060960864801650304020105000420") + digest
+    padding_length = width - len(digest_info) - 3
+    if padding_length < 8:
+        raise EvaluationError(f"{label} trusted RSA key is too small")
+    expected = b"\x00\x01" + b"\xff" * padding_length + b"\x00" + digest_info
+    if not hmac.compare_digest(encoded, expected):
+        raise EvaluationError(
+            f"{label} signature is invalid for the package-trusted issuer key "
+            f"(payload_sha256={digest.hex()})"
+        )
+
+
 def _quality_result_payload(check: dict) -> dict:
     evidence = check["evidence"]
     return {
@@ -329,13 +389,18 @@ def _validate_quality_authority(
     if authority is document:
         raise EvaluationError(f"{label} must be a physically separate caller-supplied document")
     authority = _require_exact_keys(authority, QUALITY_AUTHORITY_KEYS, label)
-    if authority["schema_version"] != "quality-evidence-authority.v1":
+    if authority["schema_version"] != "quality-evidence-authority.v2":
         raise EvaluationError(
-            f"{label}.schema_version must be quality-evidence-authority.v1"
+            f"{label}.schema_version must be quality-evidence-authority.v2"
         )
     campaign_id = _require_string(authority["campaign_id"], f"{label}.campaign_id")
     if campaign_id != document["campaign_id"]:
         raise EvaluationError(f"{label}.campaign_id does not match campaign")
+    campaign_sha256 = _require_sha256(
+        authority["campaign_sha256"], f"{label}.campaign_sha256"
+    )
+    if campaign_sha256 != _canonical_sha256(document):
+        raise EvaluationError(f"{label}.campaign_sha256 does not match exact campaign")
     evidence_scope = "sealed" if sealed_holdout else "development"
     if authority["evidence_scope"] != evidence_scope:
         raise EvaluationError(f"{label}.evidence_scope must be {evidence_scope}")
@@ -355,7 +420,6 @@ def _validate_quality_authority(
         raise EvaluationError(
             f"{label} receipt does not match the campaign digest reference"
         )
-
     admissions = authority["admissions"]
     if not isinstance(admissions, list) or not admissions:
         raise EvaluationError(f"{label}.admissions must be a non-empty list")
@@ -416,6 +480,8 @@ def _validate_quality_authority(
         if key in observed:
             raise EvaluationError(f"{label} has duplicate admission {key}")
         observed[key] = admission
+
+    _verify_quality_authority_signature(authority, label)
 
     expected = {}
     for instance in document["instances"]:
@@ -1613,7 +1679,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="validate bundled public example evidence and deterministic reporting",
     )
     facts = subparsers.add_parser(
-        "production-facts", help="extract production-fact.v2 from rollout and Git sources"
+        "production-facts", help="extract production-fact.v3 from rollout and Git sources"
     )
     facts.add_argument("--parent", type=Path, required=True)
     facts.add_argument("--children-root", type=Path, required=True)
