@@ -77,6 +77,27 @@ ACCEPTED_STATE_MANIFESTS = {
     "498be7e574c86c9ab6c56c1f4ab09ffbcc237ad3a44d9b09975ead935f392742",
     "ff5b4d05d03027b2808862113e6706876193cf866214f9dfb0bba0b1d937714b",
 }
+DIRECT_PREDECESSOR_INSTALL_CONTRACT = (
+    "b1d3ff51829c0129efdf0f0d7a5cfb64746951d2137a575712ad1412d5c2cd46"
+)
+DIRECT_PREDECESSOR_POLICY_SHA256 = {
+    "39235ebb5d0a72b5be545e070d9019814ec533db5cc542bfd6407b932e30a990",
+    "fc8df61ce6ebe5066d2797ea96cf291a3364864fca55be488b4d84cf99c72b27",
+}
+DIRECT_PREDECESSOR_MANAGED_HASHES = {
+    "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0",
+    "skills/subagent-orchestrator/SKILL.md": "b82d2905847dc376bb99555b1d49675ede80bf2050d38ee87f11218e3641f4bc",
+    "skills/subagent-orchestrator/agents/openai.yaml": "ea4f34eb93016c580f09fd1e22c6920a78dfe51aeb43e9343ef051b4cc8479a3",
+    "skills/subagent-orchestrator/references/delegation-contracts.md": "792b6dfb180571f33bf81fc2ccc1c5dd55ffb7c9c1fb28dde4ed90e9075385c5",
+    "skills/subagent-orchestrator/references/evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
+    "skills/subagent-orchestrator/references/routing-policy.md": "60848931f487bfb55b576394e3fb6ba63d27dd6ad69736ab18bb9b2635a83465",
+    "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": "b6e870d6f1d6b906e2bad4fc5114fad647a5e67f13693732af5aaa7fa4db3343",
+    "skills/subagent-orchestrator/scripts/validate-routing-config.py": "450fab5a3a4a0b0b2d143892dd1c747bbe07951550268543b3cfc10dd8c10fee",
+    "skills/subagent-orchestrator/tests/fixtures/lifecycle-authority-receipts.json": "aeccd7a24408946c0f9acb4c08d1d33c039ae8ff5f34dcffb998d82bede817ba",
+    "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json": "9d5df95bc2a2baaa0548e87071fc499adcd23cb4b601685febb4e4fada4dd95c",
+    "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py": "801a39220ea8f0fbd9ac18ac5bf6e618fc5ebd0080066484dc1d1434060da00a",
+    "skills/subagent-orchestrator/tests/test_validate_routing_config.py": "c450daa0fd42d0bd0cf41242d22bb9e9e4367c6200bab8d55f8229efd84e6049",
+}
 ACCEPTED_PREDECESSORS = {
     "skills/subagent-orchestrator/SKILL.md": {
         "36df8d88592525fba7749b2618254751ba0f07eec4f61d4aea2533ae2aa3d112",
@@ -358,6 +379,94 @@ def validate_codex_home(raw: Path) -> Path:
     return resolved
 
 
+def current_managed_state_profiles(codex_home: Path) -> list[dict[str, str]]:
+    skill_path = codex_home / "skills" / SKILL_NAME / "SKILL.md"
+    common = {
+        "config.toml#agents": canonical_json_hash(
+            config_projection(
+                tomllib.loads(
+                    (PAYLOAD_ROOT / "config.agents.toml").read_text(encoding="utf-8")
+                )
+            )
+        ),
+        **{
+            f"agents/{role}.toml": sha256_bytes(
+                render_role(PAYLOAD_ROOT / "agents" / f"{role}.toml", skill_path)
+            )
+            for role in ROLES
+        },
+    }
+    skill_source = PAYLOAD_ROOT / "skills" / SKILL_NAME
+    for source in sorted(skill_source.rglob("*")):
+        if not source.is_file() or source.name == ".DS_Store" or source.suffix == ".pyc":
+            continue
+        relative = str(Path("skills") / SKILL_NAME / source.relative_to(skill_source))
+        common[relative] = sha256_bytes(source.read_bytes())
+    profiles = []
+    for language in AGENTS_SECTION_FILES:
+        section = (PAYLOAD_ROOT / AGENTS_SECTION_FILES[language]).read_text(
+            encoding="utf-8"
+        )
+        policy = agents_policy_section(section)
+        if policy is None:
+            raise InstallError(
+                f"{language} AGENTS policy template has no managed section"
+            )
+        profile = dict(common)
+        profile["AGENTS.md#subagent-policy"] = sha256_bytes(policy[2].encode())
+        profiles.append(profile)
+    return profiles
+
+
+def direct_predecessor_state_profiles(codex_home: Path) -> list[dict[str, str]]:
+    skill_path = codex_home / "skills" / SKILL_NAME / "SKILL.md"
+    common = dict(DIRECT_PREDECESSOR_MANAGED_HASHES)
+    for role in ROLES:
+        common[f"agents/{role}.toml"] = sha256_bytes(
+            render_role(PAYLOAD_ROOT / "agents" / f"{role}.toml", skill_path)
+        )
+    profiles = []
+    for policy_hash in DIRECT_PREDECESSOR_POLICY_SHA256:
+        profile = dict(common)
+        profile["AGENTS.md#subagent-policy"] = policy_hash
+        profiles.append(profile)
+    return profiles
+
+
+def expand_retired_state_profiles(
+    profiles: list[dict[str, str]],
+    catalog: dict,
+) -> list[dict[str, str]]:
+    expanded = profiles
+    for entry in catalog["retired_paths"]:
+        next_profiles = list(expanded)
+        for profile in expanded:
+            for accepted_hash in entry["accepted_sha256"]:
+                retired = dict(profile)
+                retired[entry["path"]] = accepted_hash
+                next_profiles.append(retired)
+        expanded = next_profiles
+    return expanded
+
+
+def authenticate_managed_state(
+    codex_home: Path,
+    document: dict,
+    managed: dict[str, str],
+) -> None:
+    """Authenticate the complete map against package-owned external profiles."""
+    catalog = load_migration_catalog()
+    allowed_profiles = current_managed_state_profiles(codex_home)
+    if (
+        document["format_version"] == 2
+        and document["install_contract_sha256"] == DIRECT_PREDECESSOR_INSTALL_CONTRACT
+    ):
+        allowed_profiles.extend(direct_predecessor_state_profiles(codex_home))
+    allowed_profiles = expand_retired_state_profiles(allowed_profiles, catalog)
+    if managed not in allowed_profiles:
+        raise InstallError("managed state document identity is not accepted")
+
+
 def read_state(
     codex_home: Path,
     recovery_journal: dict | None = None,
@@ -433,6 +542,7 @@ def read_state(
             raise InstallError(
                 f"managed state retired-path hash is not authorized: {relative}"
             )
+    authenticate_managed_state(codex_home, document, managed)
     verify_recorded_state(codex_home, managed, recovery_journal)
     return managed
 
@@ -1928,8 +2038,7 @@ def verify_restore_target_backups(codex_home: Path, targets: list[dict]) -> None
             raise InstallError(f"absent prior has a restore vault path: {target['relative']}")
 
 
-def prepare_receipt_bound_apply(
-    codex_home: Path,
+def receipt_bound_apply_document(
     receipt: dict,
     plans: list[PlannedWrite],
 ) -> dict:
@@ -1937,18 +2046,11 @@ def prepare_receipt_bound_apply(
     receipt_targets = {target["relative"]: target for target in receipt["targets"]}
     for plan in plans:
         target = receipt_targets[plan.relative]
-        backup_relative = None
-        if target["prior_exists"]:
-            backup_relative = str(
-                vault_relative("prior", receipt["plan_digest"], plan.relative)
-            )
-            preserve_snapshot(
-                plan.path,
-                codex_home / backup_relative,
-                codex_home,
-                target["prior_sha256"],
-                target["prior_mode"],
-            )
+        backup_relative = (
+            str(vault_relative("prior", receipt["plan_digest"], plan.relative))
+            if target["prior_exists"]
+            else None
+        )
         targets.append(
             {
                 "candidate_exists": target["desired_exists"],
@@ -1961,7 +2063,7 @@ def prepare_receipt_bound_apply(
                 "relative": plan.relative,
             }
         )
-    document = {
+    return {
         "format_version": 1,
         "package_id": SKILL_NAME,
         "plan_digest": receipt["plan_digest"],
@@ -1969,6 +2071,25 @@ def prepare_receipt_bound_apply(
         "source": receipt["source"],
         "target": receipt["target"],
     }
+
+
+def prepare_receipt_bound_apply(
+    codex_home: Path,
+    receipt: dict,
+    plans: list[PlannedWrite],
+) -> dict:
+    document = receipt_bound_apply_document(receipt, plans)
+    targets = {target["relative"]: target for target in document["restore_targets"]}
+    for plan in plans:
+        target = targets[plan.relative]
+        if target["prior_exists"]:
+            preserve_snapshot(
+                plan.path,
+                codex_home / target["prior_backup_relative"],
+                codex_home,
+                target["prior_sha256"],
+                target["prior_mode"],
+            )
     write_new_json(codex_home / APPLY_RECEIPT_JOURNAL_RELATIVE, document)
     return document
 
@@ -2104,6 +2225,30 @@ def ensure_restore_receipt(
     return receipt_path
 
 
+def classify_receipt_bound_apply(
+    codex_home: Path,
+    apply_document: dict,
+) -> str:
+    classifications = []
+    for target in apply_document["restore_targets"]:
+        state = file_state(codex_home / target["relative"], codex_home)
+        matches_prior = state_matches(target, "prior", state)
+        matches_candidate = state_matches(target, "candidate", state)
+        if matches_prior == matches_candidate:
+            classifications.append("conflict")
+        elif matches_prior:
+            classifications.append("prior")
+        else:
+            classifications.append("candidate")
+    states = set(classifications)
+    if states == {"prior"}:
+        return "PREPARED"
+    if states == {"candidate"}:
+        ensure_restore_receipt(codex_home, apply_document, may_create=False)
+        return "CANDIDATE_COMPLETE"
+    raise InstallError("receipt-bound apply state is mixed or conflicting")
+
+
 def apply_install_with_receipt(
     codex_home: Path,
     agents_language: str,
@@ -2163,11 +2308,29 @@ def apply_install_with_receipt(
                 plans, _ = plan_install(codex_home, agents_language, journal)
                 validate_recovery_plan(plans, journal)
             else:
-                # A durable restore receipt is written before journal cleanup. If
-                # interruption lands between the two cleanup steps, the retained
-                # receipt-bound metadata is sufficient to finish forward without
-                # mutating a managed target again.
-                plans = []
+                verify_restore_target_backups(
+                    codex_home, apply_document["restore_targets"]
+                )
+                recovery_status = classify_receipt_bound_apply(
+                    codex_home, apply_document
+                )
+                if recovery_status == "PREPARED":
+                    plans = verify_plan_receipt_current(
+                        receipt, codex_home, agents_language
+                    )
+                    expected_apply_document = receipt_bound_apply_document(
+                        receipt, plans
+                    )
+                    if expected_apply_document != apply_document:
+                        raise InstallError(
+                            "prepared apply metadata does not match the plan receipt"
+                        )
+                    journal = journal_document(plans, agents_language)
+                    create_journal(codex_home, journal)
+                else:
+                    # The only journal-free completion state is exact candidate
+                    # postimages plus the already durable restore receipt.
+                    plans = []
         plans = bind_receipt_preconditions(plans, apply_document)
         verify_restore_target_backups(codex_home, apply_document["restore_targets"])
         touched = apply_plans(plans, codex_home, on_touched)

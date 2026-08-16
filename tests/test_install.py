@@ -617,6 +617,84 @@ raise SystemExit(module.main())
                 self.assertFalse(apply_journal.exists())
                 self.assertFalse(install_journal.exists())
 
+    def test_apply_meta_only_prepared_state_recovers_and_restores_exactly(self):
+        self.codex_home.mkdir()
+        agents = self.codex_home / "AGENTS.md"
+        prior = b"# exact prior policy\n"
+        agents.write_bytes(prior)
+        agents.chmod(0o600)
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "create_journal",
+            side_effect=OSError("injected before install journal durability"),
+        ):
+            with self.assertRaisesRegex(OSError, "before install journal durability"):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        apply_journal = self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE
+        install_journal = self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE
+        self.assertTrue(apply_journal.is_file())
+        self.assertFalse(install_journal.exists())
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
+        self.assertFalse((self.codex_home / "config.toml").exists())
+
+        touched, receipt_path = INSTALL_MODULE.apply_install_with_receipt(
+            self.codex_home, "en", plan
+        )
+
+        self.assertTrue(touched)
+        self.assertTrue(receipt_path.is_file())
+        self.assertFalse(apply_journal.exists())
+        self.assertFalse(install_journal.exists())
+        restore = INSTALL_MODULE.read_restore_receipt(receipt_path)
+        INSTALL_MODULE.restore_install(self.codex_home, restore)
+        self.assertEqual(agents.read_bytes(), prior)
+        self.assertEqual(agents.stat().st_mode & 0o777, 0o600)
+        self.assertFalse((self.codex_home / "config.toml").exists())
+
+    def test_apply_meta_only_mixed_state_fails_closed(self):
+        self.codex_home = INSTALL_MODULE.validate_codex_home(self.codex_home)
+        plans, _ = INSTALL_MODULE.plan_install(self.codex_home, "en")
+        plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en", plans)
+        agents_plan = next(item for item in plans if item.relative == "AGENTS.md")
+
+        with mock.patch.object(
+            INSTALL_MODULE,
+            "create_journal",
+            side_effect=OSError("injected before install journal durability"),
+        ):
+            with self.assertRaisesRegex(OSError, "before install journal durability"):
+                INSTALL_MODULE.apply_install_with_receipt(
+                    self.codex_home, "en", plan
+                )
+
+        agents_plan.path.parent.mkdir(parents=True, exist_ok=True)
+        agents_plan.path.write_bytes(agents_plan.content)
+        agents_plan.path.chmod(INSTALL_MODULE.planned_mode(agents_plan))
+        with self.assertRaisesRegex(
+            INSTALL_MODULE.InstallError,
+            "receipt-bound apply state is mixed or conflicting",
+        ):
+            INSTALL_MODULE.apply_install_with_receipt(
+                self.codex_home, "en", plan
+            )
+
+        self.assertTrue(
+            (self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE).is_file()
+        )
+        self.assertFalse(
+            (self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE).exists()
+        )
+        self.assertFalse((self.codex_home / "config.toml").exists())
+        self.assertFalse(
+            (self.codex_home / INSTALL_MODULE.RESTORE_RECEIPTS_RELATIVE).exists()
+        )
+
     def test_plan_receipt_rejects_target_source_and_schema_drift(self):
         plan = INSTALL_MODULE.plan_receipt_document(self.codex_home, "en")
         self.codex_home.mkdir()
@@ -951,6 +1029,40 @@ raise SystemExit(module.main())
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("install-contract lineage is not accepted", result.stderr)
 
+    def test_accepted_contract_cannot_authenticate_a_forged_managed_map(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        role = self.codex_home / "agents" / "boundary_mapper.toml"
+        foreign = b'name = "foreign-boundary-mapper"\n'
+        role.write_bytes(foreign)
+        state = json.loads(self.state_path().read_text())
+        state["install_contract_sha256"] = (
+            "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483"
+        )
+        state["managed_hashes"]["agents/boundary_mapper.toml"] = hashlib.sha256(
+            foreign
+        ).hexdigest()
+        self.state_path().write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n"
+        )
+
+        checked = self.run_installer("--check")
+        self.assertNotEqual(checked.returncode, 0)
+        self.assertIn("managed state document identity is not accepted", checked.stderr)
+        with self.assertRaisesRegex(
+            INSTALL_MODULE.InstallError,
+            "managed state document identity is not accepted",
+        ):
+            INSTALL_MODULE.apply_install(self.codex_home, "en")
+
+        self.assertEqual(role.read_bytes(), foreign)
+        self.assertFalse(
+            (self.codex_home / INSTALL_MODULE.APPLY_RECEIPT_JOURNAL_RELATIVE).exists()
+        )
+        self.assertFalse(
+            (self.codex_home / INSTALL_MODULE.JOURNAL_RELATIVE).exists()
+        )
+
     def test_direct_v2_install_contract_lineage_is_accepted(self):
         installed = self.run_installer("--apply")
         self.assertEqual(installed.returncode, 0, installed.stderr)
@@ -961,6 +1073,10 @@ raise SystemExit(module.main())
         self.state_path().write_text(
             json.dumps(state, indent=2, sort_keys=True) + "\n"
         )
+
+        healthy, diagnosis = INSTALL_MODULE.doctor(self.codex_home, "en")
+        self.assertTrue(healthy)
+        self.assertEqual(diagnosis[0], "DOCTOR UPDATE_AVAILABLE 1")
 
         result = self.run_installer("--apply")
 

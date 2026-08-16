@@ -147,7 +147,9 @@ Other personal instructions, primary-agent settings, project settings, unknown
 are rejected. Managed state version 2 records an install-contract hash derived
 only from managed inputs, so documentation, tests, and CI metadata do not create
 false lineage breaks. Known predecessor contracts can be upgraded only when the
-recorded hashes still match every managed target.
+complete managed-hash map matches an externally anchored package profile and
+the recorded hashes still match every managed target. An accepted contract hash
+alone cannot authenticate a rewritten state file.
 
 `install-migrations.json` is the explicit lifecycle catalog. A removed managed
 path is accepted only when both its original path and old SHA-256 are declared.
@@ -183,6 +185,10 @@ verified staging link remains afterward as a read-only retirement receipt.
 Successful apply emits an absolute `RESTORE_RECEIPT` path. The install journal
 is retained through exact candidate postimage validation and durable receipt
 creation; cleanup interruptions resume forward from the receipt-bound metadata.
+If interruption persists receipt-bound apply metadata before the install
+journal, retry proceeds only when every live target still equals its exact prior
+preimage; exact candidate postimages require the durable restore receipt, while
+mixed or conflicting state fails closed.
 Restore first verifies every candidate postimage, then copies all displaced
 candidate bytes and modes into independent-inode, no-replace, `fsync`-durable
 vault snapshots before restoring prior bytes and modes or removing paths whose
