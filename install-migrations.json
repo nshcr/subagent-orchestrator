@@ -1,8 +1,4 @@
 {
-  "accepted_install_contracts": [
-    "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483",
-    "b9ea0d3772a917b3926394a057cafcb01d603074115898a6e98fc267aa1de6ca"
-  ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
   "retired_paths": [

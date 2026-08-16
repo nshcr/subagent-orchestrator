@@ -53,15 +53,6 @@ ACCEPTED_GLOBAL_POLICY_SHA256 = {
     "f4bfedfca74f3c0b071329655002f788b08e0bbd8207ea549a4496d26f41068c",
     "8c25829e558be9a16ed32b0ff1ee21d2b6bc6d017c503e8953c9d80379e2ca7f",
 }
-ACCEPTED_STATE_MANIFESTS = {
-    # Package states written by accepted predecessor bundles.
-    "965615dbeae99d751a6cde94544d93b36405ed79d85d4f611bc7336209b8379c",
-    "20bef171c9a9e6390c9fdbdde90094497c76e8291090f736fe3ea206935bdbe2",
-    "9eec02b6314206067d07b18596e9b3f9d454706652b235c827a32135bd99bce5",
-    "481ad7ab43f2e4229489cd99052a2af50a30ac8b172ccc459c4c1f5efd6f2661",
-    "498be7e574c86c9ab6c56c1f4ab09ffbcc237ad3a44d9b09975ead935f392742",
-    "ff5b4d05d03027b2808862113e6706876193cf866214f9dfb0bba0b1d937714b",
-}
 ACCEPTED_PREDECESSORS = {
     "skills/subagent-orchestrator/SKILL.md": {
         "b8f41ceebfe3efa0aad4485bd00f058e03b04bcd9a0ad5f83825d00b668ee8b2",
@@ -196,7 +187,6 @@ def load_migration_catalog() -> dict:
     expected_keys = {
         "format_version",
         "package_id",
-        "accepted_install_contracts",
         "retired_paths",
     }
     if not isinstance(document, dict) or set(document) != expected_keys:
@@ -205,12 +195,6 @@ def load_migration_catalog() -> dict:
         raise InstallError("install migration catalog format_version must be 1")
     if document.get("package_id") != SKILL_NAME:
         raise InstallError("install migration catalog package identity mismatch")
-    accepted = document.get("accepted_install_contracts")
-    if not isinstance(accepted, list) or not all(
-        isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
-        for value in accepted
-    ) or len(set(accepted)) != len(accepted):
-        raise InstallError("install migration catalog has invalid contract lineage")
     retired = document.get("retired_paths")
     if not isinstance(retired, list):
         raise InstallError("install migration catalog retired_paths must be a list")
@@ -312,12 +296,11 @@ def read_state(
         if set(document) != expected_document_keys:
             raise InstallError("managed state has an unknown v1 document schema")
         lineage = document.get("package_manifest_sha256")
-        accepted_lineage = {
-            sha256_bytes(MANIFEST_PATH.read_bytes()),
-            *ACCEPTED_STATE_MANIFESTS,
-        }
-        if lineage not in accepted_lineage:
-            raise InstallError("managed state manifest lineage is not accepted")
+        if (
+            not isinstance(lineage, str)
+            or re.fullmatch(r"[0-9a-f]{64}", lineage) is None
+        ):
+            raise InstallError("managed state has an invalid manifest hash")
     elif format_version == 2:
         expected_document_keys = {
             "format_version",
@@ -327,14 +310,12 @@ def read_state(
         }
         if set(document) != expected_document_keys:
             raise InstallError("managed state has an unknown v2 document schema")
-        catalog = load_migration_catalog()
         lineage = document.get("install_contract_sha256")
-        accepted_lineage = {
-            install_contract_sha256(catalog),
-            *catalog["accepted_install_contracts"],
-        }
-        if lineage not in accepted_lineage:
-            raise InstallError("managed state install-contract lineage is not accepted")
+        if (
+            not isinstance(lineage, str)
+            or re.fullmatch(r"[0-9a-f]{64}", lineage) is None
+        ):
+            raise InstallError("managed state has an invalid install-contract hash")
     else:
         raise InstallError("managed state format_version must be 1 or 2")
     managed = document.get("managed_hashes")

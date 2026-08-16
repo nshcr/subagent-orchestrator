@@ -100,7 +100,6 @@ raise SystemExit(module.main())
         path.write_text(
             json.dumps(
                 {
-                    "accepted_install_contracts": [],
                     "format_version": 1,
                     "package_id": "subagent-orchestrator",
                     "retired_paths": [
@@ -332,7 +331,7 @@ raise SystemExit(module.main())
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("0 path(s) would change", result.stdout)
 
-    def test_v2_install_contract_lineage_mismatch_fails_closed(self):
+    def test_v2_unknown_install_contract_is_upgraded_when_targets_match(self):
         installed = self.run_installer("--apply")
         self.assertEqual(installed.returncode, 0, installed.stderr)
         state = json.loads(self.state_path().read_text())
@@ -343,37 +342,26 @@ raise SystemExit(module.main())
 
         result = self.run_installer("--apply")
 
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("install-contract lineage is not accepted", result.stderr)
-
-    def test_accepted_v2_install_contract_lineage_is_upgraded(self):
-        predecessors = (
-            "31c117011aff92a07ef6c96680efa239e82844748987d1e58a95ce95fa394483",
-            "b9ea0d3772a917b3926394a057cafcb01d603074115898a6e98fc267aa1de6ca",
+        self.assertEqual(result.returncode, 0, result.stderr)
+        upgraded = json.loads(self.state_path().read_text())
+        self.assertEqual(
+            upgraded["install_contract_sha256"],
+            INSTALL_MODULE.install_contract_sha256(),
         )
-        for predecessor in predecessors:
-            with self.subTest(predecessor=predecessor):
-                with tempfile.TemporaryDirectory() as temporary:
-                    original_home = self.codex_home
-                    self.codex_home = Path(temporary) / "codex-home"
-                    try:
-                        installed = self.run_installer("--apply")
-                        self.assertEqual(installed.returncode, 0, installed.stderr)
-                        state = json.loads(self.state_path().read_text())
-                        state["install_contract_sha256"] = predecessor
-                        self.state_path().write_text(
-                            json.dumps(state, indent=2, sort_keys=True) + "\n"
-                        )
 
-                        result = self.run_installer("--apply")
+    def test_v2_install_contract_metadata_must_be_sha256(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = json.loads(self.state_path().read_text())
+        state["install_contract_sha256"] = "not-a-sha256"
+        self.state_path().write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n"
+        )
 
-                        self.assertEqual(result.returncode, 0, result.stderr)
-                        upgraded = json.loads(self.state_path().read_text())
-                        self.assertNotEqual(
-                            upgraded["install_contract_sha256"], predecessor
-                        )
-                    finally:
-                        self.codex_home = original_home
+        result = self.run_installer("--apply")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid install-contract hash", result.stderr)
 
     def test_all_target_recheck_rejects_drift_before_any_write(self):
         plans, _ = INSTALL_MODULE.plan_install(self.codex_home, "en")
@@ -459,7 +447,7 @@ raise SystemExit(module.main())
         self.assertFalse((self.codex_home / "config.toml").exists())
         self.assertFalse((self.codex_home / "agents").exists())
 
-    def test_state_manifest_lineage_mismatch_fails_closed(self):
+    def test_v1_unknown_manifest_is_upgraded_when_targets_match(self):
         installed = self.run_installer("--apply")
         self.assertEqual(installed.returncode, 0, installed.stderr)
         state_path = (
@@ -476,22 +464,34 @@ raise SystemExit(module.main())
             "managed_hashes": state["managed_hashes"],
         }
         state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
-        before = {
-            str(path.relative_to(self.codex_home)): path.read_bytes()
-            for path in self.codex_home.rglob("*")
-            if path.is_file()
+        result = self.run_installer("--apply")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        upgraded = json.loads(state_path.read_text())
+        self.assertEqual(upgraded["format_version"], 2)
+        self.assertEqual(
+            upgraded["install_contract_sha256"],
+            INSTALL_MODULE.install_contract_sha256(),
+        )
+
+    def test_v1_manifest_metadata_must_be_sha256(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = json.loads(self.state_path().read_text())
+        predecessor = {
+            "format_version": 1,
+            "managed_hashes": state["managed_hashes"],
+            "package_id": "subagent-orchestrator",
+            "package_manifest_sha256": "not-a-sha256",
         }
+        self.state_path().write_text(
+            json.dumps(predecessor, indent=2, sort_keys=True) + "\n"
+        )
 
         result = self.run_installer("--apply")
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("managed state manifest lineage is not accepted", result.stderr)
-        after = {
-            str(path.relative_to(self.codex_home)): path.read_bytes()
-            for path in self.codex_home.rglob("*")
-            if path.is_file()
-        }
-        self.assertEqual(after, before)
+        self.assertIn("invalid manifest hash", result.stderr)
 
     def test_pre_standalone_manifest_lineage_is_accepted(self):
         installed = self.run_installer("--apply")
@@ -568,9 +568,14 @@ raise SystemExit(module.main())
         self.assertEqual(upgraded["format_version"], 2)
         self.assertIn("install_contract_sha256", upgraded)
 
-    def test_state_target_hash_mismatch_fails_closed(self):
+    def test_unknown_contract_does_not_bypass_target_hash_mismatch(self):
         installed = self.run_installer("--apply")
         self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = json.loads(self.state_path().read_text())
+        state["install_contract_sha256"] = "f" * 64
+        self.state_path().write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n"
+        )
         role_path = self.codex_home / "agents" / "boundary_mapper.toml"
         role_path.write_text(role_path.read_text() + "\n# concurrent edit\n")
         before = {

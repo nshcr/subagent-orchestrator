@@ -97,9 +97,10 @@ The installer manages only:
 Other personal instructions, primary-agent settings, project settings, unknown
 `[agents]` keys, extra agents, and extra skills are preserved. Unknown conflicts
 are rejected. Managed state version 2 records an install-contract hash derived
-only from managed inputs, so documentation, tests, and CI metadata do not create
-false lineage breaks. Known predecessor contracts can be upgraded only when the
-recorded hashes still match every managed target.
+only from managed inputs for diagnosis, but completed-state upgrades do not require
+a historical contract allowlist. Instead, package identity, the exact managed-key
+domain, every recorded target hash, and retired-path authorization must all match.
+Unfinished transactions remain bound to the exact contract that created them.
 
 `install-migrations.json` is the explicit lifecycle catalog. A removed managed
 path is accepted only when both its original path and old SHA-256 are declared.
