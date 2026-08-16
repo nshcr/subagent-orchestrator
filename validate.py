@@ -166,6 +166,7 @@ def verify_portability() -> None:
             "single-writer-integration",
             "conflict-handling",
             "delegation-expansion-checkpoints",
+            "original-outcome-acceptance-anchor",
             "final-acceptance",
         ],
     }:

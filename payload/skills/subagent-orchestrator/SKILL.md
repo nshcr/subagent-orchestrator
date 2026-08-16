@@ -12,7 +12,9 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 ## Route
 
 1. Start primary-only. Define the user outcome, the shortest direct proof, and the
-   material work a child would replace.
+   material work a child would replace. Keep that outcome as the task acceptance
+   anchor; passing an install, load, child, test, or review sub-boundary cannot
+   substitute for it.
 2. Delegate only when one bounded child replaces substantial primary work or a
    fresh independent gate is required. Complexity, file count, decomposability,
    available capacity, or a desire for confidence do not qualify.
@@ -78,9 +80,11 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 - A candidate is not active until the target installation and client readback prove
   it was loaded. Label source-only evidence `verified-local`.
 - A terminal child or exhausted delegation budget proves neither task completion nor
-  a user blocker. Continue safe authorized primary work while it can proportionately
-  reduce task-relevant uncertainty; close only on evidenced outcomes, explicit
-  abandonment or supersession, or a genuine user-owned blocker.
+  a user blocker. Close against the original acceptance anchor: lower-level success
+  is partial evidence unless it directly proves the requested outcome. Continue safe
+  authorized primary work while it can proportionately reduce task-relevant
+  uncertainty; close only on evidenced outcomes, explicit abandonment or
+  supersession, or a genuine user-owned blocker.
 - Finish with the smallest coherent result. Do not add governance infrastructure
   merely because it is possible to specify or test it.
 

@@ -51,9 +51,11 @@ or idle concurrency slot is not admission evidence.
 - After two decision-directed agent attempts leave the same uncertainty unchanged,
   stop agent variants and use the primary to secure the smallest discriminating
   observation. Evidence gain does not authorize another spawn.
-- Child terminal state or a spent delegation budget is not task closure. Continue safe
-  authorized primary work until the requested outcome has proportionate evidence or a
-  genuine user-owned blocker remains.
+- Child terminal state or a spent delegation budget is not task closure. Close only
+  against the original user outcome; passing an install, load, child, test, or review
+  sub-boundary cannot substitute for that acceptance anchor. Continue safe authorized
+  primary work until the requested outcome has proportionate evidence or a genuine
+  user-owned blocker remains.
 - Do not build a new harness, schema, authority system, installer feature, or policy
   engine until the user-facing behavior it supports has been demonstrated directly.
 - Do not replace or interrupt a running child for silence or a wait timeout. A proven

@@ -43,7 +43,9 @@ do not qualify a task for delegation.
 - If the primary would mainly coordinate, poll, or wait, it should do the work
   directly. Prove the user-facing behavior before building supporting machinery.
 - Child terminal state and exhausted delegation budget do not prove task completion;
-  the primary still closes against proportionate task evidence or a genuine blocker.
+  the primary still closes against the original user outcome and proportionate task
+  evidence or a genuine blocker. Passing an install, load, child, test, or review
+  sub-boundary cannot substitute for task acceptance.
 
 ## Requirements
 

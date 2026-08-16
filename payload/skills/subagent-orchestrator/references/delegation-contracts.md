@@ -25,6 +25,8 @@ Add role-specific fields only when the role requires them:
 Do not add expected conclusions to a handoff. A child reports one bounded outcome and
 stops when it discovers an unlisted boundary. The primary may sample cited evidence,
 but must not repeat the transferred scan or rewrite a writer-owned artifact.
+Keep the original user outcome as a primary-side acceptance anchor; include it in a
+handoff only when the child needs it to avoid mistaking its slice for task closure.
 Keep one active writer and no overlapping write scopes. Primary integration waits for
 the writer's terminal receipt.
 An existing handoff never authorizes a later wave, another writer, reviewer rerun, or

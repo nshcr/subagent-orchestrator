@@ -57,8 +57,10 @@ evidence.
   for a named material acceptance choice; otherwise report the blocker and next owner
   or action. Reviewer-driven redesign must not continue autonomously.
 - Child completion, a review terminal line, or exhausted delegation budget is not task
-  completion. Closure still requires claim-matched evidence or a genuine user-owned
-  blocker.
+  completion. Measure closure against the original user outcome; success at an install,
+  load, child, test, or review sub-boundary is partial evidence unless it directly
+  proves that acceptance anchor. Closure still requires claim-matched evidence or a
+  genuine user-owned blocker.
 
 Use the repository campaign evaluator only when a real comparison decision requires
 it. Preserve raw observations and state the evidence boundary; do not build another

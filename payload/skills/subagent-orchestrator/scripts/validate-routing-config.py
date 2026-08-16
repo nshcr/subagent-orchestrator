@@ -65,7 +65,8 @@ GLOBAL_POLICY_MARKERS = {
         "any relevant state change invalidates prior gate results",
         "Reviewers inspect only that state and the named invariants",
         "another BLOCK stops further review",
-        "child terminal state or a spent delegation budget does not prove task completion",
+        "Child terminal state or a spent delegation budget does not prove task completion",
+        "an install, load, child, test, or review sub-boundary cannot substitute for task acceptance",
         "Static harness checks never prove host enforcement or production efficiency",
     ),
     "## 子代理与并行": (
@@ -84,6 +85,7 @@ GLOBAL_POLICY_MARKERS = {
         "Reviewer 只审该状态和命名 invariant",
         "仍有 BLOCK 就停止继续评审",
         "子代理终态或编排预算耗尽都不证明任务完成",
+        "安装、加载、子代理、测试或评审等子边界通过都不能替代任务验收",
         "静态 harness 检查不得冒充宿主强制或生产效率证明",
     ),
 }
@@ -219,6 +221,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "do not prove that the host enforced the policy or that production became faster",
         "A candidate is not active until the target installation and client readback prove it was loaded",
         "A terminal child or exhausted delegation budget proves neither task completion",
+        "passing an install, load, child, test, or review sub-boundary cannot",
     ))
     require_markers(checks, routing, "routing policy", (
         "Every child is a leaf",
@@ -230,6 +233,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "do not turn it into a preference question",
         "another BLOCK stops further review",
         "Child terminal state or a spent delegation budget is not task closure",
+        "Close only against the original user outcome",
         "Freeze for review only after every writer is terminal",
         "any relevant change invalidates the result",
         "A reviewer finding outside the named invariants is a deferred observation",
@@ -244,6 +248,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Before a later wave, collect every current required child to terminal state",
         "authorization must name that exact expansion",
         "closes only the transferred work, not the user task",
+        "primary-side acceptance anchor",
     ))
     require_markers(checks, evaluation, "evaluation policy", (
         "Monkey before pedestal",
@@ -256,6 +261,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Reviewer scope is frozen with the named invariants",
         "Reviewer-driven redesign must not continue autonomously",
         "is not task completion",
+        "Measure closure against the original user outcome",
         "do not build another measurement framework",
     ))
 

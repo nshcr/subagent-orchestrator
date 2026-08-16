@@ -132,6 +132,14 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("task completion" in error for error in self.errors()))
 
+    def test_rejects_sub_boundary_as_task_acceptance(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "passing an install, load, child, test, or review sub-boundary cannot",
+            "passing any lower-level sub-boundary is sufficient and can",
+        )
+        self.assertTrue(any("sub-boundary" in error for error in self.errors()))
+
     def test_rejects_reviewer_designer_drift(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
