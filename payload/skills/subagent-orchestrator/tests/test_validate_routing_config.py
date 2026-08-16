@@ -71,15 +71,15 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_role_runtime_or_instruction_drift(self):
         self.mutate(
             "agents/risk_reviewer.toml",
-            'model_reasoning_effort = "high"',
             'model_reasoning_effort = "xhigh"',
+            'model_reasoning_effort = "high"',
         )
         self.assertTrue(any("risk_reviewer: effort mismatch" in error for error in self.errors()))
 
     def test_rejects_runtime_cap_or_routine_effort_drift(self):
         for old, new, expected in (
             ("max_concurrent_threads_per_session = 3", "max_concurrent_threads_per_session = 16", "max_concurrent"),
-            ('default_subagent_reasoning_effort = "medium"', 'default_subagent_reasoning_effort = "high"', "reasoning_effort"),
+            ('default_subagent_reasoning_effort = "high"', 'default_subagent_reasoning_effort = "medium"', "reasoning_effort"),
         ):
             with self.subTest(old=old):
                 self.mutate("config.toml", old, new)
@@ -93,6 +93,14 @@ class RoutingContractTest(unittest.TestCase):
             "Fill every available agent slot by default",
         )
         self.assertTrue(any("Start one child" in error for error in self.errors()))
+
+    def test_rejects_runtime_effort_retuning_claim(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "Treat each custom role's installed model and effort as fixed",
+            "Retune each custom role's effort for every task",
+        )
+        self.assertTrue(any("installed model and effort as fixed" in error for error in self.errors()))
 
     def test_rejects_monkey_first_rule_removal(self):
         self.mutate(

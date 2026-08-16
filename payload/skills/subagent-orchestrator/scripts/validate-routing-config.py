@@ -15,16 +15,16 @@ import tomllib
 SKILL_NAME = "subagent-orchestrator"
 DEFAULT_SKILL_PATH = Path(__file__).resolve().parents[1] / "SKILL.md"
 ROLE_POLICY = {
-    "evidence_tester": ("gpt-5.6-luna", "medium", "default", "workspace-write"),
-    "boundary_mapper": ("gpt-5.6-terra", "high", "default", "read-only"),
-    "risk_reviewer": ("gpt-5.6-sol", "high", "default", "read-only"),
+    "evidence_tester": ("gpt-5.6-luna", "max", "default", "workspace-write"),
+    "boundary_mapper": ("gpt-5.6-terra", "max", "default", "read-only"),
+    "risk_reviewer": ("gpt-5.6-sol", "xhigh", "default", "read-only"),
     "risk_reviewer_max": ("gpt-5.6-sol", "max", "default", "read-only"),
 }
 ROLE_INSTRUCTION_SHA256 = {
     "evidence_tester": "e8cfc06d58025b75a15b2075cbdac7fd3918ab40ea972f3cda08d18e8ec16aec",
     "boundary_mapper": "73ff8065f8832480bb29fe64c302982680709b37a6514abd207dfda982a86507",
-    "risk_reviewer": "97c2f882912fd465e17a86fbfb07835412bddbe92d7757afd7f048c0f6eddd47",
-    "risk_reviewer_max": "251bed9f0f191d0e20d37eb8ab6a09787385e1a2c65396dd9e2e77dbeab7ea95",
+    "risk_reviewer": "8367775e01048b9aead6deb1451b4d15d7ffe54a888da124f18253ec5969ada0",
+    "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
 }
 ROLE_MARKERS = {
     "evidence_tester": ("Acceptance fields", "Artifact contract"),
@@ -57,6 +57,7 @@ GLOBAL_POLICY_MARKERS = {
         "Start one child by default",
         "absolute cap remains two leaf children",
         "at most one active writer with no overlapping write scopes",
+        "four custom roles use the fixed model and effort",
         "opens an expansion checkpoint and cannot spawn automatically",
         "Proceed only under exact current user authorization",
         "before a later wave, collect every current required child to terminal state and integrate its receipt",
@@ -78,6 +79,7 @@ GLOBAL_POLICY_MARKERS = {
         "默认只派生一个子代理",
         "绝对上限仍为两个叶子子代理",
         "同时最多一个写入者且写入范围不得重叠",
+        "四个自定义角色使用已安装代理文件中固定的模型与 effort",
         "进入编排扩张检查点，禁止自动派生",
         "当前用户指令已精确授权该次扩张",
         "开始后续轮次前必须先收齐当前所有必需子代理的终态并整合其收据",
@@ -139,7 +141,7 @@ def validate_config(checks: Checks, codex_home: Path) -> None:
         "max_concurrent_threads_per_session": 3,
         "interrupt_message": True,
         "default_subagent_model": "gpt-5.6-sol",
-        "default_subagent_reasoning_effort": "medium",
+        "default_subagent_reasoning_effort": "high",
     }
     for key, value in expected.items():
         checks.require(agents.get(key) == value, f"agents.{key} must be {value}")
@@ -211,6 +213,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "A single ordered reasoning chain, shared mutable state, or one slow external operation stays with the primary",
         "Start one child by default",
         "The absolute cap remains two children and one writer",
+        "Treat each custom role's installed model and effort as fixed",
         "If the primary would mostly coordinate, poll, or wait",
         "Keep at most one active writer and never overlap write scopes",
         "Treat a second delegation wave",
@@ -236,6 +239,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Start one child by default",
         "absolute first-wave cap remains two children",
         "Never split one ordered reasoning chain",
+        "four custom roles use the fixed model and effort",
         "Keep at most one active writer",
         "reviewer rerun opens an expansion checkpoint",
         "latest explicit user instruction authorizes that exact expansion",
@@ -333,7 +337,7 @@ def main() -> int:
         return 1
     print(f"PASS: {checks.count} static routing configuration checks")
     print("- default: primary; then one child; two only for qualified parallel work")
-    print("- runtime: three spawned threads; medium routine effort; one active writer")
+    print("- runtime: three spawned threads; fixed custom-role model/effort; one active writer")
     print("- expansion checkpoint: no automatic second wave, writer addition, scope growth, or reviewer rerun")
     print("- wave boundary: current required children terminal and integrated before another wave")
     print("- user question: one recommended default for a material user-owned choice only")

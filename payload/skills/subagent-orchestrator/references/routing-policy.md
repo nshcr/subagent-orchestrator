@@ -41,9 +41,9 @@ admission evidence. Prefer direct or batched tool calls when the work is small.
   operational capability, access, or environment blocker with its next owner or action;
   do not turn it into a preference question.
 - Use fresh context by default. Summarize only the task-local facts a child needs.
-- Use the configured medium-effort default for routine leaves. Reserve high effort for
-  difficult boundary analysis or high-risk review and `max` for the single qualified
-  irreversible-risk escalation; do not raise effort merely for confidence.
+- The four custom roles use the fixed model and effort in their installed agent files.
+  Do not claim or attempt per-task retuning; optimize child count, repeated work, and
+  context instead.
 - The primary keeps working; a plan that leaves it only waiting is over-delegated.
 
 ## Stop rules
