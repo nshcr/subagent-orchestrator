@@ -67,10 +67,13 @@ A trace document has exactly one scenario for each non-empty unique top-level ta
 rollover remains events in that scenario, so materiality, sampling, owner, compaction,
 gate, admission, and receipt state cannot reset at a scenario boundary.
 
-Freeze occurs only after writer terminal. Tester, reviewer, every gate, and close
+Freeze occurs only after every task writer across all slices is terminal. Any later
+writer or owner mutation fails closed, invalidates that generation and every gate,
+and requires a new freeze. Tester, reviewer, every gate, and close
 recompute HEAD, index, worktree, and complete changed-path digests. Any hash change
 invalidates all gates. Each invariant belongs to exactly one gate, and three disjoint
-fresh gates must PASS the same final hash; repairs rerun all three at the next attempt.
+fresh gates must PASS the same final hash; each reviewer transfer invariant set equals
+its registered/result gate ownership, and repairs rerun all three at the next attempt.
 Messages and follow-ups are typed, digest-bound, same-scope control events. Message
 receipts bind the original transfer digest, exact purpose, canonical dependency digest,
 and canonical semantic message digest (excluding only the authority anchor and digest
@@ -79,6 +82,14 @@ whose digest was emitted by the named producer's terminal receipt and admitted b
 consumer transfer; polling, no-op peers,
 custom-role messaging, reviewer self-review, unregistered peers, and scope changes
 are hard blockers. Close requires the full task tree terminal.
+
+Role-specific transfers require tester acceptance fields plus one safe child-owned path
+artifact; a tester body is invalid. Both reviewers accept `none` or an optional child-owned
+Markdown body with the canonical body-marker transfer rule. The xhigh reviewer has no
+escalation receipt; max requires the full evidence-qualified escalation receipt. At consumption, every external receipt
+rejects all pre-indexed task participants: primary access/materiality allow host, owner,
+or sealed harness; compaction/message allow host or owner; peer capability/relay and
+pilot require host.
 
 Pilot activation requires a host authorization anchor outside the trace for a new
 task after freeze. It binds authorization event/text, task/slice, signer, non-empty

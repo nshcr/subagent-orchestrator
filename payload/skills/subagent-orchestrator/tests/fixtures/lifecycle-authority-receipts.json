@@ -3,6 +3,16 @@
   "active_task_ids": [
     "019fd4e7-e622-7891-8cbc-ea95899f7915"
   ],
+  "primary_access_receipts": [
+    {
+      "issuer_kind": "owner",
+      "issuer": "primary-owner",
+      "task_id": "task-new-host-authorized",
+      "kind": "sampling",
+      "access_receipt_digest": "89d2d33be6be2e1dab72c16edb77cb27346ff26ca6c1cfc2e2a0c1deb2cd7459",
+      "receipt_digest": "69444ba0dc49ec4cefb48633a0d918c2da1ed0d75fc369462bcd9977ef661f2c"
+    }
+  ],
   "materiality_receipts": [
     {
       "issuer_kind": "owner",
@@ -43,6 +53,7 @@
   ],
   "compaction_receipts": [
     {
+      "issuer_kind": "host",
       "issuer": "codex-host",
       "task_id": "task-new-host-authorized",
       "slice_id": "slice-governance",
@@ -51,9 +62,10 @@
       "current_count": 0,
       "cumulative_count": 0,
       "prior_receipt_digest": null,
-      "receipt_digest": "b1fd724127f3f171d148ff548e0066c792ed5342a41cef4cedd3b14ef85862f5"
+      "receipt_digest": "569f1341ddf1d6ef97f868f3c829c39745f5566d83c8b9250c850ad33d8b811f"
     },
     {
+      "issuer_kind": "host",
       "issuer": "codex-host",
       "task_id": "task-new-host-authorized",
       "slice_id": "slice-governance",
@@ -61,23 +73,25 @@
       "owner_component": "governance-component",
       "current_count": 1,
       "cumulative_count": 1,
-      "prior_receipt_digest": "b1fd724127f3f171d148ff548e0066c792ed5342a41cef4cedd3b14ef85862f5",
-      "receipt_digest": "4a4ba0b9a070f2332c3e41c15105fc30f5ecf42d624a405b26bfe6298015d58b"
+      "prior_receipt_digest": "569f1341ddf1d6ef97f868f3c829c39745f5566d83c8b9250c850ad33d8b811f",
+      "receipt_digest": "878069a01cf51489e513f487ddb26431e81b60c0849002b5f4ea22e763775ad3"
     }
   ],
   "peer_capability_receipts": [
     {
+      "issuer_kind": "host",
       "issuer": "codex-host",
       "task_id": "task-new-host-authorized",
       "slice_id": "slice-governance",
       "peer": "peer-coordinator",
       "capability": "bounded-peer-relay",
       "target_identity": "codex-runtime-2026-08",
-      "receipt_digest": "3ba21f7543dccd848ca563066f3fa3d6dc5764d4cdf574926f9f415f0bc55945"
+      "receipt_digest": "d5fb67e234a5eb2c965a528960fe96bb1b4c425f6662b741a2f1e16daae518af"
     }
   ],
   "peer_relay_receipts": [
     {
+      "issuer_kind": "host",
       "issuer": "codex-host",
       "task_id": "task-new-host-authorized",
       "slice_id": "slice-governance",
@@ -90,12 +104,12 @@
       "dependency_digest": "36ce4a948679839e4a00fa460765ee19372e3af48365e9ea19fc9be7df4b668f",
       "message_payload_digest": "59d9822a54009377b765f06df1a4ed521ae14209e41f62d62e15493c20bdecd2",
       "removed_primary_relay": true,
-      "receipt_digest": "994c9848bbf9a2c228231c8a1065555785d05a9091f6045f38ae5f7a279107f4"
+      "receipt_digest": "4f199007b793df3ff6d244a5c4cb509f746ec898785da02d67287f81a4a0fe43"
     }
   ],
   "pilot_authorizations": [
     {
-      "receipt_digest": "831dc4e5040dcf43cde0b16058d86a829ef3d5cea21c5d638aac11458fb9f267",
+      "receipt_digest": "affc8cec31a59013d44d796943862b542663de6dde409ff989cfc0f655e459d5",
       "authorization_event_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "grantor": "user",
       "authorized_signer": "host-runtime",
@@ -113,6 +127,7 @@
       "excluded_active_task_ids": [
         "019fd4e7-e622-7891-8cbc-ea95899f7915"
       ],
+      "issuer_kind": "host",
       "issued_by": "codex-host",
       "status": "valid",
       "authorization_text_digest": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
@@ -122,6 +137,7 @@
   ],
   "message_receipts": [
     {
+      "issuer_kind": "host",
       "issuer": "codex-host",
       "task_id": "task-new-host-authorized",
       "slice_id": "slice-governance",
@@ -131,7 +147,7 @@
       "payload_receipt_digest": "abababababababababababababababababababababababababababababababab",
       "dependency_digest": "00637fbfa96db75400fb32a8da0d06584f5a785114aff53f16333c726f2f0cb1",
       "message_payload_digest": "f7649831938fcbe6c150328f68f0843c02c159179f7a7d14832139a0e466068f",
-      "receipt_digest": "d46efd4f8f59e787adbb067841c477cc9f42c83e71f4298d06224179a8a1dbe9",
+      "receipt_digest": "8fe458ad1ff5efdbd51c45e25ba47522ca107a2c0312e7d3d3e717e2d26a3279",
       "producer": "primary"
     }
   ]

@@ -4,11 +4,11 @@
   "bounded_peer_leaf_cap": 2,
   "runtime_capacity": 16,
   "owner_hashes": {
-      "SKILL.md": "e1fbf5508bb4491680245c21d2bf0524897e0983f35307836f91df2cf66ad61d",
-      "references/routing-policy.md": "7ad71e32f2cd794fb0371514fbb5c19c4a6df5759e54f3958a9a69d4d4c5a152",
-      "references/delegation-contracts.md": "8da7a0d23855626d53bf834f4bb2020f72c13457fc12bceefbf3f1684e271293",
-      "references/evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
-      "AGENTS.md#subagent-policy": "82ea8d7682749de120a9b332bfb415362a9e99bba9377e283db54711e0916894",
+      "SKILL.md": "ecf218e1923a707a001ecbc4336ea974b5d4b67748cf22e1f3d394d933d88fca",
+      "references/routing-policy.md": "838094a6da58d863eff3885e3e2e64a2e61711636181f18a9caf9d86eda2ac09",
+      "references/delegation-contracts.md": "592f5c33f64abd8ffa3f04cbba6c0cf65342a0f5ff01a6513a5e3fb8d3001837",
+      "references/evaluation-policy.md": "6feb335f607b667e74f4cd87df425fbd2b05372e59c294e7742ae43d86d711c5",
+      "AGENTS.md#subagent-policy": "e7a559fa3a634a561dcc6ddbbb3354cc94897f7b93f3ad8a89c700e3e4a5b8bb",
       "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0"
   },
   "scenarios": [
@@ -195,7 +195,7 @@
           },
           "authority_receipts": {
             "materiality": "a2c8bfbab9a90e208b576811c6f075e36d06717f1df31507ac3b83e418db3ecc",
-            "compaction_baseline": "b1fd724127f3f171d148ff548e0066c792ed5342a41cef4cedd3b14ef85862f5",
+            "compaction_baseline": "569f1341ddf1d6ef97f868f3c829c39745f5566d83c8b9250c850ad33d8b811f",
             "peer_capability": null,
             "peer_relay": null
           }
@@ -214,7 +214,7 @@
           "slice_id": "slice-governance",
           "scope_digest": "2f551f65d741aae37125bda5b6cdf3e3243528fcb5e0fe6132184bbbee0df7ed",
           "receipt_digest": "abababababababababababababababababababababababababababababababab",
-          "admission_anchor_digest": "d46efd4f8f59e787adbb067841c477cc9f42c83e71f4298d06224179a8a1dbe9"
+          "admission_anchor_digest": "8fe458ad1ff5efdbd51c45e25ba47522ca107a2c0312e7d3d3e717e2d26a3279"
         },
         {
           "type": "spawn",
@@ -264,8 +264,8 @@
           "authority_receipts": {
             "materiality": null,
             "compaction_baseline": null,
-            "peer_capability": "3ba21f7543dccd848ca563066f3fa3d6dc5764d4cdf574926f9f415f0bc55945",
-            "peer_relay": "994c9848bbf9a2c228231c8a1065555785d05a9091f6045f38ae5f7a279107f4"
+            "peer_capability": "d5fb67e234a5eb2c965a528960fe96bb1b4c425f6662b741a2f1e16daae518af",
+            "peer_relay": "4f199007b793df3ff6d244a5c4cb509f746ec898785da02d67287f81a4a0fe43"
           }
         },
         {
@@ -453,7 +453,7 @@
           "admitted": true,
           "starts_turn": false,
           "changes_handoff": false,
-          "admission_anchor_digest": "994c9848bbf9a2c228231c8a1065555785d05a9091f6045f38ae5f7a279107f4"
+          "admission_anchor_digest": "4f199007b793df3ff6d244a5c4cb509f746ec898785da02d67287f81a4a0fe43"
         },
         {
           "type": "receipt",
@@ -477,6 +477,7 @@
           "type": "primary_access",
           "kind": "sampling",
           "receipt_digest": "89d2d33be6be2e1dab72c16edb77cb27346ff26ca6c1cfc2e2a0c1deb2cd7459",
+          "authority_anchor_digest": "69444ba0dc49ec4cefb48633a0d918c2da1ed0d75fc369462bcd9977ef661f2c",
           "unique_ranges": 1,
           "unique_bytes": 800,
           "manifest_ranges": 14,
@@ -491,7 +492,7 @@
           "artifact_receipt_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
           "completion_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
           "safe_incomplete": false,
-          "compaction_receipt_digest": "4a4ba0b9a070f2332c3e41c15105fc30f5ecf42d624a405b26bfe6298015d58b"
+          "compaction_receipt_digest": "878069a01cf51489e513f487ddb26431e81b60c0849002b5f4ea22e763775ad3"
         },
         {
           "type": "freeze",
@@ -524,17 +525,27 @@
             "topology": "leaf",
             "delegation_depth": 0,
             "output_audience": "model-facing",
-            "acceptance_fields": "not-applicable",
+            "acceptance_fields": [
+              "command",
+              "result",
+              "artifact_receipt_digest"
+            ],
             "named_invariants": "not-applicable",
             "escalation_receipt": "not-applicable",
-            "artifact_contract": "none",
+            "artifact_contract": {
+              "artifact_kind": "path",
+              "artifact_path": "artifacts/tester-evidence-receipt.json",
+              "artifact_format": "json",
+              "artifact_writer": "tester",
+              "receipt_transfer_rule": "terminal-receipt"
+            },
             "input_summary": [
               "frozen filesystem readback"
             ],
             "sampling_allowlist": [
               "test output only"
             ],
-            "admitted_state_digest": "83db9ce6fd3efd76ccfb9a4a736f522cb267a743a01b613b5a50d8082c281d9e",
+            "admitted_state_digest": "f63c67a77160c9a33d7e0dfb096a81f41fbfd9d49056e964ad32b2447e89eeff",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -616,7 +627,9 @@
             "delegation_depth": 0,
             "output_audience": "model-facing",
             "acceptance_fields": "not-applicable",
-            "named_invariants": "not-applicable",
+            "named_invariants": [
+              "method-validity"
+            ],
             "escalation_receipt": "not-applicable",
             "artifact_contract": "none",
             "input_summary": [
@@ -625,7 +638,7 @@
             "sampling_allowlist": [
               "methodology invariant"
             ],
-            "admitted_state_digest": "a2b0ab6481846b35cbc3cc12440587ab5472f8d9a59acda6a0143cc9937c9d4f",
+            "admitted_state_digest": "620170ba92ac55fd6b78253b12f155ba0f939f61f10ce9830b846562b25736e1",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -667,7 +680,9 @@
             "delegation_depth": 0,
             "output_audience": "model-facing",
             "acceptance_fields": "not-applicable",
-            "named_invariants": "not-applicable",
+            "named_invariants": [
+              "cost-integrity"
+            ],
             "escalation_receipt": "not-applicable",
             "artifact_contract": "none",
             "input_summary": [
@@ -676,7 +691,7 @@
             "sampling_allowlist": [
               "efficiency invariant"
             ],
-            "admitted_state_digest": "bbf1cd464338478077650949554a841f3bb10d54718cb2de85d259f62a3f844d",
+            "admitted_state_digest": "a0304374fa8bc80c387ee3b95dfd3df8f41faae39c0ee2b43a9ff0364c4b2b35",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -718,7 +733,9 @@
             "delegation_depth": 0,
             "output_audience": "model-facing",
             "acceptance_fields": "not-applicable",
-            "named_invariants": "not-applicable",
+            "named_invariants": [
+              "install-safety"
+            ],
             "escalation_receipt": "not-applicable",
             "artifact_contract": "none",
             "input_summary": [
@@ -727,7 +744,7 @@
             "sampling_allowlist": [
               "governance invariant"
             ],
-            "admitted_state_digest": "097decb9e0866fd5a9aef1ba77bc3056d9cb794da7a18a519edea5f45ee5fd45",
+            "admitted_state_digest": "f3f44dbedb495cab8f7aa0a932e4921d0d6d4539d48424f7b83384c4a06ce442",
             "status": "admitted",
             "artifact_receipt_digest": null,
             "completion_conditions": [
@@ -803,7 +820,7 @@
         },
         {
           "type": "pilot_admission",
-          "receipt_digest": "831dc4e5040dcf43cde0b16058d86a829ef3d5cea21c5d638aac11458fb9f267",
+          "receipt_digest": "affc8cec31a59013d44d796943862b542663de6dde409ff989cfc0f655e459d5",
           "authorization_event_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "grantor": "user",
           "authorized_signer": "host-runtime",
@@ -821,6 +838,7 @@
           "excluded_active_task_ids": [
             "019fd4e7-e622-7891-8cbc-ea95899f7915"
           ],
+          "issuer_kind": "host",
           "issued_by": "codex-host",
           "status": "valid",
           "authorization_text_digest": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",

@@ -45,7 +45,7 @@ fixed effort.
 
 ## Production facts and policy promotion
 
-`production-fact.v1` binds parent rollout, child root, cutoff, repository, and base.
+`production-fact.v3` binds parent rollout, child root, cutoff, repository, and base.
 Lineage begins only at the first UUIDv7 child turn context after spawn; copied parent
 history and missing/ambiguous lineage are rejected. Every metric has
 `{status,basis,source_id,value}`; only unavailable uses null and unavailable values

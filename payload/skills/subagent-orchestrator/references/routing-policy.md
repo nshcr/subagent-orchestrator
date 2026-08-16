@@ -52,6 +52,10 @@ Open `slice_open` before spawn and use exact-key canonical-snake-case work-trans
 receipts containing every documented identity, route/topology/depth, audience,
 acceptance, invariant, escalation, artifact, state, and completion field. Their digest
 binds the complete payload and spawn contract. Use `fork_turns=none`; Full-history children are ineligible.
+Tester transfers require unique acceptance fields and one safe child-owned path artifact;
+body is invalid. Reviewer invariants equal one registered/result gate; xhigh has no
+escalation receipt, while max requires the full evidence-qualified receipt. Either reviewer
+may request a child-owned `body` with exact `markdown`/`artifact-body-markers`, or `none`.
 The primary keeps a task-wide
 access ledger and does not reconstruct transferred work. Only digest-bound targeted
 precheck and strict proper-subset sampling no larger than 10% are promotion eligible.
@@ -68,6 +72,10 @@ child for `new_failure_evidence`, `missing_acceptance_field`, or
 `authorized_continue`, with a scope digest equal to the original work-transfer. Polling, custom-role, peer, reviewer repair,
 self-review, and scope-changing messages are hard blockers.
 
+Every external receipt is checked when consumed against all pre-indexed participants.
+Primary access/materiality allow host/owner/sealed-harness issuers; compaction/message
+allow host/owner; peer capability/relay and pilot require host.
+
 Wait timeouts are observation-only. Never interrupt or replace for silence, wall
 time, tokens, credits, or repeated waits. Do not cancel a running writer when its
 component budget becomes exhausted; accept a safe incomplete receipt. Collect every
@@ -75,7 +83,9 @@ required descendant terminal before close.
 
 ## Freeze and independent gates
 
-Writer terminal precedes freeze. Tester, reviewer, gate, and close independently
+Every task writer across all slices must be terminal before freeze. Writer or owner
+mutation afterward fails closed, invalidates the generation and all gates, and requires
+a new freeze. Tester, reviewer, gate, and close independently
 read back HEAD, index, worktree, and complete changed-path digests. A hash change
 invalidates all gates. Every invariant belongs to one gate; no overlap, voting, or
 majority result. Three disjoint fresh gates PASS on the final hash. Repair reruns all

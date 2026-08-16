@@ -18,6 +18,7 @@ MESSAGE_PURPOSES = {"evidence", "dependency_status", "artifact_receipt"}
 FOLLOWUP_REASONS = {"new_failure_evidence", "missing_acceptance_field", "authorized_continue"}
 EVIDENCE_TIERS = {"implemented", "verified-local", "verified-ci", "verified-target", "pilot", "pilot-signed"}
 AUTHORITY_COLLECTIONS = {
+    "primary_access_receipts",
     "materiality_receipts",
     "compaction_receipts",
     "peer_capability_receipts",
@@ -120,11 +121,24 @@ def authority_receipt(
     collection: str,
     receipt_digest: object,
     expected: dict[str, object],
+    participant_identities: set[str] | None = None,
+    issuer_kinds: set[str] | None = None,
 ) -> bool:
     if not digest(receipt_digest):
         return False
     receipt = indexes.get(collection, {}).get(receipt_digest)
-    return bool(receipt and all(receipt.get(key) == value for key, value in expected.items()))
+    if not receipt or not all(receipt.get(key) == value for key, value in expected.items()):
+        return False
+    if issuer_kinds is None:
+        return True
+    issuer = receipt.get("issuer", receipt.get("issued_by"))
+    return bool(
+        isinstance(receipt.get("issuer_kind"), str)
+        and receipt["issuer_kind"] in issuer_kinds
+        and isinstance(issuer, str)
+        and issuer
+        and issuer not in (participant_identities or set())
+    )
 
 
 def validate_materiality(
@@ -210,7 +224,10 @@ def validate_materiality(
         "source_range_count": manifest.get("source_range_count"),
         "source_bytes": manifest.get("source_bytes"),
     }
-    if not authority_receipt(authority, "materiality_receipts", anchor_digest, expected):
+    if not authority_receipt(
+        authority, "materiality_receipts", anchor_digest, expected,
+        participant_identities, {"host", "owner", "sealed-harness"},
+    ):
         errors.append("materiality issuer/payload is not admitted by trusted authority")
     return errors
 
@@ -298,6 +315,35 @@ def validate_transfer(
             or not artifact["receipt_transfer_rule"]
         ):
             errors.append("work-transfer artifact contract is invalid")
+    if route == "evidence_tester":
+        if not string_list(value["acceptance_fields"]) or len(value["acceptance_fields"]) != len(set(value["acceptance_fields"])):
+            errors.append("evidence_tester requires unique acceptance_fields")
+        if (
+            not isinstance(artifact, dict)
+            or artifact.get("artifact_kind") != "path"
+            or not safe_path(artifact.get("artifact_path"))
+            or artifact.get("artifact_writer") != child
+        ):
+            errors.append("evidence_tester requires one concrete child-owned path artifact contract")
+        if value["named_invariants"] != "not-applicable" or escalation != "not-applicable":
+            errors.append("evidence_tester reviewer-only transfer fields must be not-applicable")
+    elif route in REVIEWERS:
+        if value["acceptance_fields"] != "not-applicable":
+            errors.append("risk reviewer acceptance_fields must be not-applicable")
+        if artifact != "none" and (
+            not isinstance(artifact, dict)
+            or artifact.get("artifact_kind") != "body"
+            or artifact.get("artifact_format") != "markdown"
+            or artifact.get("artifact_writer") != child
+            or artifact.get("receipt_transfer_rule") != "artifact-body-markers"
+        ):
+            errors.append("risk reviewer artifact must be none or a canonical child-owned Markdown body")
+        if not string_list(value["named_invariants"]) or len(value["named_invariants"]) != len(set(value["named_invariants"])):
+            errors.append("risk reviewer requires unique named_invariants")
+        if route == "risk_reviewer" and escalation != "not-applicable":
+            errors.append("risk_reviewer xhigh escalation receipt must be not-applicable")
+        if route == "risk_reviewer_max" and escalation == "not-applicable":
+            errors.append("risk_reviewer_max requires an evidence-qualified escalation receipt")
     return errors
 
 
@@ -324,6 +370,7 @@ def validate_scenario(
     compactions: dict[str, int] = {}
     gates: dict[str, dict] = {}
     invariant_owner: dict[str, str] = {}
+    reviewer_gate_owners: dict[str, str] = {}
     material_ranges: list[tuple[str, int, int]] = []
     material_contents: set[str] = set()
     material_bytes = 0
@@ -332,6 +379,7 @@ def validate_scenario(
     access_denominator: tuple[int, int] | None = None
     writer_slices: set[str] = set()
     frozen: tuple[str, str, str, str] | None = None
+    freeze_seen = False
     generation = 0
     closed = False
     spawn_seen = False
@@ -383,6 +431,9 @@ def validate_scenario(
             continue
 
         if kind == "slice_open":
+            if freeze_seen:
+                errors.append(f"{location}: owner-affecting slice_open after freeze is forbidden")
+                invalidate(None)
             required = {"type", "task_id", "slice_id", "acceptance_milestone", "change_class", "owner_paths", "required_gate_ids", "state_summary", "state_digest"}
             if set(event) != required or event["task_id"] != task_id:
                 errors.append(f"{location}: slice_open schema/identity mismatch")
@@ -404,6 +455,9 @@ def validate_scenario(
             slices[slice_id] = event
 
         elif kind == "owner_union":
+            if freeze_seen:
+                errors.append(f"{location}: owner union after freeze is forbidden")
+                invalidate(None)
             required = {"type", "component", "paths", "reason", "aliases"}
             if set(event) != required or not isinstance(event["reason"], str) or event["reason"] not in {"overlap", "rename", "split", "merge"}:
                 errors.append(f"{location}: owner union schema invalid")
@@ -440,6 +494,9 @@ def validate_scenario(
                 continue
             if event["fork_context"] != "none":
                 errors.append(f"{location}: full-history context is never eligible")
+            if agent_type == "worker" and freeze_seen:
+                errors.append(f"{location}: writer spawn after freeze is forbidden")
+                invalidate(None)
             topology, depth = event["topology"], event["delegation_depth"]
             authority_refs = event.get("authority_receipts")
             authority_keys = {"materiality", "compaction_baseline", "peer_capability", "peer_relay"}
@@ -494,9 +551,15 @@ def validate_scenario(
                     "peer": child,
                     "removed_primary_relay": True,
                 }
-                if not authority_receipt(authority, "peer_capability_receipts", authority_refs["peer_capability"], capability_expected):
+                if not authority_receipt(
+                    authority, "peer_capability_receipts", authority_refs["peer_capability"],
+                    capability_expected, participant_identities, {"host"},
+                ):
                     errors.append(f"{location}: default peer capability is not admitted by trusted authority")
-                if not authority_receipt(authority, "peer_relay_receipts", authority_refs["peer_relay"], relay_expected):
+                if not authority_receipt(
+                    authority, "peer_relay_receipts", authority_refs["peer_relay"],
+                    relay_expected, participant_identities, {"host"},
+                ):
                     errors.append(f"{location}: default peer material relay is not admitted by trusted authority")
             if parent != "primary":
                 owner = nodes.get(parent)
@@ -521,6 +584,21 @@ def validate_scenario(
                     agent_type, topology, depth, parent,
                 )
             )
+            reviewer_gate_id = None
+            transfer = event["work_transfer"] if isinstance(event["work_transfer"], dict) else {}
+            if agent_type in REVIEWERS:
+                named = transfer.get("named_invariants")
+                matching_gates = [
+                    gate_id for gate_id, gate in gates.items()
+                    if string_list(named)
+                    and gate["invariants"] == set(named)
+                    and gate_id not in reviewer_gate_owners
+                ]
+                if len(matching_gates) != 1:
+                    errors.append(f"{location}: reviewer transfer invariants do not own exactly one registered gate")
+                else:
+                    reviewer_gate_id = matching_gates[0]
+                    reviewer_gate_owners[reviewer_gate_id] = child
             raw_component = event["owner_component"]
             component = component_root(raw_component) if isinstance(raw_component, str) and raw_component else ""
             paths = event["owner_paths"]
@@ -571,7 +649,10 @@ def validate_scenario(
                     "owner_component": component,
                     "current_count": 0,
                 }
-                if not baseline or not all(baseline.get(key) == value for key, value in baseline_expected.items()):
+                if not authority_receipt(
+                    authority, "compaction_receipts", baseline_digest, baseline_expected,
+                    participant_identities, {"host", "owner"},
+                ):
                     errors.append(f"{location}: writer compaction baseline is not admitted by trusted authority")
                     baseline_count = 2
                 else:
@@ -594,6 +675,9 @@ def validate_scenario(
                 "admitted_receipts": set(event["work_transfer"].get("admitted_receipt_digests", [])) if isinstance(event["work_transfer"], dict) else set(),
                 "compaction_receipt": authority_refs.get("compaction_baseline"),
                 "peer_relay": authority_refs.get("peer_relay"),
+                "reviewer_gate_id": reviewer_gate_id,
+                "named_invariants": transfer.get("named_invariants"),
+                "artifact_contract": transfer.get("artifact_contract"),
             }
             parents[child] = parent
             spawn_seen = True
@@ -609,6 +693,9 @@ def validate_scenario(
             if event["status"] == "incomplete" and event["safe_incomplete"] is not True:
                 errors.append(f"{location}: incomplete receipt must be safe")
             if node["agent_type"] == "worker":
+                if freeze_seen:
+                    errors.append(f"{location}: writer receipt/compaction after freeze is forbidden")
+                    invalidate(None)
                 root = component_root(node["component"])
                 compaction_digest = event.get("compaction_receipt_digest")
                 trusted = authority.get("compaction_receipts", {}).get(compaction_digest) if digest(compaction_digest) else None
@@ -619,7 +706,10 @@ def validate_scenario(
                     "owner_component": root,
                     "prior_receipt_digest": node.get("compaction_receipt"),
                 }
-                if not trusted or not all(trusted.get(key) == value for key, value in expected.items()):
+                if not authority_receipt(
+                    authority, "compaction_receipts", compaction_digest, expected,
+                    participant_identities, {"host", "owner"},
+                ):
                     errors.append(f"{location}: writer compaction is not admitted by trusted authority")
                 else:
                     count, cumulative = trusted.get("current_count"), trusted.get("cumulative_count")
@@ -639,13 +729,16 @@ def validate_scenario(
 
         elif kind == "freeze":
             candidate = readback(event.get("readback"))
-            writers = [node for node in nodes.values() if node["slice"] == event.get("slice_id") and node["agent_type"] == "worker"]
+            writers = [node for node in nodes.values() if node["agent_type"] == "worker"]
             if set(event) != {"type", "slice_id", "readback"} or candidate is None:
                 errors.append(f"{location}: freeze readback invalid")
-            elif not writers or any(node["state"] != "terminal" for node in writers):
-                errors.append(f"{location}: freeze requires terminal writer")
             else:
-                invalidate(candidate)
+                freeze_seen = True
+                if not writers or any(node["state"] != "terminal" for node in writers):
+                    errors.append(f"{location}: freeze requires every task worker terminal")
+                    invalidate(None)
+                else:
+                    invalidate(candidate)
 
         elif kind == "readback":
             candidate = readback(event.get("readback"))
@@ -657,15 +750,29 @@ def validate_scenario(
             required = {
                 "type", "kind", "receipt_digest", "unique_ranges", "unique_bytes",
                 "manifest_ranges", "manifest_bytes", "attribution", "consumed_receipt_digests",
+                "authority_anchor_digest",
             }
             if set(event) != required or not isinstance(event["kind"], str) or event["kind"] not in {"targeted_precheck", "sampling", "integration"}:
                 errors.append(f"{location}: primary access not admitted")
                 continue
             if event["attribution"] != "task-wide" or not digest(event["receipt_digest"]):
                 errors.append(f"{location}: opaque/unavailable primary access attribution")
-            projection = {key: value for key, value in event.items() if key not in {"type", "receipt_digest"}}
+            projection = {
+                key: value for key, value in event.items()
+                if key not in {"type", "receipt_digest", "authority_anchor_digest"}
+            }
             if event.get("receipt_digest") != canonical_digest(projection):
                 errors.append(f"{location}: primary access receipt digest does not bind canonical payload")
+            access_expected = {
+                "task_id": task_id,
+                "kind": event.get("kind"),
+                "access_receipt_digest": event.get("receipt_digest"),
+            }
+            if not authority_receipt(
+                authority, "primary_access_receipts", event.get("authority_anchor_digest"),
+                access_expected, participant_identities, {"host", "owner", "sealed-harness"},
+            ):
+                errors.append(f"{location}: primary access is not admitted by trusted external authority")
             if event["kind"] == "sampling" and not spawn_seen:
                 errors.append(f"{location}: pre-spawn sampling cannot establish delegated substitution")
             if event["kind"] == "integration":
@@ -765,7 +872,10 @@ def validate_scenario(
                     "message_payload_digest": message_payload_digest,
                     "removed_primary_relay": True,
                 }
-                relay_admitted = bool(relay and all(relay.get(key) == value for key, value in expected.items()))
+                relay_admitted = authority_receipt(
+                    authority, "peer_relay_receipts", relay_digest, expected,
+                    participant_identities, {"host"},
+                )
                 if not relay_admitted:
                     errors.append(f"{location}: peer message lacks trusted producer-consumer relay evidence")
                 anchor_matches = event.get("admission_anchor_digest") == relay_digest
@@ -791,7 +901,10 @@ def validate_scenario(
                     "dependency_digest": canonical_digest(event.get("dependency")),
                     "message_payload_digest": message_payload_digest,
                 }
-                if not authority_receipt(authority, "message_receipts", event.get("admission_anchor_digest"), expected):
+                if not authority_receipt(
+                    authority, "message_receipts", event.get("admission_anchor_digest"),
+                    expected, participant_identities, {"host", "owner"},
+                ):
                     errors.append(f"{location}: send_message receipt/scope is not admitted by trusted authority")
 
         elif kind == "followup_task":
@@ -808,6 +921,9 @@ def validate_scenario(
                 errors.append(f"{location}: custom/reviewer followup is forbidden")
             if target and target["agent_type"] == "worker" and compactions.get(component_root(target["component"]), 0) >= 2:
                 errors.append(f"{location}: writer followup compaction budget exhausted")
+            if target and target["agent_type"] == "worker" and freeze_seen:
+                errors.append(f"{location}: writer followup after freeze is forbidden")
+                invalidate(None)
             if target:
                 target["state"] = "running"
 
@@ -833,13 +949,29 @@ def validate_scenario(
                 errors.append(f"{location}: gate result role/state/schema invalid")
                 continue
             result_invariants = event.get("invariants")
-            if candidate != frozen or not isinstance(event["attempt"], int) or event["attempt"] != gate["attempt"] + 1 or not string_list(result_invariants) or (string_list(result_invariants) and set(result_invariants) != gate["invariants"]) or not isinstance(event["result"], str) or event["result"] not in {"PASS", "BLOCK"}:
+            if (
+                candidate != frozen
+                or any(item["state"] == "running" for item in nodes.values() if item["agent_type"] == "worker")
+                or node.get("reviewer_gate_id") != gate_id
+                or not string_list(node.get("named_invariants"))
+                or set(node["named_invariants"]) != gate["invariants"]
+                or not isinstance(event["attempt"], int)
+                or event["attempt"] != gate["attempt"] + 1
+                or not string_list(result_invariants)
+                or (string_list(result_invariants) and set(result_invariants) != gate["invariants"])
+                or not isinstance(event["result"], str)
+                or event["result"] not in {"PASS", "BLOCK"}
+            ):
                 errors.append(f"{location}: stale or invalid gate attempt")
             if not digest(event.get("artifact_receipt_digest")) or not digest(event.get("completion_digest")):
                 errors.append(f"{location}: gate terminal evidence digests are invalid")
             gate.update(attempt=event["attempt"], passed=event["result"] == "PASS", generation=generation)
             node["state"] = "terminal"
             node["terminal_status"] = "complete"
+            if digest(event.get("artifact_receipt_digest")):
+                artifact_receipts_by_child.setdefault(child_id, set()).add(
+                    event["artifact_receipt_digest"]
+                )
 
         elif kind == "repair":
             candidate = readback(event.get("readback"))
@@ -853,16 +985,18 @@ def validate_scenario(
                 "type", "receipt_digest", "authorization_event_digest", "authorization_text_digest",
                 "grantor", "authorized_signer", "task_id", "slice_id", "actions", "target", "revision",
                 "package_digest", "contract_digest", "valid_from", "valid_until", "observed_at",
-                "excluded_active_task_ids", "issued_by", "status",
+                "excluded_active_task_ids", "issuer_kind", "issued_by", "status",
             }
             pilot_slice_id = event.get("slice_id")
             if set(event) != required or event.get("task_id") != task_id or not isinstance(pilot_slice_id, str) or pilot_slice_id not in slices:
                 errors.append(f"{location}: pilot admission schema/task invalid")
             if frozen is None:
                 errors.append(f"{location}: pilot admission requires a frozen final state")
+            if any(item["state"] == "running" for item in nodes.values() if item["agent_type"] == "worker"):
+                errors.append(f"{location}: pilot admission cannot bind while a task writer is running")
             issued_by = event.get("issued_by")
             signer = event.get("authorized_signer")
-            if not all(digest(event.get(key)) for key in ("receipt_digest", "authorization_event_digest", "authorization_text_digest", "package_digest", "contract_digest")) or not isinstance(issued_by, str) or not isinstance(signer, str) or issued_by in {"agent", "self", "proxy", signer} or event.get("status") != "valid":
+            if not all(digest(event.get(key)) for key in ("receipt_digest", "authorization_event_digest", "authorization_text_digest", "package_digest", "contract_digest")) or event.get("issuer_kind") != "host" or not isinstance(issued_by, str) or not isinstance(signer, str) or issued_by in participant_identities or issued_by == signer or event.get("status") != "valid":
                 errors.append(f"{location}: pilot admission is self-issued/tampered/expired")
             projection = {key: value for key, value in event.items() if key not in {"type", "receipt_digest"}}
             if event.get("receipt_digest") != canonical_digest(projection):
@@ -887,7 +1021,10 @@ def validate_scenario(
             pilot_digest = event.get("receipt_digest")
             trusted = authority.get("pilot_authorizations", {}).get(pilot_digest) if digest(pilot_digest) else None
             external_projection = {key: value for key, value in event.items() if key != "type"}
-            if trusted != external_projection:
+            if trusted != external_projection or not authority_receipt(
+                authority, "pilot_authorizations", pilot_digest, external_projection,
+                participant_identities, {"host"},
+            ):
                 errors.append(f"{location}: pilot authorization is not admitted by trusted host authority")
             pilot_seen = True
             pilot_generation = generation

@@ -36,10 +36,12 @@ Executable canonical snake-case fields are `producer`, `consumer`, `task_id`, `s
 Exact keys and strong types are mandatory; route, topology, and depth equal spawn, and the admitted-state digest binds every other field. Default to fresh `fork_turns=none`;
 preserve schemas, identifiers, and the user/model language contract.
 Non-sentinel escalation receipts have exact `prior_terminal_line`, `evidence`, `competing_explanations`, and `irreversible_decision` fields with at least two distinct explanations. Non-`none` artifact contracts have exact `artifact_kind`, `artifact_path`, `artifact_format`, `artifact_writer`, and `receipt_transfer_rule` fields; kind is `path` or `body`, path-kind paths are safe, and writer equals the named child.
+The structured evidence tester requires unique acceptance fields and one safe child-owned path artifact; body is invalid. Reviewers require unique invariants equal to one registered/result gate; xhigh uses no escalation receipt, while max requires the full evidence-qualified receipt. Either reviewer may use `none` or a child-owned `body` with exact `markdown` format and `artifact-body-markers` transfer rule.
 
 ## Materiality and primary access
 
 Explorer/worker eligibility requires host/owner/sealed-harness materiality plus authority outside the trace. Pre-index primary and every child, parent, and registered role identity, including later spawns; none may issue or proxy.
+At consumption, every external receipt rejects those participants and binds its family class: primary access/materiality use host, owner, or sealed harness; compaction/message use host or owner; peer capability/relay and pilot use host.
 Authority binds issuer class/identity, task, slice, child, source identity, range count, non-padding bytes, and manifest digest. Every range binds path, path hash, bounds, content hash, and non-padding bytes. Ranges are immutable,
 task-wide unique, non-overlapping, and deduplicated by content. Padding, repeated
 content, synthetic splitting, tiny leaf work, and verification-token assets fail.
@@ -69,7 +71,7 @@ cumulative count; terminal self-reporting is not authority. Cumulative count sta
 at zero; after two, reject another writer spawn or follow-up. Never cancel an already-running
 child for this limit; accept its safe incomplete receipt.
 
-Freeze only after writer terminal. Tester, reviewer, gate, and close each recompute
+Freeze only after every task writer across all slices is terminal. Later writer/owner mutation fails closed and invalidates the freeze/gates. Tester, reviewer, gate, and close each recompute
 HEAD, index, worktree, and complete changed-path digests from the filesystem. Any
 change invalidates all gates. Each invariant belongs to exactly one task-wide gate;
 duplicate ownership, overlap, voting, and majority decisions are invalid. Three

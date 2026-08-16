@@ -69,6 +69,8 @@ ACCEPTED_GLOBAL_POLICY_SHA256 = {
     "8c25829e558be9a16ed32b0ff1ee21d2b6bc6d017c503e8953c9d80379e2ca7f",
     "a69936c2e62ed151ec70d50f902578f8bc46134e8e4d0a19ef0f52f64c8f9081",
     "76bafc03f3710f20b12270b2e289889092c5a0babf53b4b03a52962120d2045e",
+    "c8ece2451004efe55738e7763a5048a368331e5a02c2b6ad993eb5260a33e7d5",
+    "82ea8d7682749de120a9b332bfb415362a9e99bba9377e283db54711e0916894",
 }
 ACCEPTED_STATE_MANIFESTS = {
     # Package states written by accepted predecessor bundles.
@@ -82,24 +84,24 @@ ACCEPTED_STATE_MANIFESTS = {
     "ff5b4d05d03027b2808862113e6706876193cf866214f9dfb0bba0b1d937714b",
 }
 DIRECT_PREDECESSOR_INSTALL_CONTRACT = (
-    "b84916be372dc404cb58dfab7c40f7fb897d4e87c6a6655adf858d3b4126ec65"
+    "91f9f7d927aa8776e83f4f0f1c4e813d3af2fdc42090782e998e06befd62d1fe"
 )
 DIRECT_PREDECESSOR_POLICY_SHA256 = {
-    "a69936c2e62ed151ec70d50f902578f8bc46134e8e4d0a19ef0f52f64c8f9081",
-    "76bafc03f3710f20b12270b2e289889092c5a0babf53b4b03a52962120d2045e",
+    "c8ece2451004efe55738e7763a5048a368331e5a02c2b6ad993eb5260a33e7d5",
+    "82ea8d7682749de120a9b332bfb415362a9e99bba9377e283db54711e0916894",
 }
 DIRECT_PREDECESSOR_MANAGED_HASHES = {
     "config.toml#agents": "8a23698e958a3496e9fc74b9e93f999b18bfb17e2ace0f9f5f45e75e5b68bdf0",
-    "skills/subagent-orchestrator/SKILL.md": "6fd3b830a80a72d2c07b89cea8a75e86560ba7a4072e3e8bafbed9270367d88c",
+    "skills/subagent-orchestrator/SKILL.md": "e1fbf5508bb4491680245c21d2bf0524897e0983f35307836f91df2cf66ad61d",
     "skills/subagent-orchestrator/agents/openai.yaml": "ea4f34eb93016c580f09fd1e22c6920a78dfe51aeb43e9343ef051b4cc8479a3",
-    "skills/subagent-orchestrator/references/delegation-contracts.md": "89e00d1000a619c4b6e33cddf65ef52d067609a9eee8a5dd605d80abcae1b764",
+    "skills/subagent-orchestrator/references/delegation-contracts.md": "8da7a0d23855626d53bf834f4bb2020f72c13457fc12bceefbf3f1684e271293",
     "skills/subagent-orchestrator/references/evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
-    "skills/subagent-orchestrator/references/routing-policy.md": "4bcceebe7e58e95ace680d45602ef9a37cc9eb936c86a6d4e55a37f52da5c517",
-    "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": "5cb331a096730e13e36f23b88ef06a4a81c889ea653e0dfcef348267bf64c55c",
-    "skills/subagent-orchestrator/scripts/validate-routing-config.py": "1b3ff4b091d23d188e31a44ddf20169a340edc24d14ba5adf2176033a00d014a",
-    "skills/subagent-orchestrator/tests/fixtures/lifecycle-authority-receipts.json": "0518e099d599ef3f20a2e2e764bb50c6361261309c510d32ccecb91fc204d91b",
-    "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json": "8850e1650822c24a47e72218ea759a9a0cc4b08b732199e7ccd0eb5f92534cac",
-    "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py": "a6c97013b5c0d7d56ee617f14d77e2b1a55f3f09d7921551bb169763a70065f8",
+    "skills/subagent-orchestrator/references/routing-policy.md": "7ad71e32f2cd794fb0371514fbb5c19c4a6df5759e54f3958a9a69d4d4c5a152",
+    "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": "99ccc18991fa87281ab7656385f9b53962055f80052dc4819eccc1507222dc05",
+    "skills/subagent-orchestrator/scripts/validate-routing-config.py": "1d8ac347fea0a5c25109239c4120452eb637fa8191317188299a4d2f390bb659",
+    "skills/subagent-orchestrator/tests/fixtures/lifecycle-authority-receipts.json": "f2f8ca311501ba43a7414e5c753724cd4e4792054713bddcf93cca031ee8db98",
+    "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json": "a7d4c0a095f585bf2c8e06ddac6622a4d244162511ce1a57e3e9826767480abb",
+    "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py": "29925d31fdb995d15d2fb359762c3ccd4f7596ec804acef85d3efa999567466e",
     "skills/subagent-orchestrator/tests/test_validate_routing_config.py": "c450daa0fd42d0bd0cf41242d22bb9e9e4367c6200bab8d55f8229efd84e6049",
 }
 ACCEPTED_PREDECESSORS = {
@@ -109,22 +111,26 @@ ACCEPTED_PREDECESSORS = {
         "b8f41ceebfe3efa0aad4485bd00f058e03b04bcd9a0ad5f83825d00b668ee8b2",
         "b82d2905847dc376bb99555b1d49675ede80bf2050d38ee87f11218e3641f4bc",
         "6fd3b830a80a72d2c07b89cea8a75e86560ba7a4072e3e8bafbed9270367d88c",
+        "e1fbf5508bb4491680245c21d2bf0524897e0983f35307836f91df2cf66ad61d",
     },
     "skills/subagent-orchestrator/references/routing-policy.md": {
         "ac944ba5ec777cd1bf187ced8347332a051b09de8ce23f4b49c4edaaccb0c1d3",
         "2b50c5bedd653476710d490de5b77784d90cd6d8f0b1e90681357c657aadcde0",
         "60848931f487bfb55b576394e3fb6ba63d27dd6ad69736ab18bb9b2635a83465",
         "4bcceebe7e58e95ace680d45602ef9a37cc9eb936c86a6d4e55a37f52da5c517",
+        "7ad71e32f2cd794fb0371514fbb5c19c4a6df5759e54f3958a9a69d4d4c5a152",
     },
     "skills/subagent-orchestrator/references/delegation-contracts.md": {
         "6831283a4643c1d7a538f3c02e36ee024d9188b87e6aa4042ec382cbf1635676",
         "842306b06c7501bdda207ed91357e16bddf3da17a3bf83822c29977e3640867f",
         "792b6dfb180571f33bf81fc2ccc1c5dd55ffb7c9c1fb28dde4ed90e9075385c5",
         "89e00d1000a619c4b6e33cddf65ef52d067609a9eee8a5dd605d80abcae1b764",
+        "8da7a0d23855626d53bf834f4bb2020f72c13457fc12bceefbf3f1684e271293",
     },
     "skills/subagent-orchestrator/references/evaluation-policy.md": {
         "59280215f90eee72eb1463d7625a034c309e6545727d3b08005a8082f3b01354",
         "aea59b820434f7e3022aa7db93a6d13b4c5f6c7be954e5067bd4d7fd888f0173",
+        "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
     },
     "skills/subagent-orchestrator/scripts/validate-routing-config.py": {
         "47b4651594044d35eaba1549ec639d30ec39ae11328cb1dcd21839a983d326f8",
@@ -132,10 +138,12 @@ ACCEPTED_PREDECESSORS = {
         "8adb983c172bfdf8f839a12cd3c92b014477203a955259103eb4bda1f85b7eb3",
         "450fab5a3a4a0b0b2d143892dd1c747bbe07951550268543b3cfc10dd8c10fee",
         "1b3ff4b091d23d188e31a44ddf20169a340edc24d14ba5adf2176033a00d014a",
+        "1d8ac347fea0a5c25109239c4120452eb637fa8191317188299a4d2f390bb659",
     },
     "skills/subagent-orchestrator/tests/test_validate_routing_config.py": {
         "2b39e4e8cfac0fd266d1d7ed7e6de550180cfff47c071e84a2614a107d7640d6",
         "346745466fae4ab43c51560812c59df6045764dbbc7cd1d5f56f07d0cd9fb358",
+        "c450daa0fd42d0bd0cf41242d22bb9e9e4367c6200bab8d55f8229efd84e6049",
     },
     "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json": {
         "83c8ab6e54b7cb9a6ecb33edcdf2447b3a54c62a0c93ca252c1c59767ed586f5",
@@ -143,10 +151,12 @@ ACCEPTED_PREDECESSORS = {
         "2ed78edc9d5513135fe9da271b1b5286b38d80e7e00db88d6d118e7d35f494cf",
         "9d5df95bc2a2baaa0548e87071fc499adcd23cb4b601685febb4e4fada4dd95c",
         "8850e1650822c24a47e72218ea759a9a0cc4b08b732199e7ccd0eb5f92534cac",
+        "a7d4c0a095f585bf2c8e06ddac6622a4d244162511ce1a57e3e9826767480abb",
     },
     "skills/subagent-orchestrator/tests/fixtures/lifecycle-authority-receipts.json": {
         "aeccd7a24408946c0f9acb4c08d1d33c039ae8ff5f34dcffb998d82bede817ba",
         "0518e099d599ef3f20a2e2e764bb50c6361261309c510d32ccecb91fc204d91b",
+        "f2f8ca311501ba43a7414e5c753724cd4e4792054713bddcf93cca031ee8db98",
     },
     "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": {
         "3f48548fcd7feae76687e44f84f466d86d941224b54958b4c4df15662f4b1eef",
@@ -159,12 +169,15 @@ ACCEPTED_PREDECESSORS = {
         "6c416cb314c95aa3980f2a0a83d008a341d82e4e394fdd84454438812aa123f5",
         "5cb331a096730e13e36f23b88ef06a4a81c889ea653e0dfcef348267bf64c55c",
         "24c6343f756da99267c674ed5ffe46d9ef821f467a0885395c6752b2ee853484",
+        "99ccc18991fa87281ab7656385f9b53962055f80052dc4819eccc1507222dc05",
+        "5f098953bfd936823b5511c6a8b363c5912d255c35b4d83ecacd9b90acd4da62",
     },
     "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py": {
         "e9a9d5046035c08040780596a0530ccfd1bb2d0d67a2031ed4f7f8e9e8d1f9ca",
         "e5db6b19f5de2fe41f44af5468409891f3f5aaf54563ff77dc8e03ee0c38ac0c",
         "801a39220ea8f0fbd9ac18ac5bf6e618fc5ebd0080066484dc1d1434060da00a",
         "a6c97013b5c0d7d56ee617f14d77e2b1a55f3f09d7921551bb169763a70065f8",
+        "29925d31fdb995d15d2fb359762c3ccd4f7596ec804acef85d3efa999567466e",
     },
 }
 

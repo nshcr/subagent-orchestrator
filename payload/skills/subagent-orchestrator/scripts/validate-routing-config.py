@@ -116,14 +116,14 @@ ROLE_INSTRUCTION_SHA256 = {
     "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
 }
 REFERENCE_SHA256 = {
-    "routing-policy.md": "7ad71e32f2cd794fb0371514fbb5c19c4a6df5759e54f3958a9a69d4d4c5a152",
-    "evaluation-policy.md": "86c455304eb053bdaf6255dc9185b455a30a96d1f1958ef633afbd92dfdd5cb7",
-    "delegation-contracts.md": "8da7a0d23855626d53bf834f4bb2020f72c13457fc12bceefbf3f1684e271293",
+    "routing-policy.md": "838094a6da58d863eff3885e3e2e64a2e61711636181f18a9caf9d86eda2ac09",
+    "evaluation-policy.md": "6feb335f607b667e74f4cd87df425fbd2b05372e59c294e7742ae43d86d711c5",
+    "delegation-contracts.md": "592f5c33f64abd8ffa3f04cbba6c0cf65342a0f5ff01a6513a5e3fb8d3001837",
 }
-SKILL_SHA256 = "e1fbf5508bb4491680245c21d2bf0524897e0983f35307836f91df2cf66ad61d"
+SKILL_SHA256 = "ecf218e1923a707a001ecbc4336ea974b5d4b67748cf22e1f3d394d933d88fca"
 GLOBAL_POLICY_SHA256 = {
-    "## Subagents and parallelism": "c8ece2451004efe55738e7763a5048a368331e5a02c2b6ad993eb5260a33e7d5",
-    "## 子代理与并行": "82ea8d7682749de120a9b332bfb415362a9e99bba9377e283db54711e0916894",
+    "## Subagents and parallelism": "7a00bf63cb46b1c27a82016857c6c20b5199367d37cb13e85ac1cb8ca02cad84",
+    "## 子代理与并行": "e7a559fa3a634a561dcc6ddbbb3354cc94897f7b93f3ad8a89c700e3e4a5b8bb",
 }
 GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
@@ -133,8 +133,9 @@ GLOBAL_POLICY_MARKERS = {
         "follow the skill's current routing and evidence-bus slice, topology, task-wide ownership",
         "one unique task occupies one trace scenario and rollover cannot reset task-wide state",
         "Slice owner paths bind every writer path/component and path artifact",
-        "Every work transfer has the complete exact-key canonical schema and binds spawn depth",
-        "Materiality authority binds an external issuer class",
+        "Every work transfer has the complete exact-key canonical schema, binds spawn depth",
+        "Every external receipt family binds its permitted issuer class at consumption",
+        "Freeze requires every task writer across all slices terminal",
         "message authority binds exact purpose plus canonical dependency and semantic-message digests",
         "bounded-peer artifact relay must come from the named producer's terminal receipt",
         "High-risk final states require fresh, independent, read-only, disjoint gates",
@@ -151,8 +152,9 @@ GLOBAL_POLICY_MARKERS = {
         "遵循该 skill 当前的证据总线切片、路由、拓扑、全任务所有权",
         "一个唯一任务只占一个 trace scenario，rollover 不得重置全任务状态",
         "slice owner paths 必须绑定每个 writer path/component 与 path artifact",
-        "每个 work transfer 使用完整、精确 key 的规范 schema，并绑定 spawn depth",
-        "materiality authority 必须绑定外部 issuer class",
+        "每个 work transfer 使用完整、精确 key 的规范 schema，绑定 spawn depth",
+        "每类外部收据在消费时都必须绑定获准 issuer class",
+        "冻结前所有 slice 的全任务 writer 都必须终态",
         "消息 authority 必须绑定精确 purpose、规范 dependency 摘要和语义消息摘要",
         "受限 peer 的 artifact relay 必须来自具名 producer 的终态收据",
         "高风险最终状态必须在同一文件系统哈希上接受 fresh、独立、只读且互不重叠的门禁",
@@ -164,9 +166,9 @@ GLOBAL_POLICY_MARKERS = {
     ),
 }
 LIFECYCLE_ASSET_SHA256 = {
-    "scripts/lifecycle_conformance.py": "99ccc18991fa87281ab7656385f9b53962055f80052dc4819eccc1507222dc05",
-    "tests/fixtures/lifecycle-trace.json": "a7d4c0a095f585bf2c8e06ddac6622a4d244162511ce1a57e3e9826767480abb",
-    "tests/fixtures/lifecycle-authority-receipts.json": "f2f8ca311501ba43a7414e5c753724cd4e4792054713bddcf93cca031ee8db98",
+    "scripts/lifecycle_conformance.py": "8f1f44edf1ea8404e49ae4970b398e9c8a10bbb880a220905fa2248b4c314b9e",
+    "tests/fixtures/lifecycle-trace.json": "55819002097e0fe4b08f9b44e9c1adc920ed8e9bf100ff659e1f62cffd8235b9",
+    "tests/fixtures/lifecycle-authority-receipts.json": "bcb360e9e21528f8bfc54427c2962b83488f171976ec604af745730783cdb1d1",
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",
@@ -450,7 +452,9 @@ def validate_skill_entry(checks: Checks, skill: str) -> None:
         "fork_turns=none",
         "task-wide primary source-access ledger",
         "proper subsets no larger than 10%",
-        "Freeze only after the writer is terminal.",
+        "Freeze only after every task writer across every slice is terminal",
+        "Tester acceptance plus one path artifact",
+        "At consumption every family binds its permitted issuer class",
         "Any readback change invalidates every gate.",
         "Close only with a terminal tree",
         "task-wide canonical component",
@@ -496,6 +500,9 @@ def validate_references(
         "at least three and 8192",
         "host, owner, or sealed harness signs",
         "Full-history children are ineligible",
+        "Tester transfers require unique acceptance fields",
+        "Every external receipt is checked when consumed",
+        "Every task writer across all slices must be terminal before freeze",
         "proper-subset sampling no larger than 10%",
         "Two accumulated writer compactions",
         "`send_message` carries externally admitted evidence",
@@ -519,7 +526,7 @@ def validate_references(
         "`governance_retention` separately from `efficiency_promotion`",
         "`retained-not-efficient`",
         "it cannot claim efficiency success.",
-        "`production-fact.v1`",
+        "`production-fact.v3`",
         "Active, dirty, unsupported, incomplete, or observational facts",
         "`implemented` -> `verified-local` -> `verified-ci`",
         "host-issued admission receipt",
@@ -531,6 +538,8 @@ def validate_references(
         "Producer / consumer / task / slice",
         "Output audience: <user-facing | model-facing>",
         "fork_turns=none",
+        "structured evidence tester requires unique acceptance fields",
+        "every external receipt rejects those participants and binds its family class",
         "non-padding bytes",
         "no more than 10%",
         "after two, reject another writer spawn or follow-up",

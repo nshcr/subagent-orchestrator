@@ -14,8 +14,8 @@ Keep this file as the workflow entrypoint. Detailed policy lives in references; 
 2. If neither material substitution nor required independence is present, stay
    primary. Explorer and worker also require an external materiality manifest.
 3. Open one `slice_open` from [delegation contracts](references/delegation-contracts.md): bind task, unique slice, milestone, change class, exact owner paths, gates, and state digest. Writer paths/components and path artifacts stay within that slice scope; task-wide alias unions remain permanent.
-4. Issue each child a complete canonical-snake-case immutable work-transfer receipt whose digest binds every mandatory field and spawn route/topology/depth. Use `fork_turns=none`; full-history children are ineligible.
-5. Require host-provided authority receipts outside the trace. A materiality issuer has an externally bound host/owner/sealed-harness class and cannot equal primary, any child/parent/role participant, or another agent identity. Trace hashes bind payloads, never issuer identity; unmatched authority fails closed.
+4. Issue each child a complete canonical-snake-case immutable work-transfer receipt whose digest binds every mandatory field and spawn route/topology/depth. Tester acceptance plus one path artifact, and reviewer invariant/escalation plus optional canonical Markdown body artifact, follow their role-specific contract. Use `fork_turns=none`; full-history children are ineligible.
+5. Require host-provided authority receipts outside the trace. At consumption every family binds its permitted issuer class and rejects primary or any pre-indexed current/future child, parent, role, or agent identity. Trace hashes bind payloads, never issuer identity; unmatched authority fails closed.
 
 ## Run, freeze, and close
 
@@ -24,7 +24,7 @@ Keep this file as the workflow entrypoint. Detailed policy lives in references; 
 2. Keep a task-wide primary source-access ledger. Precheck/sampling use one frozen denominator and proper subsets no larger than 10%; integration consumes admitted artifact/changed-path receipts with zero transferred source ranges/bytes. One scenario represents each unique task; rollover never resets access, materiality, ownership, compaction, gate, or receipt state.
 3. Treat wait timeout as observation-only. Never interrupt for silence, elapsed
    time, token use, credits, or repeated waits; every required descendant ends terminal.
-4. Freeze only after the writer is terminal. Tester, reviewer, gate, and close
+4. Freeze only after every task writer across every slice is terminal; later writer/owner mutation fails closed, invalidates all gates, and requires a new freeze. Tester, reviewer, gate, and close
    independently recompute HEAD, index, worktree, and changed-path digests.
 5. Any readback change invalidates every gate. Run three disjoint fresh final
    gates on one hash; repair requires all gates to rerun with attempt incremented.

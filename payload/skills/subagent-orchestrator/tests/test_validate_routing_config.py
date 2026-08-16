@@ -262,7 +262,7 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_lifecycle_owner_hash_or_trace_drift(self):
         errors = self.mutate_skill("tests/fixtures/lifecycle-trace.json", '"runtime_capacity": 16', '"runtime_capacity": 8')
         self.assert_error(errors, "lifecycle conformance asset integrity mismatch")
-        errors = self.mutate_skill("SKILL.md", "Freeze only after the writer is terminal.", "Freeze before writer terminal.")
+        errors = self.mutate_skill("SKILL.md", "Freeze only after every task writer across every slice is terminal", "Freeze before task writers are terminal")
         self.assertTrue(errors)
 
     def test_rejects_bounded_peer_depth_cap_or_message_broadening(self):

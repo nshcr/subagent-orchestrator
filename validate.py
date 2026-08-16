@@ -308,9 +308,23 @@ def verify_portability() -> None:
         "materiality_issuer_participant_exclusion": (
             "preindexed-primary-child-parent-role-and-agent-identities"
         ),
-        "primary_access_receipt": "canonical-payload-bound",
+        "primary_access_receipt": "canonical-payload-plus-external-authority-bound",
+        "external_receipt_issuer_classes": (
+            "primary-access-materiality:host-owner-sealed-harness;"
+            "compaction-message:host-owner;peer-capability-relay-pilot:host"
+        ),
+        "external_receipt_participant_exclusion": (
+            "preindexed-current-and-future-task-identities-at-consumption"
+        ),
         "work_transfer_schema": "complete-exact-key-canonical-snake-case",
         "work_transfer_spawn_binding": "route-topology-and-delegation-depth",
+        "role_specific_transfer_semantics": (
+            "tester-acceptance-path-artifact;"
+            "reviewer-invariants-escalation-optional-markdown-body"
+        ),
+        "reviewer_gate_invariant_binding": (
+            "transfer-equals-registry-equals-result-owner"
+        ),
         "send_message_digest": "canonical-semantic-payload-excluding-authority-anchor-and-digest-fields",
         "send_message_admission": "external-receipt-plus-original-transfer-scope",
         "send_message_authority_binding": (
@@ -329,7 +343,8 @@ def verify_portability() -> None:
     }:
         fail("portable profile evidence bus mismatch")
     if profile.get("lifecycle") != {
-        "freeze_after_writer_terminal": True,
+        "freeze_after_all_task_workers_terminal": True,
+        "post_freeze_writer_owner_mutation": "fail-closed-and-invalidate-generation",
         "readback_fields": ["head", "index", "worktree", "changed_paths"],
         "writer_compaction_cap_per_task_owner_component": 2,
         "writer_compaction_authority": "external-cumulative-receipt",

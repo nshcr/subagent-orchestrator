@@ -77,8 +77,47 @@ class LifecycleConformanceTest(unittest.TestCase):
         spawn["authority_receipts"]["materiality"] = receipt["receipt_digest"]
         self.reseal_transfer(spawn)
 
+    def resign_authority_receipt(
+        self, authority, collection, old_digest, *, issuer, issuer_kind="host"
+    ):
+        receipt = next(
+            item for item in authority[collection]
+            if item["receipt_digest"] == old_digest
+        )
+        receipt.update(issuer_kind=issuer_kind)
+        if "issued_by" in receipt:
+            receipt["issued_by"] = issuer
+        else:
+            receipt["issuer"] = issuer
+        self.reseal(receipt, excluded=("receipt_digest",))
+        return receipt["receipt_digest"]
+
+    def qualified_max_escalation(self):
+        return {
+            "prior_terminal_line": "risk_reviewer BLOCK",
+            "evidence": ["fresh gate evidence"],
+            "competing_explanations": ["implementation defect", "fixture defect"],
+            "irreversible_decision": "request max-effort final review",
+        }
+
+    def reviewer_body_artifact(self, child):
+        return {
+            "artifact_kind": "body",
+            "artifact_path": f"{child}-review-body",
+            "artifact_format": "markdown",
+            "artifact_writer": child,
+            "receipt_transfer_rule": "artifact-body-markers",
+        }
+
     def test_accepts_complete_evidence_bus_slice(self):
         self.assertEqual(self.errors(), [])
+
+    def test_installed_production_fact_policy_matches_executable_schema(self):
+        from evaluation.production_facts import SCHEMA_VERSION
+
+        policy = (skill_dir / "references" / "evaluation-policy.md").read_text()
+        self.assertIn(f"`{SCHEMA_VERSION}`", policy)
+        self.assertNotIn("`production-fact.v1`", policy)
 
     def test_rejects_task_wide_ledger_reset_across_three_scenarios(self):
         trace = copy.deepcopy(self.trace)
@@ -219,6 +258,99 @@ class LifecycleConformanceTest(unittest.TestCase):
         self.event("gate_result", child="review-method", trace=trace)["readback"]["worktree"] = "0" * 64
         self.assert_rejected(trace, "stale or invalid gate attempt")
 
+    def test_freeze_requires_every_worker_across_two_slices_terminal(self):
+        trace = copy.deepcopy(self.trace)
+        first_slice = self.event("slice_open", trace=trace)
+        second_slice = copy.deepcopy(first_slice)
+        second_slice.update(
+            slice_id="slice-second",
+            owner_paths=["second/component"],
+        )
+        second_slice["state_digest"] = module.canonical_digest(
+            {key: value for key, value in second_slice.items() if key not in {"type", "state_digest"}}
+        )
+        second_spawn = copy.deepcopy(
+            self.event("spawn", child="writer-governance", trace=trace)
+        )
+        second_spawn.update(
+            child="writer-second",
+            slice_id="slice-second",
+            owner_component="second-component",
+            owner_paths=["second/component"],
+        )
+        second_spawn["work_transfer"].update(
+            consumer="writer-second",
+            slice_id="slice-second",
+            sampling_allowlist=["second/component/source.py"],
+        )
+        self.reseal_transfer(second_spawn)
+        manifest = second_spawn["materiality_manifest"]
+        manifest.update(slice_id="slice-second")
+        manifest["manifest_digest"] = module.canonical_digest(
+            {key: value for key, value in manifest.items() if key != "manifest_digest"}
+        )
+        writer_receipt = self.event("receipt", child="writer-governance", trace=trace)
+        insert_at = self.events(trace).index(writer_receipt) + 1
+        self.events(trace)[insert_at:insert_at] = [second_slice, second_spawn]
+        self.assert_rejected(trace, "freeze requires every task worker terminal")
+        self.assert_rejected(trace, "stale or invalid gate attempt")
+        self.assert_rejected(trace, "pilot admission cannot bind while a task writer is running")
+
+    def test_post_freeze_writer_and_owner_mutations_fail_closed(self):
+        for mutation, marker in (
+            ("spawn", "writer spawn after freeze is forbidden"),
+            ("followup", "writer followup after freeze is forbidden"),
+            ("owner_union", "owner union after freeze is forbidden"),
+        ):
+            with self.subTest(mutation=mutation):
+                trace = copy.deepcopy(self.trace)
+                freeze = self.event("freeze", trace=trace)
+                insert_at = self.events(trace).index(freeze) + 1
+                if mutation == "spawn":
+                    event = copy.deepcopy(
+                        self.event("spawn", child="writer-governance", trace=trace)
+                    )
+                    event.update(child="writer-after-freeze")
+                    event["work_transfer"]["consumer"] = "writer-after-freeze"
+                    self.reseal_transfer(event)
+                elif mutation == "followup":
+                    spawn = self.event("spawn", child="writer-governance", trace=trace)
+                    event = {
+                        "type": "followup_task",
+                        "target": "writer-governance",
+                        "reason": "authorized_continue",
+                        "same_scope": True,
+                        "scope_digest": spawn["work_transfer"]["admitted_state_digest"],
+                        "authorized": True,
+                        "changes_scope": False,
+                        "status_poll": False,
+                    }
+                else:
+                    event = copy.deepcopy(self.event("owner_union", trace=trace))
+                self.events(trace).insert(insert_at, event)
+                self.assert_rejected(trace, marker)
+
+    def test_post_freeze_writer_receipt_or_compaction_fails_closed(self):
+        trace = copy.deepcopy(self.trace)
+        freeze = self.event("freeze", trace=trace)
+        spawn = self.event("spawn", child="writer-governance", trace=trace)
+        receipt = copy.deepcopy(
+            self.event("receipt", child="writer-governance", trace=trace)
+        )
+        followup = {
+            "type": "followup_task",
+            "target": "writer-governance",
+            "reason": "authorized_continue",
+            "same_scope": True,
+            "scope_digest": spawn["work_transfer"]["admitted_state_digest"],
+            "authorized": True,
+            "changes_scope": False,
+            "status_poll": False,
+        }
+        insert_at = self.events(trace).index(freeze) + 1
+        self.events(trace)[insert_at:insert_at] = [followup, receipt]
+        self.assert_rejected(trace, "writer receipt/compaction after freeze is forbidden")
+
     def test_repair_invalidates_every_gate(self):
         trace = copy.deepcopy(self.trace)
         close = self.event("close", trace=trace)
@@ -278,6 +410,92 @@ class LifecycleConformanceTest(unittest.TestCase):
                     "task participant/agent identity",
                     authority,
                 )
+
+    def test_every_external_receipt_family_rejects_participant_issuers(self):
+        cases = (
+            ("primary_access_receipts", "primary_access", None, "authority_anchor_digest", "review-method", "primary access is not admitted"),
+            ("compaction_receipts", "spawn", "writer-governance", "compaction_baseline", "tester", "compaction baseline is not admitted"),
+            ("message_receipts", "message", "primary", "admission_anchor_digest", "primary", "send_message receipt/scope is not admitted"),
+            ("peer_capability_receipts", "spawn", "peer-coordinator", "peer_capability", "peer-coordinator", "capability is not admitted"),
+            ("peer_relay_receipts", "spawn", "peer-coordinator", "peer_relay", "peer-coordinator", "material relay is not admitted"),
+        )
+        for collection, kind, child, anchor_key, issuer, marker in cases:
+            with self.subTest(collection=collection, issuer=issuer):
+                trace = copy.deepcopy(self.trace)
+                authority = copy.deepcopy(self.authority)
+                if kind == "primary_access":
+                    consumer = self.event("primary_access", trace=trace)
+                    old = consumer[anchor_key]
+                elif kind == "message":
+                    consumer = self.message(child, trace=trace)
+                    old = consumer[anchor_key]
+                else:
+                    consumer = self.event(kind, child=child, trace=trace)
+                    old = consumer["authority_receipts"][anchor_key]
+                replacement = self.resign_authority_receipt(
+                    authority, collection, old, issuer=issuer,
+                )
+                if kind in {"primary_access", "message"}:
+                    consumer[anchor_key] = replacement
+                else:
+                    consumer["authority_receipts"][anchor_key] = replacement
+                self.assert_rejected(trace, marker, authority)
+
+    def test_terminal_writer_compaction_rejects_rehashed_writer_issuer(self):
+        trace = copy.deepcopy(self.trace)
+        authority = copy.deepcopy(self.authority)
+        receipt = self.event("receipt", child="writer-governance", trace=trace)
+        old = receipt["compaction_receipt_digest"]
+        receipt["compaction_receipt_digest"] = self.resign_authority_receipt(
+            authority, "compaction_receipts", old,
+            issuer="writer-governance", issuer_kind="host",
+        )
+        self.assert_rejected(trace, "writer compaction is not admitted", authority)
+
+    def test_receipt_family_specific_issuer_classes_fail_closed(self):
+        cases = (
+            ("compaction_receipts", "spawn", "writer-governance", "compaction_baseline", "sealed-harness", "compaction baseline is not admitted"),
+            ("message_receipts", "message", "primary", "admission_anchor_digest", "sealed-harness", "send_message receipt/scope is not admitted"),
+            ("peer_capability_receipts", "spawn", "peer-coordinator", "peer_capability", "owner", "capability is not admitted"),
+            ("peer_relay_receipts", "spawn", "peer-coordinator", "peer_relay", "owner", "material relay is not admitted"),
+        )
+        for collection, kind, child, anchor_key, issuer_kind, marker in cases:
+            with self.subTest(collection=collection, issuer_kind=issuer_kind):
+                trace = copy.deepcopy(self.trace)
+                authority = copy.deepcopy(self.authority)
+                consumer = self.message(child, trace=trace) if kind == "message" else self.event(kind, child=child, trace=trace)
+                old = consumer[anchor_key] if kind == "message" else consumer["authority_receipts"][anchor_key]
+                replacement = self.resign_authority_receipt(
+                    authority, collection, old,
+                    issuer="external-authority", issuer_kind=issuer_kind,
+                )
+                if kind == "message":
+                    consumer[anchor_key] = replacement
+                else:
+                    consumer["authority_receipts"][anchor_key] = replacement
+                self.assert_rejected(trace, marker, authority)
+
+    def test_pilot_authority_cannot_be_primary_even_after_rehash(self):
+        trace = copy.deepcopy(self.trace)
+        authority = copy.deepcopy(self.authority)
+        pilot = self.event("pilot_admission", trace=trace)
+        pilot["issued_by"] = "primary"
+        self.reseal(pilot)
+        authority["pilot_authorizations"] = [
+            {key: value for key, value in pilot.items() if key != "type"}
+        ]
+        self.assert_rejected(trace, "self-issued/tampered/expired", authority)
+
+    def test_pilot_authority_requires_host_issuer_class(self):
+        trace = copy.deepcopy(self.trace)
+        authority = copy.deepcopy(self.authority)
+        pilot = self.event("pilot_admission", trace=trace)
+        pilot.update(issuer_kind="owner", issued_by="external-owner")
+        self.reseal(pilot)
+        authority["pilot_authorizations"] = [
+            {key: value for key, value in pilot.items() if key != "type"}
+        ]
+        self.assert_rejected(trace, "self-issued/tampered/expired", authority)
 
     def test_three_writer_followups_cannot_replay_zero_compaction_receipt(self):
         trace = copy.deepcopy(self.trace)
@@ -457,6 +675,108 @@ class LifecycleConformanceTest(unittest.TestCase):
         spawn["work_transfer"]["delegation_depth"] = 1
         self.reseal_transfer(spawn)
         self.assert_rejected(trace, "delegation depth differs")
+
+    def test_evidence_tester_requires_acceptance_fields_and_concrete_artifact(self):
+        for field, value, marker in (
+            ("acceptance_fields", "not-applicable", "requires unique acceptance_fields"),
+            ("artifact_contract", "none", "requires one concrete child-owned path artifact"),
+            (
+                "artifact_contract",
+                self.reviewer_body_artifact("tester"),
+                "requires one concrete child-owned path artifact",
+            ),
+        ):
+            with self.subTest(field=field):
+                trace = copy.deepcopy(self.trace)
+                spawn = self.event("spawn", child="tester", trace=trace)
+                spawn["work_transfer"][field] = value
+                self.reseal_transfer(spawn)
+                self.assert_rejected(trace, marker)
+
+    def test_reviewer_accepts_requested_canonical_markdown_body_artifact(self):
+        for child, agent_type in (
+            ("review-method", "risk_reviewer"),
+            ("review-efficiency", "risk_reviewer"),
+            ("review-governance", "risk_reviewer"),
+            ("review-method", "risk_reviewer_max"),
+        ):
+            with self.subTest(child=child, agent_type=agent_type):
+                trace = copy.deepcopy(self.trace)
+                spawn = self.event("spawn", child=child, trace=trace)
+                spawn.update(agent_type=agent_type)
+                spawn["work_transfer"]["route"] = agent_type
+                if agent_type == "risk_reviewer_max":
+                    spawn["work_transfer"]["escalation_receipt"] = (
+                        self.qualified_max_escalation()
+                    )
+                spawn["work_transfer"]["artifact_contract"] = self.reviewer_body_artifact(child)
+                self.reseal_transfer(spawn)
+                self.assertEqual(self.errors(trace), [])
+
+    def test_reviewer_rejects_noncanonical_or_path_artifact(self):
+        for mutation in (
+            {"artifact_kind": "path"},
+            {"artifact_format": "Markdown"},
+            {"artifact_writer": "other-reviewer"},
+            {"receipt_transfer_rule": "terminal-receipt"},
+        ):
+            with self.subTest(mutation=mutation):
+                trace = copy.deepcopy(self.trace)
+                spawn = self.event("spawn", child="review-method", trace=trace)
+                artifact = self.reviewer_body_artifact("review-method")
+                artifact.update(mutation)
+                spawn["work_transfer"]["artifact_contract"] = artifact
+                self.reseal_transfer(spawn)
+                self.assert_rejected(
+                    trace,
+                    "artifact must be none or a canonical child-owned Markdown body",
+                )
+
+    def test_reviewer_transfer_must_match_one_registered_gate(self):
+        trace = copy.deepcopy(self.trace)
+        spawn = self.event("spawn", child="review-method", trace=trace)
+        spawn["work_transfer"]["named_invariants"] = ["unrelated-invariant"]
+        self.reseal_transfer(spawn)
+        self.assert_rejected(trace, "do not own exactly one registered gate")
+
+    def test_xhigh_reviewer_rejects_nonempty_escalation_receipt(self):
+        trace = copy.deepcopy(self.trace)
+        spawn = self.event("spawn", child="review-method", trace=trace)
+        spawn["work_transfer"]["escalation_receipt"] = self.qualified_max_escalation()
+        self.reseal_transfer(spawn)
+        self.assert_rejected(trace, "xhigh escalation receipt must be not-applicable")
+
+    def test_max_reviewer_requires_valid_evidence_qualified_escalation(self):
+        for value, marker in (
+            ("not-applicable", "requires an evidence-qualified escalation receipt"),
+            ({"bad": "receipt"}, "escalation receipt is invalid"),
+        ):
+            with self.subTest(value=value):
+                trace = copy.deepcopy(self.trace)
+                spawn = self.event("spawn", child="review-method", trace=trace)
+                spawn.update(agent_type="risk_reviewer_max")
+                spawn["work_transfer"].update(
+                    route="risk_reviewer_max",
+                    escalation_receipt=value,
+                )
+                self.reseal_transfer(spawn)
+                self.assert_rejected(trace, marker)
+
+        trace = copy.deepcopy(self.trace)
+        spawn = self.event("spawn", child="review-method", trace=trace)
+        spawn.update(agent_type="risk_reviewer_max")
+        spawn["work_transfer"].update(
+            route="risk_reviewer_max",
+            escalation_receipt=self.qualified_max_escalation(),
+        )
+        self.reseal_transfer(spawn)
+        self.assertEqual(self.errors(trace), [])
+
+    def test_reviewer_registry_and_result_ownership_cannot_diverge(self):
+        trace = copy.deepcopy(self.trace)
+        result = self.event("gate_result", child="review-method", trace=trace)
+        result.update(gate_id="efficiency", invariants=["cost-integrity"])
+        self.assert_rejected(trace, "stale or invalid gate attempt")
 
     def test_writer_artifact_path_must_stay_in_writer_and_slice_scope(self):
         trace = copy.deepcopy(self.trace)
