@@ -21,8 +21,9 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 4. Keep the primary doing material integration or independent work. If the primary
    would mostly coordinate, poll, or wait, reduce delegation and do the work directly.
 5. Give each child the compact contract in
-   [delegation contracts](references/delegation-contracts.md). One task has at most
-   one writer; the primary owns authorization, scope, integration, and acceptance.
+   [delegation contracts](references/delegation-contracts.md). Keep at most one active
+   writer and never overlap write scopes; the primary integrates only after the child
+   is terminal. The primary owns authorization, scope, integration, and acceptance.
 
 ## Budgets and expansion checkpoints
 
@@ -33,6 +34,9 @@ harnesses, schemas, policy engines, installers, or more reviewers.
   delegation, or scope-expanding follow-up as an expansion checkpoint. Freeze new
   spawns. Continue only when the latest explicit user instruction already authorizes
   that exact expansion; otherwise use the primary or close without another child.
+  Authorization never waives ownership, terminal-state, integration, or freshness
+  checks. Before a later wave, collect every current required child to terminal state
+  and integrate its receipt.
 - Ask one question only when evidence cannot choose among materially different
   acceptable outcomes and expansion changes outcome, scope, meaningful cost, risk,
   or acceptance. State the boundary and evidence, recommend one default with its
@@ -48,8 +52,10 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 
 ## Review without whack-a-mole
 
-1. Review only a frozen candidate and exact named acceptance invariants. A reviewer
-   is a terminal gate, not a continuing designer or a source of new requirements.
+1. Freeze a candidate only after all writers are terminal and primary integration is
+   complete. Review that exact state and named acceptance invariants. Any relevant
+   state change invalidates prior gate results. A reviewer is a terminal gate, not a
+   continuing designer or a source of new requirements.
 2. Collect the complete first review batch before changing files. Triage findings
    against the original user goal; defer improvements and out-of-scope risks.
 3. Repair original-acceptance blockers once, then run one fresh bounded recheck.

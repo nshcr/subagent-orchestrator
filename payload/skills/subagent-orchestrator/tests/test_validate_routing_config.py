@@ -92,6 +92,30 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("exact expansion" in error for error in self.errors()))
 
+    def test_rejects_writer_overlap(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "writer and never overlap write scopes",
+            "writer and allow overlapping write scopes",
+        )
+        self.assertTrue(any("active writer" in error for error in self.errors()))
+
+    def test_rejects_unintegrated_later_wave(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "Before a later wave, collect every current required child to terminal state",
+            "Start a later wave while current children are running",
+        )
+        self.assertTrue(any("later wave" in error for error in self.errors()))
+
+    def test_rejects_moving_review_state(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "state change invalidates prior gate results",
+            "state change preserves prior gate results",
+        )
+        self.assertTrue(any("state change" in error for error in self.errors()))
+
     def test_rejects_operational_blocker_as_preference(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
@@ -111,8 +135,8 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_reviewer_designer_drift(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "is a terminal gate, not a continuing designer",
-            "A reviewer continuously redesigns the implementation",
+            "reviewer is a terminal gate, not a",
+            "reviewer continuously redesigns the implementation and is a",
         )
         self.assertTrue(any("terminal gate" in error for error in self.errors()))
 

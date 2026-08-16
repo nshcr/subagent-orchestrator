@@ -53,13 +53,17 @@ GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
         "Default to a single agent",
         "If the primary would mainly coordinate, poll, or wait",
-        "ordinary first wave has at most two leaf children and one writer",
+        "ordinary first wave has at most two leaf children",
+        "at most one active writer with no overlapping write scopes",
         "opens an expansion checkpoint and cannot spawn automatically",
         "Proceed only under exact current user authorization",
+        "before a later wave, collect every current required child to terminal state and integrate its receipt",
         "ask one recommended-default question only for a material user-owned",
         "one batch of at most three reviewers with disjoint invariants",
         "report operational blockers instead of posing them as preferences",
-        "Reviewers inspect one frozen state and only the named invariants",
+        "Freeze for review only after all writers are terminal",
+        "any relevant state change invalidates prior gate results",
+        "Reviewers inspect only that state and the named invariants",
         "another BLOCK stops further review",
         "child terminal state or a spent delegation budget does not prove task completion",
         "Static harness checks never prove host enforcement or production efficiency",
@@ -67,13 +71,17 @@ GLOBAL_POLICY_MARKERS = {
     "## 子代理与并行": (
         "默认单代理",
         "主代理主要只剩编排、轮询或等待",
-        "普通首轮最多两个叶子子代理且只有一个写入者",
+        "普通首轮最多两个叶子子代理",
+        "同时最多一个写入者且写入范围不得重叠",
         "进入编排扩张检查点，禁止自动派生",
         "当前用户指令已精确授权该次扩张",
+        "开始后续轮次前必须先收齐当前所有必需子代理的终态并整合其收据",
         "用户拥有的重大取舍",
         "一批最多三个、invariant 互斥的 reviewer",
         "不得伪装成用户偏好",
-        "Reviewer 只审一个冻结状态和命名 invariant",
+        "只有所有写入者终态且主代理完成整合后才能冻结评审状态",
+        "任何相关状态变化都会使已有门禁结论失效",
+        "Reviewer 只审该状态和命名 invariant",
         "仍有 BLOCK 就停止继续评审",
         "子代理终态或编排预算耗尽都不证明任务完成",
         "静态 harness 检查不得冒充宿主强制或生产效率证明",
@@ -194,12 +202,16 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Prove the monkey before building the pedestal",
         "Start primary-only",
         "If the primary would mostly coordinate, poll, or wait",
+        "Keep at most one active writer and never overlap write scopes",
         "Treat a second delegation wave",
         "Freeze new spawns",
         "latest explicit user instruction already authorizes that exact expansion",
+        "Before a later wave, collect every current required child to terminal state",
         "Ask one question only when evidence cannot choose",
         "do not pose them as preferences",
         "After two decision-directed agent attempts",
+        "Freeze a candidate only after all writers are terminal",
+        "Any relevant state change invalidates prior gate results",
         "A reviewer is a terminal gate, not a continuing designer",
         "Repair original-acceptance blockers once",
         "stop further review",
@@ -211,11 +223,15 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
     require_markers(checks, routing, "routing policy", (
         "Every child is a leaf",
         "at most two children in the ordinary first wave",
+        "Keep at most one active writer",
         "reviewer rerun opens an expansion checkpoint",
         "latest explicit user instruction authorizes that exact expansion",
+        "Before a later wave, collect every current required child to terminal state",
         "do not turn it into a preference question",
         "another BLOCK stops further review",
         "Child terminal state or a spent delegation budget is not task closure",
+        "Freeze for review only after every writer is terminal",
+        "any relevant change invalidates the result",
         "A reviewer finding outside the named invariants is a deferred observation",
         "Do not build a new harness, schema, authority system, installer feature, or policy engine",
     ))
@@ -224,6 +240,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Owned scope: <exact paths, artifact, or read-only surface>",
         "Use `followup_task` only once",
         "Never use either tool for status polling, reviewer redesign, or scope expansion",
+        "Keep one active writer and no overlapping write scopes",
+        "Before a later wave, collect every current required child to terminal state",
         "authorization must name that exact expansion",
         "closes only the transferred work, not the user task",
     ))
@@ -233,6 +251,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Minimal efficiency receipt",
         "An expansion checkpoint prohibits automatic spawning",
         "Report operational blockers with the next owner or action",
+        "A later wave is not admissible until current required children are terminal",
+        "a relevant state change invalidates it",
         "Reviewer scope is frozen with the named invariants",
         "Reviewer-driven redesign must not continue autonomously",
         "is not task completion",
@@ -295,10 +315,11 @@ def main() -> int:
             print(f"- {error}")
         return 1
     print(f"PASS: {checks.count} static routing configuration checks")
-    print("- default: primary; ordinary first wave: two leaf children, one writer")
+    print("- default: primary; ordinary first wave: two leaf children; one active writer")
     print("- expansion checkpoint: no automatic second wave, writer addition, scope growth, or reviewer rerun")
+    print("- wave boundary: current required children terminal and integrated before another wave")
     print("- user question: one recommended default for a material user-owned choice only")
-    print("- reviewer boundary: one frozen scope, one repair batch, one fresh recheck")
+    print("- reviewer boundary: integrated frozen state, one repair batch, one fresh recheck")
     print("- closure boundary: child terminal state and spent budget are not task completion")
     print("- evidence boundary: static consistency only; no host or production-efficiency claim")
     return 0

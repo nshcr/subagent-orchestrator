@@ -110,6 +110,18 @@ class PortableProfileContractTest(unittest.TestCase):
                     ordinary_first_wave_writer_cap=2
                 ),
             ),
+            (
+                "active-writer-cap",
+                lambda document: document["concurrency"].update(
+                    active_writer_cap=2
+                ),
+            ),
+            (
+                "later-wave-precondition",
+                lambda document: document["concurrency"].update(
+                    later_wave_precondition="none"
+                ),
+            ),
         )
         for label, mutate in mutations:
             with self.subTest(label=label):

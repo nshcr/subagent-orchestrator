@@ -33,10 +33,13 @@ do not qualify a task for delegation.
   another writer, scope expansion, or reviewer rerun opens an expansion checkpoint:
   no new child starts without exact current user authorization. Otherwise the primary
   continues or closes, asking one question only for a material user-owned choice.
+  Before a later wave, all current required children must be terminal and integrated;
+  at most one writer may be active and write scopes never overlap.
 - Reviewers inspect one frozen state and named invariants. After one repair and one
   fresh recheck, another BLOCK stops further review. Operational blockers are reported,
   out-of-scope ideas are deferred, and only a named material acceptance choice is
-  returned to the user.
+  returned to the user. Freeze follows writer terminal state and integration, and any
+  relevant state change invalidates the previous review result.
 - If the primary would mainly coordinate, poll, or wait, it should do the work
   directly. Prove the user-facing behavior before building supporting machinery.
 - Child terminal state and exhausted delegation budget do not prove task completion;

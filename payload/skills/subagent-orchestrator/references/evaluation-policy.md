@@ -25,6 +25,8 @@ Record, when available:
 - child attempts, failed or interrupted attempts, and delegation waves;
 - writer count, reviewer attempts, retries, and primary replay;
 - expansion checkpoints, user questions, and primary-only fallbacks;
+- concurrent or overlapping writers, unintegrated terminal receipts, and moving-state
+  review attempts as correctness failures;
 - wait timeouts as telemetry, not failure;
 - total primary and child tokens or actual credits, keeping cached raw usage distinct
   from billed credits;
@@ -42,6 +44,9 @@ evidence.
   question. Without exact prior authorization, prefer primary-only work or closure.
   Ask only when evidence leaves a material user-owned outcome, scope, cost, risk, or
   acceptance choice. Report operational blockers with the next owner or action.
+- A later wave is not admissible until current required children are terminal and their
+  receipts are integrated. Review evidence is valid only for a state frozen after all
+  writers are terminal; a relevant state change invalidates it.
 - Prefer a candidate only when quality does not regress and end-to-end overhead is
   meaningfully lower on the decision-relevant task.
 - A mandatory independent safety gate may remain even when it is not an efficiency

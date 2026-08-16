@@ -21,12 +21,15 @@ or idle concurrency slot is not admission evidence.
 ## Topology and budget
 
 - No child delegates or messages peers. Use direct children only.
-- Start at most two children in the ordinary first wave, with at most one writer.
+- Start at most two children in the ordinary first wave. Keep at most one active writer
+  and never overlap write scopes; primary integration waits for writer terminal state.
 - When the user explicitly requests independent multi-review, allow one final batch
   of at most three reviewers with disjoint invariants on one frozen state.
 - A second wave, another writer, scope expansion, or reviewer rerun opens an expansion
   checkpoint and freezes new spawns. Continue only when the latest explicit user
-  instruction authorizes that exact expansion.
+  instruction authorizes that exact expansion. Before a later wave, collect every
+  current required child to terminal state and integrate its receipt; authorization
+  does not waive ownership or freshness checks.
 - Without exact authorization, prefer the primary-only or close path. Ask one question
   only when evidence cannot choose among materially different acceptable outcomes and
   expansion changes outcome, scope, meaningful cost, risk, or acceptance. Report an
@@ -37,6 +40,8 @@ or idle concurrency slot is not admission evidence.
 
 ## Stop rules
 
+- Freeze for review only after every writer is terminal and primary integration is
+  complete. Bind review to that exact state; any relevant change invalidates the result.
 - Gather a complete review batch before repair. Perform at most one autonomous
   repair batch and one fresh recheck; another BLOCK stops further review. Ask the user
   only for a named material acceptance choice; otherwise report the blocker and next

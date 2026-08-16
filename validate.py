@@ -204,7 +204,10 @@ def verify_portability() -> None:
         "runtime_thread_cap": config["max_concurrent_threads_per_session"],
         "ordinary_first_wave_child_cap": 2,
         "ordinary_first_wave_writer_cap": 1,
+        "active_writer_cap": 1,
+        "overlapping_write_scopes_allowed": False,
         "later_wave_requires_expansion_checkpoint": True,
+        "later_wave_precondition": "current-required-children-terminal-and-integrated",
         "unapproved_expansion_route": "primary-or-close",
         "checkpoint_question_scope": "material-user-owned-choice-only",
         "explicit_final_review_cap": 3,
@@ -263,6 +266,9 @@ def verify_portability() -> None:
         "children_are_leaves": True,
         "peer_messages": "none",
         "later_wave_requires_expansion_checkpoint": True,
+        "review_freeze_precondition": (
+            "all-writers-terminal-and-primary-integration-complete"
+        ),
         "operational_blocker_route": "report-next-owner-or-action",
         "user_facing_language": "user-preferred",
         "model_facing_language": "English",
