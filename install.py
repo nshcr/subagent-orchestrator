@@ -175,6 +175,7 @@ ACCEPTED_PREDECESSORS = {
         "24c6343f756da99267c674ed5ffe46d9ef821f467a0885395c6752b2ee853484",
         "99ccc18991fa87281ab7656385f9b53962055f80052dc4819eccc1507222dc05",
         "5f098953bfd936823b5511c6a8b363c5912d255c35b4d83ecacd9b90acd4da62",
+        "46bdb5ec06ecde33731aab7fb69c713043c8cec15f65fb0e44bc6963d512465d",
     },
     "skills/subagent-orchestrator/tests/test_lifecycle_conformance.py": {
         "e9a9d5046035c08040780596a0530ccfd1bb2d0d67a2031ed4f7f8e9e8d1f9ca",

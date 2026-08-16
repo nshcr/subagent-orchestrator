@@ -166,7 +166,7 @@ GLOBAL_POLICY_MARKERS = {
     ),
 }
 LIFECYCLE_ASSET_SHA256 = {
-    "scripts/lifecycle_conformance.py": "8f1f44edf1ea8404e49ae4970b398e9c8a10bbb880a220905fa2248b4c314b9e",
+    "scripts/lifecycle_conformance.py": "fe1d64292cc40f0908cca5a022b3927609568c159d08c9e2935b7f880c0354f1",
     "tests/fixtures/lifecycle-trace.json": "55819002097e0fe4b08f9b44e9c1adc920ed8e9bf100ff659e1f62cffd8235b9",
     "tests/fixtures/lifecycle-authority-receipts.json": "bcb360e9e21528f8bfc54427c2962b83488f171976ec604af745730783cdb1d1",
 }

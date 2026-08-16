@@ -371,6 +371,7 @@ def validate_scenario(
     gates: dict[str, dict] = {}
     invariant_owner: dict[str, str] = {}
     reviewer_gate_owners: dict[str, str] = {}
+    max_reviewer_count = 0
     material_ranges: list[tuple[str, int, int]] = []
     material_contents: set[str] = set()
     material_bytes = 0
@@ -486,6 +487,10 @@ def validate_scenario(
                 errors.append(f"{location}: spawn schema invalid")
                 continue
             child, parent, agent_type = event["child"], event["parent"], event["agent_type"]
+            if agent_type == "risk_reviewer_max":
+                max_reviewer_count += 1
+                if max_reviewer_count > 1:
+                    errors.append(f"{location}: task-wide risk_reviewer_max cap exceeded")
             if not isinstance(child, str) or not child or child in nodes or not isinstance(event["slice_id"], str) or event["slice_id"] not in slices:
                 errors.append(f"{location}: spawn identity invalid")
                 continue

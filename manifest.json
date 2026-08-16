@@ -130,8 +130,8 @@
     },
     {
       "path": "install.py",
-      "sha256": "7a314fae5b142b4b023824cfb40d000fbc39cb522bf21da020e6366d69fcda10",
-      "size": 154609
+      "sha256": "c45680e97e36c95de37382f35e7071522cd6dfdfe28284be4b38ad694283c403",
+      "size": 154685
     },
     {
       "path": "payload/AGENTS.section.en.md",
@@ -195,12 +195,12 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/lifecycle_conformance.py",
-      "sha256": "8f1f44edf1ea8404e49ae4970b398e9c8a10bbb880a220905fa2248b4c314b9e",
-      "size": 65208
+      "sha256": "fe1d64292cc40f0908cca5a022b3927609568c159d08c9e2935b7f880c0354f1",
+      "size": 65459
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "17681eb55039318966de8da3333f1693bfc57284c0ab00a3b046c3a0618603bf",
+      "sha256": "b4756a15a0f4692712fb0a62bd04b54a38e4fffea142a2bbe208ae28b02e98e6",
       "size": 31805
     },
     {
@@ -215,8 +215,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_lifecycle_conformance.py",
-      "sha256": "d737910beab6e5851ee31d1fde14be30cf6e044f9f7fd9fb00867c4f2091a885",
-      "size": 49287
+      "sha256": "1b4679d58c4a715bc4b3b050554d426143a0ae595f057baeaabed622abe5cb7a",
+      "size": 50425
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",

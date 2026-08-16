@@ -772,6 +772,31 @@ class LifecycleConformanceTest(unittest.TestCase):
         self.reseal_transfer(spawn)
         self.assertEqual(self.errors(trace), [])
 
+    def test_task_wide_max_reviewer_cap_accepts_zero_or_one_and_rejects_two_or_three(self):
+        reviewer_children = (
+            "review-method",
+            "review-efficiency",
+            "review-governance",
+        )
+        for max_reviewer_count in range(4):
+            with self.subTest(max_reviewer_count=max_reviewer_count):
+                trace = copy.deepcopy(self.trace)
+                for child in reviewer_children[:max_reviewer_count]:
+                    spawn = self.event("spawn", child=child, trace=trace)
+                    spawn.update(agent_type="risk_reviewer_max")
+                    spawn["work_transfer"].update(
+                        route="risk_reviewer_max",
+                        escalation_receipt=self.qualified_max_escalation(),
+                    )
+                    self.reseal_transfer(spawn)
+                if max_reviewer_count <= 1:
+                    self.assertEqual(self.errors(trace), [])
+                else:
+                    self.assert_rejected(
+                        trace,
+                        "task-wide risk_reviewer_max cap exceeded",
+                    )
+
     def test_reviewer_registry_and_result_ownership_cannot_diverge(self):
         trace = copy.deepcopy(self.trace)
         result = self.event("gate_result", child="review-method", trace=trace)
