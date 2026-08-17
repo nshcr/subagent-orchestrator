@@ -15,12 +15,12 @@ do not coordinate other children.
 
 ## Included roles
 
-| Role                | Purpose                                                                        | Access                                        |
-| ------------------- | ------------------------------------------------------------------------------ | --------------------------------------------- |
-| `evidence_tester`   | Structured test or bounded runbook/log evidence with one requested artifact    | Workspace write, limited by its task contract |
-| `boundary_mapper`   | One unresolved cross-component execution, state, or persistence boundary       | Read-only                                     |
-| `risk_reviewer`     | Fresh independent gate for named high-risk final-state invariants              | Read-only                                     |
-| `risk_reviewer_max` | One evidence-qualified escalation when `xhigh` remains genuinely indeterminate | Read-only                                     |
+| Role                | Purpose                                                                        | Requested sandbox / action bound        |
+| ------------------- | ------------------------------------------------------------------------------ | --------------------------------------- |
+| `evidence_tester`   | Structured test or bounded runbook/log evidence with one requested artifact    | Workspace write / one evidence artifact |
+| `boundary_mapper`   | One unresolved cross-component execution, state, or persistence boundary       | Read-only / no writes                   |
+| `risk_reviewer`     | Fresh independent gate for named high-risk final-state invariants              | Read-only / no writes                   |
+| `risk_reviewer_max` | One evidence-qualified escalation when `xhigh` remains genuinely indeterminate | Read-only / no writes                   |
 
 The default remains a single agent. Complexity, file count, and spare
 concurrency do not qualify a task for delegation.
@@ -85,8 +85,10 @@ Sol/xhigh, and only the qualified irreversible-risk escalation uses Sol/max. The
 four custom-role values are fixed by their installed agent files; built-in
 children use the Sol/high package model defaults. Spawned-agent routing does not
 override these values per task, so Terra/max and Sol/medium are not active
-package routes. The primary remains user-controlled. Effective behavior still
-requires client readback.
+package routes. The primary remains user-controlled. A role file's sandbox is a
+requested default, not proof of effective isolation: parent runtime permission
+overrides may take precedence. Match the parent permission mode to the role and
+retain its action bounds. Effective behavior still requires client readback.
 
 See the current official documentation for
 [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents),
@@ -197,7 +199,7 @@ state, host enforcement, production efficiency, or current role quality.
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py --package-version 2026.08.17.4
+python3 -B build_manifest.py --package-version 2026.08.17.5
 python3 -B build_manifest.py --check
 python3 -B validate.py
 ```

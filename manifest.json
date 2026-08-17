@@ -31,8 +31,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "ddbe3d663ffb3b9c45a934bb5df406e962660b5465a62cf1b16a14f5093cdc7d",
-      "size": 13440
+      "sha256": "87c20241218855ff9f19caa046d3f5c9c8b9b87484a36a17c739ebd77a7dff62",
+      "size": 13616
     },
     {
       "path": "build_manifest.py",
@@ -121,8 +121,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/SKILL.md",
-      "sha256": "678cf3b62cc165c5a718bef5f24449f80af5c8b4d9f8c966f43da98ff23c6759",
-      "size": 7224
+      "sha256": "0f1e6044fa9b664ae617af62d2401abcee5359daa41939562f6cf8c7b2174ee5",
+      "size": 7309
     },
     {
       "path": "payload/skills/subagent-orchestrator/agents/openai.yaml",
@@ -141,18 +141,18 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/routing-policy.md",
-      "sha256": "af690da5c61ec77eed0493c0c07c5ccd853a6db678ada6a5560e2438a6d8dce1",
-      "size": 6025
+      "sha256": "e5b4f685b5c967f33701f2ec26bf1ed875e44762de06a52660349419f823a6e3",
+      "size": 6067
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "dffb8d0c517de114f48f38f9022b4ff2e679aba72d0cea601559cb7d7f806ae6",
-      "size": 18244
+      "sha256": "a6221e67fab0b98de8205efe4b5c54de3d6e8ef04cd92324e1c3e3f6c2dd6991",
+      "size": 18551
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
-      "sha256": "bf8e16a26a03fef5be97ddcbba80b05883b5528e1c110a5c25d85d3827b8692c",
-      "size": 13774
+      "sha256": "c14106aa73bb8dc409d18ba2861af8f50a478f4ab2b3c726f093c919d5727320",
+      "size": 14494
     },
     {
       "path": "portable-profile.json",
@@ -187,5 +187,5 @@
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "package_version": "2026.08.17.4"
+  "package_version": "2026.08.17.5"
 }

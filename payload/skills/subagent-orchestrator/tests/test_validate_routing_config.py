@@ -110,10 +110,18 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_implicit_or_default_agent_type(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Set an explicit non-`default` `agent_type` on every spawn",
+            "Set an explicit non-`default` `agent_type`",
             "Let the host select any omitted agent type",
         )
         self.assertTrue(any("explicit non-`default`" in error for error in self.errors()))
+
+    def test_rejects_eager_routing_reference_load(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "before any custom role, second or later child, or review",
+            "before every routing decision",
+        )
+        self.assertTrue(any("before any custom role" in error for error in self.errors()))
 
     def test_rejects_default_fallback_routing(self):
         self.mutate(
@@ -166,6 +174,14 @@ class RoutingContractTest(unittest.TestCase):
             "Override each child's model and effort per task",
         )
         self.assertTrue(any("installed child model and effort" in error for error in self.errors()))
+
+    def test_rejects_sandbox_as_hard_authority_boundary(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/routing-policy.md",
+            "`sandbox_mode` as requested configuration, not hard authority",
+            "`sandbox_mode` as guaranteed host enforcement",
+        )
+        self.assertTrue(any("not hard authority" in error for error in self.errors()))
 
     def test_rejects_monkey_first_rule_removal(self):
         self.mutate(

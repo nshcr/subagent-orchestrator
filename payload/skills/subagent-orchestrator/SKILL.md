@@ -19,13 +19,15 @@ smallest real proof, and postpone supporting machinery until that proof exists.
    that replaces material primary work, isolates noisy evidence behind a compact
    receipt, or supplies a required independent gate. Complexity, file count,
    spare capacity, and confidence seeking do not qualify.
-3. Read the [routing policy](references/routing-policy.md) before selecting a
-   role. Set an explicit non-`default` `agent_type` on every spawn. Never omit
-   it or spawn the built-in `default`; keep unmatched work in the primary. Then
-   send the lean [delegation contract](references/delegation-contracts.md). Use
-   `fork_turns: "none"`; never omit it or inherit full history. Put only
-   essential task-local context in the handoff. Require English model-facing
-   receipts and synthesize the user-facing result in the primary.
+3. Use the specialized role descriptions exposed by the host for a first
+   ordinary leaf; keep unmatched work in the primary. Read the
+   [routing policy](references/routing-policy.md) before any custom role, second
+   or later child, or review. Set an explicit non-`default` `agent_type` and
+   `fork_turns: "none"` on every spawn; never omit either, use built-in
+   `default`, or inherit full history. Send the lean
+   [delegation contract](references/delegation-contracts.md) with only essential
+   task-local context. Require English model-facing receipts and synthesize the
+   user-facing result in the primary.
 4. Keep the primary doing material work. Retain authorization, scope, one-writer
    integration, finding adjudication, and final acceptance. If the primary would
    mainly coordinate, poll, or wait, reduce delegation and work directly.

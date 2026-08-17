@@ -224,10 +224,11 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Prefer direct or batched tools for small work",
         "Require English model-facing receipts",
         "finding adjudication",
-        "Set an explicit non-`default` `agent_type` on every spawn",
+        "Use the specialized role descriptions exposed by the host",
+        "before any custom role, second or later child, or review",
+        "Set an explicit non-`default` `agent_type`",
         "`fork_turns: \"none\"`",
-        "never omit it or inherit full history",
-        "Never omit it or spawn the built-in `default`",
+        "never omit either, use built-in `default`, or inherit full history",
         "When delegation is admitted, start one child",
         "ordinary cap at two children and one active writer",
         "Never allow child delegation or peer messaging",
@@ -267,7 +268,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Do not substitute roles",
         "Follow valid transitions",
         "only the primary settle strategy",
-        "Use `evidence_tester` before or after implementation",
+        "Use `evidence_tester` only when raw test or log volume",
         "primary sampling, integration, and direct checks",
         "Return a review BLOCK to the primary for independent adjudication",
         "When delegation is admitted, start one child",
@@ -280,6 +281,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Set `fork_turns` to `\"none\"`",
         "never inherit full history",
         "Use English receipts",
+        "`sandbox_mode` as requested configuration, not hard authority",
+        "parent overrides may change it",
         "Ask when the user requested a checkpoint or at a material user-owned boundary",
         "Expansion alone is not a question",
         "Use multi-review only for an explicit user request",
@@ -287,7 +290,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "expansion checkpoint for another independent review",
         "changed candidate or new discriminating evidence",
         "evidence plateau",
-        "Do not build supporting machinery before the smallest real task proves the core behavior",
+        "Do not build supporting machinery before the smallest real task proves core behavior",
     ))
     require_markers(checks, delegation, "delegation contract", (
         "Spawn: agent_type=<explicit non-default role>; fork_turns=none",
@@ -388,6 +391,7 @@ def main() -> int:
     print("- admission: explicit non-default agent_type; then one child; two only for qualified parallel work")
     print("- context: fork_turns none; full parent history is never inherited")
     print("- runtime: three spawned threads; installed child model/effort matrix; one active writer")
+    print("- sandbox: requested role configuration plus action bounds, not host-enforcement proof")
     print("- expansion checkpoint: re-anchor, integrate, then clear one bounded child or ask at a material boundary")
     print("- wave boundary: current required children terminal and integrated before another wave")
     print("- user question: one recommended default for a material user-owned boundary only")

@@ -20,18 +20,16 @@ built-in `default`; keep unmatched work in the primary.
 | General-purpose or unmatched fallback                       | primary, no spawn     | Never invoke built-in `default`; choose a specialized role or work directly        |
 
 Do not substitute roles. An `evidence_tester` collects evidence without source
-edits or unsupported diagnosis. A `boundary_mapper` traces one boundary without
-deciding the defect or design. A reviewer seeks falsifying evidence only inside
-named invariants; it does not explore broadly, implement, invent requirements,
-or own the repair.
+edits or unsupported diagnosis; a `boundary_mapper` traces one boundary without
+a design verdict; a reviewer only falsifies named invariants and never explores
+broadly, implements, invents requirements, or owns the repair.
 
 ## Follow valid transitions
 
 - Return `explorer` and `boundary_mapper` evidence to the primary. Let only the
   primary settle strategy before assigning a `worker`.
-- Use `evidence_tester` before or after implementation only when raw test or log
-  volume would pollute the primary context. Keep ordinary targeted checks in the
-  primary.
+- Use `evidence_tester` only when raw test or log volume would pollute the
+  primary context; keep ordinary targeted checks in the primary.
 - Require a `worker` terminal receipt, primary sampling, integration, and direct
   checks before review. Never review a moving candidate.
 - Return a review BLOCK to the primary for independent adjudication. Do not
@@ -65,6 +63,9 @@ or own the repair.
   child settings: Sol/high for built-ins and `boundary_mapper`, Luna/max for
   `evidence_tester`, Sol/xhigh for `risk_reviewer`, and Sol/max for
   `risk_reviewer_max`.
+- Treat `sandbox_mode` as requested configuration, not hard authority; parent
+  overrides may change it. Match parent permission to role and retain its
+  bounds.
 
 ## Route review
 
@@ -78,13 +79,12 @@ or own the repair.
   discriminating evidence before opening an expansion checkpoint for another
   independent review.
 - Treat unchanged uncertainty after two decision-directed attempts as an
-  evidence plateau. Stop variants and obtain the smallest observation that
-  distinguishes the remaining hypotheses. Never add a child merely to seek
-  confidence.
+  evidence plateau. Stop variants and obtain the smallest discriminating
+  observation; never add a child merely to seek confidence.
 
 ## Close the task
 
-Treat child terminal state, a gate line, or exhausted budget as closure of
-transferred work only. Close against the original outcome with proportionate
-claim-matched evidence. Do not build supporting machinery before the smallest
-real task proves the core behavior.
+Treat child terminal state, a gate line, or exhausted budget as transferred-work
+closure only. Close against the original outcome with claim-matched evidence. Do
+not build supporting machinery before the smallest real task proves core
+behavior.
