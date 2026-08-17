@@ -16,7 +16,7 @@ SKILL_NAME = "subagent-orchestrator"
 DEFAULT_SKILL_PATH = Path(__file__).resolve().parents[1] / "SKILL.md"
 ROLE_POLICY = {
     "evidence_tester": ("gpt-5.6-luna", "max", "default", "workspace-write"),
-    "boundary_mapper": ("gpt-5.6-terra", "max", "default", "read-only"),
+    "boundary_mapper": ("gpt-5.6-sol", "high", "default", "read-only"),
     "risk_reviewer": ("gpt-5.6-sol", "xhigh", "default", "read-only"),
     "risk_reviewer_max": ("gpt-5.6-sol", "max", "default", "read-only"),
 }

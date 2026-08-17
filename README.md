@@ -65,7 +65,7 @@ do not qualify a task for delegation.
 The installed runtime cap is three concurrent spawned threads so an explicitly
 requested three-reviewer gate remains possible without making spare capacity a routing
 signal. Routine built-in leaves default to GPT-5.6 Sol at high effort; the bounded
-tester uses Luna/max, the boundary mapper Terra/max, the reviewer Sol/xhigh, and only
+tester uses Luna/max, the boundary mapper Sol/high, the reviewer Sol/xhigh, and only
 the qualified irreversible-risk escalation uses Sol/max. The four custom-role values
 are fixed by their installed agent files and are not per-task routing controls.
 Efficiency comes from route, topology, and context; effective behavior still requires

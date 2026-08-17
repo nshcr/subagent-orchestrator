@@ -31,8 +31,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "889d0efa7af47fb6c8d2b1e39592b29f3c3004d7c883be48a19d9f0d88eb1e6f",
-      "size": 12199
+      "sha256": "b5872aa59d82b243aa4e19d5f9219616929b165bf5086c48e57ad0ceb248dd9c",
+      "size": 12198
     },
     {
       "path": "build_manifest.py",
@@ -101,8 +101,8 @@
     },
     {
       "path": "payload/agents/boundary_mapper.toml",
-      "sha256": "3925ad6232f9c1609cbf84c635f51193cede498bf6141f0ccb1665b58fa3d534",
-      "size": 2000
+      "sha256": "49889d36c50d2b13edb5b8ae4d465ee25fdaca711dd767a94e71e9c4bff4a0ee",
+      "size": 1999
     },
     {
       "path": "payload/agents/evidence_tester.toml",
@@ -151,8 +151,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "40d1505c337e2bfef46e85aa05007e7159a436b856d6a41cc32765b4b12ad86d",
-      "size": 16857
+      "sha256": "b036b30bdddf5c0ddc0dfb9013f06696a7a493dff2409749e76cf292bbd24515",
+      "size": 16856
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
@@ -161,8 +161,8 @@
     },
     {
       "path": "portable-profile.json",
-      "sha256": "9cc8c919bf9965d8fea8674e5c3033a911e08f3dc32ddd9b1f403a3d85941bad",
-      "size": 4474
+      "sha256": "d055020b5ddeac7da797ac3f31af2e2b1d6153142a9c89f5c93f499ca26b6e17",
+      "size": 4473
     },
     {
       "path": "tests/test_evaluation.py",
