@@ -19,15 +19,13 @@ smallest real proof, and postpone supporting machinery until that proof exists.
    that replaces material primary work, isolates noisy evidence behind a compact
    receipt, or supplies a required independent gate. Complexity, file count,
    spare capacity, and confidence seeking do not qualify.
-3. Use the specialized role descriptions exposed by the host for a first
-   ordinary leaf; keep unmatched work in the primary. Read the
-   [routing policy](references/routing-policy.md) before any custom role, second
-   or later child, or review. Set an explicit non-`default` `agent_type` and
-   `fork_turns: "none"` on every spawn; never omit either, use built-in
-   `default`, or inherit full history. Send the lean
-   [delegation contract](references/delegation-contracts.md) with only essential
-   task-local context. Require English model-facing receipts and synthesize the
-   user-facing result in the primary.
+3. Use host role descriptions for a first ordinary leaf; keep unmatched work in
+   the primary. Read the [routing policy](references/routing-policy.md) before a
+   custom role, second child, or review. Name a non-`default` `agent_type`; use
+   `fork_turns: "1"` for operational leaves and `"none"` for fresh reviews.
+   Never omit the type or use a larger or full-history fork. Use the lean
+   [delegation contract](references/delegation-contracts.md), require English
+   model-facing receipts, and synthesize the user result in the primary.
 4. Keep the primary doing material work. Retain authorization, scope, one-writer
    integration, finding adjudication, and final acceptance. If the primary would
    mainly coordinate, poll, or wait, reduce delegation and work directly.
@@ -63,7 +61,11 @@ smallest real proof, and postpone supporting machinery until that proof exists.
   Never update a review role; changed review evidence requires a refreeze and
   fresh reviewer. Do not poll. After two decision-directed attempts leave the
   same uncertainty unchanged, stop agent variants and obtain the smallest
-  discriminating observation in the primary.
+  discriminating observation in the primary. If an operational child cannot
+  obtain approval, its terminal receipt names permission class, action, and
+  owner scope, forming a task-scoped circuit. No retry, resume, or later child
+  on that boundary until host proves a shared grant; the primary finishes
+  directly.
 
 ## Review and converge
 
@@ -97,12 +99,11 @@ smallest real proof, and postpone supporting machinery until that proof exists.
 
 ## Close with evidence
 
-- Sample each child's cited evidence and owned artifact; do not replay the
-  transferred scan. Verify that its spawn named an admitted non-`default`
-  `agent_type` and set `fork_turns: "none"`; reject an omitted, resolved
-  `default`, or full-history result and continue in the primary without
-  automatically respawning. Use installed child model and effort settings
-  without per-task retuning.
+- Sample child evidence and owned artifacts without replaying the scan. Verify a
+  non-`default` `agent_type`, `fork_turns: "1"` for operational leaves, and
+  `"none"` for review roles. Reject omitted, larger, resolved `default`, or
+  full-history results; continue in the primary without respawning. Use
+  installed child model and effort settings without per-task retuning.
 - Continue safe authorized primary work while it is likely to reduce
   task-relevant risk proportionately. Close only with claim-matched evidence for
   the original outcome, explicit abandonment or supersession, or a genuine

@@ -76,6 +76,7 @@ ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
     "preserve-no-full-history-forks",
+    "preserve-bounded-role-specific-turn-forks",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
@@ -215,6 +216,7 @@ def verify_portability() -> None:
         fail("portable profile built-in routes drift from routing ownership")
     if profile.get("concurrency") != {
         "runtime_thread_cap": config["max_concurrent_threads_per_session"],
+        "runtime_thread_cap_excludes_primary": True,
         "admitted_delegation_initial_child_count": 1,
         "ordinary_first_wave_child_cap": 2,
         "second_child_admission": (
@@ -284,8 +286,20 @@ def verify_portability() -> None:
             "payload/skills/subagent-orchestrator/references/delegation-contracts.md"
         ),
         "state_bound": True,
-        "context_default": "fresh",
-        "spawn_fork_turns": "none",
+        "context_default": "current-user-turn-operational-fresh-review",
+        "operational_leaf_fork_turns": "1",
+        "review_leaf_fork_turns": "none",
+        "approval_rejection_route": (
+            "leaf-terminal-receipt-primary-completes-no-resume-respawn-or-"
+            "history-expansion"
+        ),
+        "approval_block_receipt": "permission-class-exact-action-owner-scope",
+        "repeated_approval_route": (
+            "same-permission-class-and-owner-scope-primary-only"
+        ),
+        "approval_circuit_clearance": (
+            "host-evidence-reusable-grant-applies-to-child-threads"
+        ),
         "full_history_forks_allowed": False,
         "children_are_leaves": True,
         "peer_messages": "none",

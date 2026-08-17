@@ -44,7 +44,8 @@
     }
   ],
   "concurrency": {
-    "runtime_thread_cap": 3,
+    "runtime_thread_cap": 4,
+    "runtime_thread_cap_excludes_primary": true,
     "admitted_delegation_initial_child_count": 1,
     "ordinary_first_wave_child_cap": 2,
     "second_child_admission": "bounded-independent-ownership-safe-expected-wall-time-or-context-benefit",
@@ -102,8 +103,13 @@
   "handoff": {
     "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
     "state_bound": true,
-    "context_default": "fresh",
-    "spawn_fork_turns": "none",
+    "context_default": "current-user-turn-operational-fresh-review",
+    "operational_leaf_fork_turns": "1",
+    "review_leaf_fork_turns": "none",
+    "approval_rejection_route": "leaf-terminal-receipt-primary-completes-no-resume-respawn-or-history-expansion",
+    "approval_block_receipt": "permission-class-exact-action-owner-scope",
+    "repeated_approval_route": "same-permission-class-and-owner-scope-primary-only",
+    "approval_circuit_clearance": "host-evidence-reusable-grant-applies-to-child-threads",
     "full_history_forks_allowed": false,
     "children_are_leaves": true,
     "peer_messages": "none",
@@ -121,6 +127,7 @@
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
     "preserve-no-full-history-forks",
+    "preserve-bounded-role-specific-turn-forks",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",

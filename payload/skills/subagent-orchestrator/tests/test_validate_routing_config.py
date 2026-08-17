@@ -87,7 +87,7 @@ class RoutingContractTest(unittest.TestCase):
 
     def test_rejects_runtime_cap_or_routine_effort_drift(self):
         for old, new, expected in (
-            ("max_concurrent_threads_per_session = 3", "max_concurrent_threads_per_session = 16", "max_concurrent"),
+            ("max_concurrent_threads_per_session = 4", "max_concurrent_threads_per_session = 16", "max_concurrent"),
             (
                 'default_subagent_reasoning_effort = "high"',
                 'default_subagent_reasoning_effort = "medium"',
@@ -110,18 +110,18 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_implicit_or_default_agent_type(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Set an explicit non-`default` `agent_type`",
+            "Name a non-`default` `agent_type`",
             "Let the host select any omitted agent type",
         )
-        self.assertTrue(any("explicit non-`default`" in error for error in self.errors()))
+        self.assertTrue(any("Name a non-`default`" in error for error in self.errors()))
 
     def test_rejects_eager_routing_reference_load(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "before any custom role, second or later child, or review",
+            "before a custom role, second child, or review",
             "before every routing decision",
         )
-        self.assertTrue(any("before any custom role" in error for error in self.errors()))
+        self.assertTrue(any("before a custom role" in error for error in self.errors()))
 
     def test_rejects_default_fallback_routing(self):
         self.mutate(
@@ -139,7 +139,7 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_handoff_without_explicit_agent_type(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "Spawn: agent_type=<explicit non-default role>; fork_turns=none",
+            "Spawn: agent_type=<explicit non-default role>; fork_turns=<1 operational, none review>",
             "Spawn: agent_type=<optional>",
         )
         self.assertTrue(
@@ -152,7 +152,7 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_full_history_fork(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "fork_turns=none",
+            "fork_turns=<1 operational, none review>",
             "fork_turns=all",
         )
         self.assertTrue(any("fork_turns" in error for error in self.errors()))
@@ -160,12 +160,52 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_default_result_acceptance(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "reject an omitted, resolved `default`, or full-history result",
+            "Reject omitted, larger, resolved `default`, or full-history results",
             "accept any fallback result",
         )
         self.assertTrue(
             any("resolved `default`" in error for error in self.errors())
         )
+
+    def test_rejects_operational_leaf_without_current_turn(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            'Use `fork_turns="1"` for `explorer`, `worker`, `evidence_tester`, and `boundary_mapper`',
+            'Use `fork_turns="none"` for every operational leaf',
+        )
+        self.assertTrue(any("fork_turns" in error for error in self.errors()))
+
+    def test_rejects_review_role_history_inheritance(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            'Use `fork_turns="none"` for fresh review roles',
+            'Use `fork_turns="1"` for fresh review roles',
+        )
+        self.assertTrue(any("fresh review" in error for error in self.errors()))
+
+    def test_rejects_approval_retry_or_history_expansion(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "Do not retry, respawn, inherit more history, resume, await a reply",
+            "resume the child after the primary executes the command",
+        )
+        self.assertTrue(any("await a reply" in error for error in self.errors()))
+
+    def test_rejects_repeated_child_approval_boundary(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "assign the same permission-class and owner-scope boundary to a later child",
+            "assign the same blocked boundary to every later child",
+        )
+        self.assertTrue(any("owner-scope" in error for error in self.errors()))
+
+    def test_rejects_unproven_approval_circuit_clearance(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "host evidence proves a reusable grant applies to child threads",
+            "the primary says approval should now work",
+        )
+        self.assertTrue(any("reusable grant" in error for error in self.errors()))
 
     def test_rejects_spawn_time_model_or_effort_override(self):
         self.mutate(

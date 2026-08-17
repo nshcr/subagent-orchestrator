@@ -29,11 +29,18 @@ concurrency do not qualify a task for delegation.
 
 - `explorer` and `worker` are built-in leaf routes for material read-only scans
   and scoped, ownership-safe implementation.
-- Every spawn names an explicit non-`default` `agent_type` and sets
-  `fork_turns: "none"`; full parent history is never inherited. The built-in
-  general-purpose `default` is never routed by this package, and unmatched work
-  remains with the primary. An invalid spawn result cannot satisfy acceptance or
-  authorize an automatic replacement spawn.
+- Every spawn names an explicit non-`default` `agent_type`. Operational leaves
+  (`explorer`, `worker`, `evidence_tester`, and `boundary_mapper`) use
+  `fork_turns: "1"` so the current user request and authorization remain visible
+  when a tool later requires approval. Fresh review roles use `"none"`. Larger
+  and full-history forks remain prohibited. The built-in general-purpose
+  `default` is never routed by this package, and unmatched work remains with the
+  primary. An invalid spawn result cannot satisfy acceptance or authorize an
+  automatic replacement spawn. An approval-blocked operational leaf returns one
+  terminal receipt; the primary completes the remaining work without resuming or
+  messaging that child again. Its permission class and owner scope become a
+  task-scoped circuit breaker: later children cannot receive the same blocked
+  boundary unless host evidence proves a reusable grant applies to them.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
 - The primary may send at most one same-scope update to an operational leaf
@@ -77,18 +84,20 @@ concurrency do not qualify a task for delegation.
   settings.
 - A trusted local Codex home.
 
-The installed runtime cap is three concurrent spawned threads so an explicitly
-requested three-reviewer gate remains possible without making spare capacity a
-routing signal. Routine built-in leaves default to GPT-5.6 Sol at high effort;
-the bounded tester uses Luna/max, the boundary mapper Sol/high, the reviewer
-Sol/xhigh, and only the qualified irreversible-risk escalation uses Sol/max. The
-four custom-role values are fixed by their installed agent files; built-in
-children use the Sol/high package model defaults. Spawned-agent routing does not
-override these values per task, so Terra/max and Sol/medium are not active
-package routes. The primary remains user-controlled. A role file's sandbox is a
-requested default, not proof of effective isolation: parent runtime permission
-overrides may take precedence. Match the parent permission mode to the role and
-retain its action bounds. Effective behavior still requires client readback.
+The installed runtime cap is four concurrent spawned threads, excluding the
+primary as defined by Codex. This leaves one host-level spare slot when three
+children are open without making capacity a routing signal; the Skill still
+admits at most two ordinary first-wave children and one active writer. Routine
+built-in leaves default to GPT-5.6 Sol at high effort; the bounded tester uses
+Luna/max, the boundary mapper Sol/high, the reviewer Sol/xhigh, and only the
+qualified irreversible-risk escalation uses Sol/max. The four custom-role values
+are fixed by their installed agent files; built-in children use the Sol/high
+package model defaults. Spawned-agent routing does not override these values per
+task, so Terra/max and Sol/medium are not active package routes. The primary
+remains user-controlled. A role file's sandbox is a requested default, not proof
+of effective isolation: parent runtime permission overrides may take precedence.
+Match the parent permission mode to the role and retain its action bounds.
+Effective behavior still requires client readback.
 
 See the current official documentation for
 [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents),
@@ -200,7 +209,7 @@ state, host enforcement, production efficiency, or current role quality.
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py --package-version 2026.08.17.6
+python3 -B build_manifest.py --package-version 2026.08.17.7
 python3 -B build_manifest.py --check
 python3 -B validate.py
 ```

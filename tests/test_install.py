@@ -203,6 +203,36 @@ raise SystemExit(module.main())
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertIn("0 path(s) would change", second.stdout)
 
+    def test_state_owned_three_thread_config_upgrades_to_four(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        config_path = self.codex_home / "config.toml"
+        config_path.write_text(
+            config_path.read_text().replace(
+                "max_concurrent_threads_per_session = 4",
+                "max_concurrent_threads_per_session = 3",
+                1,
+            )
+        )
+        state = json.loads(self.state_path().read_text())
+        state["managed_hashes"]["config.toml#agents"] = (
+            INSTALL_MODULE.canonical_json_hash(
+                {
+                    "enabled": True,
+                    "max_concurrent_threads_per_session": 3,
+                    "interrupt_message": True,
+                    "default_subagent_model": "gpt-5.6-sol",
+                    "default_subagent_reasoning_effort": "high",
+                }
+            )
+        )
+        self.state_path().write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+
+        upgraded = self.run_installer("--apply")
+
+        self.assertEqual(upgraded.returncode, 0, upgraded.stderr)
+        self.assertIn("max_concurrent_threads_per_session = 4", config_path.read_text())
+
     def test_default_english_policy_and_rejects_chinese_selector(self):
         installed = self.run_installer("--apply", None)
         self.assertEqual(installed.returncode, 0, installed.stderr)

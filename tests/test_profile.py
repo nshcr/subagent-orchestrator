@@ -138,7 +138,11 @@ class PortableProfileContractTest(unittest.TestCase):
         mutations = (
             ("primary_to_operational_leaf_updates", "unlimited"),
             ("review_role_messages_or_followups", "allowed"),
-            ("spawn_fork_turns", "all"),
+            ("operational_leaf_fork_turns", "none"),
+            ("review_leaf_fork_turns", "1"),
+            ("approval_rejection_route", "resume-child-after-primary-action"),
+            ("repeated_approval_route", "retry-same-boundary"),
+            ("approval_circuit_clearance", "parent-assertion"),
             ("full_history_forks_allowed", True),
         )
         for key, value in mutations:

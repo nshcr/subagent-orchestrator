@@ -1,10 +1,9 @@
 # Routing Policy
 
 Use the smallest route that can finish the acceptance anchor. Keep every child a
-leaf and the primary as the only coordinator and decision owner.
-
-Set an explicit non-`default` `agent_type` on every spawn. Never route to the
-built-in `default`; keep unmatched work in the primary.
+leaf and the primary as the only coordinator and decision owner. Set an explicit
+non-`default` `agent_type` on every spawn. Never route to the built-in
+`default`; keep unmatched work in the primary.
 
 ## Admit a role
 
@@ -58,9 +57,12 @@ broadly, implements, invents requirements, or owns the repair.
   external behavior, compatibility, security, privacy, architecture, meaningful
   cost, migration, or an irreversible effect, ask early with one recommended
   default. Report operational blockers instead of offering them as choices.
-- Set `fork_turns` to `"none"`; never inherit full history. Use English receipts
-  and keep the primary model and effort user-controlled. Use fixed installed
-  child settings: Sol/high for built-ins and `boundary_mapper`, Luna/max for
+- Operational leaves use `fork_turns: "1"` for runtime approval context; fresh
+  reviews use `"none"`. Never use larger or full-history forks. On rejection or
+  older authorization, end the leaf after one blocked-action receipt and apply
+  the delegation contract's task-scoped permission circuit. Keep the primary
+  model and effort user-controlled. Use English receipts and fixed child
+  settings: Sol/high for built-ins and `boundary_mapper`, Luna/max for
   `evidence_tester`, Sol/xhigh for `risk_reviewer`, and Sol/max for
   `risk_reviewer_max`.
 - Treat `sandbox_mode` as requested configuration, not hard authority; parent
@@ -69,10 +71,9 @@ broadly, implements, invents requirements, or owns the repair.
 
 ## Route review
 
-- When independent review is admitted, use one fresh `risk_reviewer`. Use
-  multi-review only for an explicit user request: one final batch of at most
-  three fresh reviewers, disjoint invariants, one frozen candidate, no voting,
-  and no design workshop.
+- Use one fresh `risk_reviewer` when independent review is admitted.
+  Multi-review requires an explicit user request: at most three fresh reviewers,
+  disjoint invariants, one frozen candidate, no voting or design workshop.
 - After a repair and fresh recheck still BLOCK, return to primary
   first-principles adjudication. Reject an unsupported finding, repair directly,
   or identify a genuine blocker. Require a changed candidate or new
@@ -84,7 +85,6 @@ broadly, implements, invents requirements, or owns the repair.
 
 ## Close the task
 
-Treat child terminal state, a gate line, or exhausted budget as transferred-work
-closure only. Close against the original outcome with claim-matched evidence. Do
-not build supporting machinery before the smallest real task proves core
-behavior.
+Child terminal state, a gate, or exhausted budget closes transferred work only.
+Close the original outcome with claim-matched evidence; do not build supporting
+machinery before the smallest real task proves core behavior.
