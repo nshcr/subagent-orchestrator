@@ -18,6 +18,12 @@ import tempfile
 import tomllib
 from typing import Callable, Iterator
 
+from build_manifest import (
+    ManifestError,
+    check_manifest,
+    load_manifest as read_package_manifest,
+)
+
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 PAYLOAD_ROOT = PACKAGE_ROOT / "payload"
@@ -46,32 +52,6 @@ LEGACY_AGENTS_HEADING = "## 子代理与并行"
 AGENTS_SECTION_FILES = {
     "en": "AGENTS.section.en.md",
 }
-ACCEPTED_GLOBAL_POLICY_SHA256 = {
-    "57ac581a53881ce2152755d425c4e4c9e3608c29fd4257d500e1c7677aca467f",
-    "37d9a41d324d5fbc259baf8f893288aaef70003b0259b6de95b6ab0a76e392e2",
-    "f4bfedfca74f3c0b071329655002f788b08e0bbd8207ea549a4496d26f41068c",
-    "8c25829e558be9a16ed32b0ff1ee21d2b6bc6d017c503e8953c9d80379e2ca7f",
-}
-ACCEPTED_PREDECESSORS = {
-    "skills/subagent-orchestrator/SKILL.md": {
-        "b8f41ceebfe3efa0aad4485bd00f058e03b04bcd9a0ad5f83825d00b668ee8b2",
-    },
-    "skills/subagent-orchestrator/scripts/validate-routing-config.py": {
-        "8adb983c172bfdf8f839a12cd3c92b014477203a955259103eb4bda1f85b7eb3",
-    },
-    "skills/subagent-orchestrator/tests/test_validate_routing_config.py": {
-        "346745466fae4ab43c51560812c59df6045764dbbc7cd1d5f56f07d0cd9fb358",
-    },
-    "skills/subagent-orchestrator/tests/fixtures/lifecycle-trace.json": {
-        "2ed78edc9d5513135fe9da271b1b5286b38d80e7e00db88d6d118e7d35f494cf",
-    },
-    "skills/subagent-orchestrator/scripts/lifecycle_conformance.py": {
-        "62fd8158fd9b0b2c8ac765df3f0665bf92e62e9bf3e278e0c618fd4005a7376e",
-        "06cb869d981a0b76fbcd018fda95541af39b62a902fde2a2721d6743f457c2b2",
-    },
-}
-
-
 class InstallError(RuntimeError):
     """A fail-closed preflight or installation error."""
 
@@ -154,35 +134,44 @@ def canonical_json_hash(value: object) -> str:
 
 def load_manifest() -> dict:
     try:
-        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
+        check_manifest(path=MANIFEST_PATH)
+        manifest = read_package_manifest(MANIFEST_PATH)
+    except (ManifestError, OSError) as error:
         raise InstallError(f"package manifest is unreadable: {error}") from error
-    declared = manifest.get("files")
-    if not isinstance(declared, list):
-        raise InstallError("package manifest has no files list")
-    declared_paths = set()
-    for item in declared:
-        relative = item.get("path", "")
-        path = PACKAGE_ROOT / relative
-        if not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
-            raise InstallError(f"unsafe manifest path: {relative!r}")
-        if not path.is_file():
-            raise InstallError(f"manifest file is missing: {relative}")
-        actual = sha256_bytes(path.read_bytes())
-        if actual != item.get("sha256"):
-            raise InstallError(f"manifest hash mismatch: {relative}")
-        declared_paths.add(relative)
+    declared_paths = {item["path"] for item in manifest["files"]}
     migration_relative = "install-migrations.json"
     if migration_relative not in declared_paths:
         raise InstallError("package manifest does not declare install-migrations.json")
     return manifest
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict:
+    document = {}
+    for key, value in pairs:
+        if key in document:
+            raise InstallError(f"duplicate JSON key: {key}")
+        document[key] = value
+    return document
+
+
+def decode_json(content: bytes, label: str) -> object:
+    try:
+        return json.loads(
+            content.decode(),
+            object_pairs_hook=_reject_duplicate_json_keys,
+        )
+    except InstallError:
+        raise
+    except (UnicodeError, ValueError) as error:
+        raise InstallError(f"{label} is unreadable: {error}") from error
+
+
 def load_migration_catalog() -> dict:
     try:
-        document = json.loads(MIGRATION_CATALOG_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
+        content = MIGRATION_CATALOG_PATH.read_bytes()
+    except OSError as error:
         raise InstallError(f"install migration catalog is unreadable: {error}") from error
+    document = decode_json(content, "install migration catalog")
     expected_keys = {
         "format_version",
         "package_id",
@@ -276,10 +265,7 @@ def read_state(
     content = safe_existing_bytes(path, codex_home)
     if content is None:
         return {}
-    try:
-        document = json.loads(content.decode())
-    except (UnicodeError, ValueError) as error:
-        raise InstallError(f"managed state is unreadable: {error}") from error
+    document = decode_json(content, "managed state")
     if not isinstance(document, dict):
         raise InstallError("managed state has an unknown document schema")
     if document.get("package_id") != SKILL_NAME:
@@ -476,11 +462,9 @@ def merge_agents(
     _, span, current_body = existing_policy
     current_hash = sha256_bytes(current_body.encode())
     state_key = "AGENTS.md#subagent-policy"
-    known_predecessor = current_hash in ACCEPTED_GLOBAL_POLICY_SHA256
     if (
         current_hash != desired_hash
         and state.get(state_key) != current_hash
-        and not known_predecessor
     ):
         raise InstallError("AGENTS.md managed policy section conflicts with the package")
     if current_hash == desired_hash:
@@ -590,8 +574,6 @@ def allow_owned_replacement(
     if current == desired:
         return
     if state.get(relative) == current_hash:
-        return
-    if current_hash in ACCEPTED_PREDECESSORS.get(relative, set()):
         return
     raise InstallError(f"target conflicts with package ownership: {relative}")
 
@@ -1131,10 +1113,7 @@ def read_journal(codex_home: Path) -> dict | None:
     content = safe_existing_bytes(codex_home / JOURNAL_RELATIVE, codex_home)
     if content is None:
         return None
-    try:
-        document = json.loads(content.decode())
-    except (UnicodeError, ValueError) as error:
-        raise InstallError(f"install transaction is unreadable: {error}") from error
+    document = decode_json(content, "install transaction")
     return validate_journal(document)
 
 

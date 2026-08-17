@@ -31,8 +31,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "87c20241218855ff9f19caa046d3f5c9c8b9b87484a36a17c739ebd77a7dff62",
-      "size": 13616
+      "sha256": "dea7081f02e43b8cecb28baa14a35231bed2e19b336e722cd006a1f0ec013547",
+      "size": 13715
     },
     {
       "path": "build_manifest.py",
@@ -86,8 +86,8 @@
     },
     {
       "path": "install.py",
-      "sha256": "28fab146222bfcfce0a5b3e4b3f6516a0c2df7a65dd819262be8bf13923efb63",
-      "size": 58319
+      "sha256": "4789056db1efbe4b058bd0829ccf07ff15225318c9318c8b78a67ec4b95af945",
+      "size": 56800
     },
     {
       "path": "payload/AGENTS.section.en.md",
@@ -166,8 +166,8 @@
     },
     {
       "path": "tests/test_install.py",
-      "sha256": "c3a18297147f83a4db48adac8576a0a95e548375f0a2c843c71428e3dc65c53c",
-      "size": 46117
+      "sha256": "b3f807d2bdf3e1fff579b89de02d29727f478956d40fc76af25ec53c62e8651b",
+      "size": 43345
     },
     {
       "path": "tests/test_manifest.py",
@@ -181,11 +181,11 @@
     },
     {
       "path": "validate.py",
-      "sha256": "d16c3cd3bada98e611a855fa6715f5fddf3503a233da893c544313d41dcd5eec",
+      "sha256": "d20e1d3e0a1b441588e741bfe26945654783b391ad2b37336cb75252e99e4ba8",
       "size": 15326
     }
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "package_version": "2026.08.17.5"
+  "package_version": "2026.08.17.6"
 }

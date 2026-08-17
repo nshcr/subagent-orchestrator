@@ -131,12 +131,13 @@ The installer manages only:
 
 Other personal instructions, primary-agent settings, project settings, unknown
 `[agents]` keys, extra agents, and extra skills are preserved. Unknown conflicts
-are rejected. Managed state version 2 records an install-contract hash derived
-only from managed inputs for diagnosis, but completed-state upgrades do not
-require a historical contract allowlist. Instead, package identity, the exact
-managed-key domain, every recorded target hash, and retired-path authorization
-must all match. Unfinished transactions remain bound to the exact contract that
-created them.
+are rejected. Existing managed headings or paths without a valid managed state
+are treated as user-owned conflicts; no historical byte-hash allowlist can claim
+them. Managed state version 2 records an install-contract hash derived only from
+managed inputs for diagnosis, while completed-state upgrades require package
+identity, the exact managed-key domain, every recorded target hash, and
+retired-path authorization to match. Unfinished transactions remain bound to the
+exact contract that created them.
 
 `install-migrations.json` is the explicit migration catalog. A removed managed
 path is accepted only when both its original path and old SHA-256 are declared.
@@ -199,7 +200,7 @@ state, host enforcement, production efficiency, or current role quality.
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py --package-version 2026.08.17.5
+python3 -B build_manifest.py --package-version 2026.08.17.6
 python3 -B build_manifest.py --check
 python3 -B validate.py
 ```

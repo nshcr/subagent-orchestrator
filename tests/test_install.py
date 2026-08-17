@@ -139,6 +139,30 @@ raise SystemExit(module.main())
         self.assertIn("WOULD_TOUCH AGENTS.md ", result.stdout)
         self.assertFalse(self.codex_home.exists())
 
+    def test_check_rejects_incomplete_or_duplicate_manifest(self):
+        manifest = json.loads(self.test_manifest.read_text())
+        manifest["files"] = [
+            item for item in manifest["files"] if item["path"] != "README.md"
+        ]
+        self.test_manifest.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        )
+        incomplete = self.run_installer("--check")
+        self.assertNotEqual(incomplete.returncode, 0)
+        self.assertIn("manifest is stale", incomplete.stderr)
+
+        original = (PACKAGE_ROOT / "manifest.json").read_text()
+        duplicate = original.replace(
+            '"package_id": "subagent-orchestrator",',
+            '"package_id": "subagent-orchestrator",\n'
+            '  "package_id": "subagent-orchestrator",',
+            1,
+        )
+        self.test_manifest.write_text(duplicate)
+        rejected = self.run_installer("--check")
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("duplicate JSON key: package_id", rejected.stderr)
+
     def test_doctor_is_read_only_for_an_uninstalled_home(self):
         result = self.run_installer("--doctor")
 
@@ -190,68 +214,29 @@ raise SystemExit(module.main())
         self.assertEqual(rejected.returncode, 2)
         self.assertIn("invalid choice", rejected.stderr)
 
-    def test_current_two_bullet_policies_can_migrate_without_state(self):
-        predecessors = {
-            "en": """## Subagents and parallelism
-
-- Default to a single agent. Use `$subagent-orchestrator` only when the user explicitly requests delegation or parallel work, or when one bounded child can replace material primary work or provide a required independent gate; complexity, file count, decomposability, or idle capacity alone do not qualify.
-- Once delegated, follow the skill's current routing, ownership, handoff, waiting, and gate rules; high-risk final states require a fresh, independent, read-only review. The primary always retains authorization, scope, conflict handling, integration, and final acceptance; children cannot expand authority or delegate recursively, and every required child must reach a terminal state before the primary ends.
-""",
-            "zh": """## 子代理与并行
-
-- 默认单代理。仅当用户明确要求委派/并行，或一个边界清晰的子任务能替代可观的主代理工作或提供必需独立门禁时，使用 `$subagent-orchestrator`；复杂度、文件数、可拆分性或空闲并发本身不构成委派理由。
-- 委派后遵循该 skill 当前的路由、所有权、交接、等待和门禁规则；高风险最终状态必须接受 fresh、独立、只读审阅。主代理始终保留授权、范围、冲突处理、整合和最终验收；子代理不得扩权或递归委派，所有必需子任务在主代理结束前必须到达终态。
-""",
-        }
-        for source_language, predecessor in predecessors.items():
-            with self.subTest(source_language=source_language):
+    def test_stateless_managed_policy_conflicts_fail_closed(self):
+        policies = (
+            "## Subagents and parallelism\n\n- Existing local policy.\n",
+            "## 子代理与并行\n\n- Existing local policy.\n",
+        )
+        for policy in policies:
+            with self.subTest(heading=policy.splitlines()[0]):
                 with tempfile.TemporaryDirectory() as temporary:
                     original_home = self.codex_home
                     self.codex_home = Path(temporary) / "codex-home"
                     try:
                         self.codex_home.mkdir()
-                        (self.codex_home / "AGENTS.md").write_text(predecessor)
-                        result = self.run_installer("--apply", None)
-                        self.assertEqual(result.returncode, 0, result.stderr)
-                        installed = (self.codex_home / "AGENTS.md").read_text()
-                        self.assertIn("expansion checkpoints", installed)
-                        self.assertNotIn("## 子代理与并行", installed)
+                        path = self.codex_home / "AGENTS.md"
+                        path.write_text(policy)
+
+                        result = self.run_installer("--apply")
+
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn("managed policy section conflicts", result.stderr)
+                        self.assertEqual(path.read_text(), policy)
+                        self.assertFalse((self.codex_home / "config.toml").exists())
                     finally:
                         self.codex_home = original_home
-
-    def test_known_legacy_chinese_policy_can_migrate_without_state(self):
-        self.codex_home.mkdir()
-        predecessor = """## 子代理与并行
-
-- 默认单代理。仅当用户明确要求委派/并行，或一个边界清晰的专用角色能替代可观的主代理工作或提供必需独立门禁时，使用 `$subagent-orchestrator`；复杂、文件多或可拆分本身都不足以触发。
-- 可并行启动已分别满足资格、相互独立且所有权不重叠的最窄角色；不得为占满并发槽而委派，后续增派仍须由新的失败证据、未解边界或必需最终门禁触发。主代理保留授权、范围、单一写入者、整合与最终验收；子代理不得扩权或递归委派。
-- 高风险最终状态必须接受 fresh、独立、只读审阅。具体目标函数、角色资格、模型配置、artifact 交接与晋级证据由 skill、references 和角色配置分别维护；主代理等待相关子任务终态后按最终工作区重新验收，单次等待超时、静默、耗时或 token/credit 使用均不是中断依据。
-"""
-        (self.codex_home / "AGENTS.md").write_text(predecessor)
-
-        result = self.run_installer("--apply")
-
-        self.assertEqual(result.returncode, 0, result.stderr)
-        installed = (self.codex_home / "AGENTS.md").read_text()
-        self.assertIn("## Subagents and parallelism", installed)
-        self.assertNotIn("## 子代理与并行", installed)
-
-    def test_known_predecessor_english_policy_can_migrate_without_state(self):
-        self.codex_home.mkdir()
-        predecessor = """## Subagents and parallelism
-
-- Default to a single agent. Use `$subagent-orchestrator` only when the user explicitly requests delegation or parallel work, or when one bounded specialist can replace material primary work or provide a required independent gate; complexity, file count, and decomposability alone do not qualify.
-- Start the narrowest already-qualified roles in parallel only when they are mutually independent and have non-overlapping ownership. Do not delegate to fill capacity, and add later roles only for new failure evidence, an unresolved boundary, or a required final gate. The primary retains authorization, scope, single-writer integration, synthesis, and final acceptance; children cannot expand authority or delegate recursively.
-- High-risk final states require a fresh, independent, read-only review. The skill, references, and role configuration own the objective, eligibility, model settings, artifact handoff, and promotion evidence. The primary waits for required children to reach a terminal state and revalidates the final workspace; one wait timeout, silence, elapsed time, or token/credit use is not a cancellation reason.
-"""
-        (self.codex_home / "AGENTS.md").write_text(predecessor)
-
-        result = self.run_installer("--apply")
-
-        self.assertEqual(result.returncode, 0, result.stderr)
-        installed = (self.codex_home / "AGENTS.md").read_text()
-        self.assertIn("expansion checkpoint", installed)
-        self.assertNotIn("Start the narrowest already-qualified roles", installed)
 
     def test_preserves_unrelated_personal_configuration_and_extra_agent(self):
         self.codex_home.mkdir()
@@ -316,11 +301,11 @@ raise SystemExit(module.main())
         self.assertNotIn("AGENTS.md", managed)
         self.assertNotIn("config.toml", managed)
 
-    def test_v2_lineage_ignores_non_install_manifest_metadata(self):
+    def test_v2_install_contract_ignores_package_version(self):
         installed = self.run_installer("--apply")
         self.assertEqual(installed.returncode, 0, installed.stderr)
         manifest = json.loads(self.test_manifest.read_text())
-        manifest["release_note_for_test"] = "non-install metadata changed"
+        manifest["package_version"] = "2099.01.01"
         self.test_manifest.write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n"
         )
@@ -329,6 +314,24 @@ raise SystemExit(module.main())
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("0 path(s) would change", result.stdout)
+
+    def test_duplicate_managed_state_key_fails_closed(self):
+        installed = self.run_installer("--apply")
+        self.assertEqual(installed.returncode, 0, installed.stderr)
+        state = self.state_path()
+        state.write_text(
+            state.read_text().replace(
+                '"package_id": "subagent-orchestrator"',
+                '"package_id": "subagent-orchestrator",\n'
+                '  "package_id": "subagent-orchestrator"',
+                1,
+            )
+        )
+
+        result = self.run_installer("--check")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("duplicate JSON key: package_id", result.stderr)
 
     def test_v2_unknown_install_contract_is_upgraded_when_targets_match(self):
         installed = self.run_installer("--apply")

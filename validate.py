@@ -418,8 +418,8 @@ def verify_evaluation_smoke() -> None:
 
 def main() -> int:
     try:
-        verify_manifest()
         verify_manifest_builder()
+        verify_manifest()
         verify_portability()
         verify_package_tests()
         verify_evaluation_smoke()
