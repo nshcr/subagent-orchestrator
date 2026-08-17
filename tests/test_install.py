@@ -52,7 +52,7 @@ class InstallerTest(unittest.TestCase):
     def run_installer(
         self,
         action: str,
-        agents_language: str = "en",
+        agents_language: str | None = "en",
         extra_args: tuple[str, ...] = (),
     ) -> subprocess.CompletedProcess[str]:
         runner = """
@@ -66,6 +66,9 @@ spec.loader.exec_module(module)
 module.MANIFEST_PATH = Path(sys.argv.pop(1))
 raise SystemExit(module.main())
 """
+        language_args = (
+            [] if agents_language is None else ["--agents-language", agents_language]
+        )
         return subprocess.run(
             [
                 sys.executable,
@@ -76,8 +79,7 @@ raise SystemExit(module.main())
                 str(self.test_manifest),
                 "--codex-home",
                 str(self.codex_home),
-                "--agents-language",
-                agents_language,
+                *language_args,
                 action,
                 *extra_args,
             ],
@@ -177,17 +179,16 @@ raise SystemExit(module.main())
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertIn("0 path(s) would change", second.stdout)
 
-    def test_explicit_chinese_policy_selection_and_language_switch(self):
-        chinese = self.run_installer("--apply", "zh")
-        self.assertEqual(chinese.returncode, 0, chinese.stderr)
+    def test_default_english_policy_and_rejects_chinese_selector(self):
+        installed = self.run_installer("--apply", None)
+        self.assertEqual(installed.returncode, 0, installed.stderr)
         agents_path = self.codex_home / "AGENTS.md"
-        self.assertIn("## 子代理与并行", agents_path.read_text())
-        self.assertNotIn("## Subagents and parallelism", agents_path.read_text())
-
-        switched = self.run_installer("--apply")
-        self.assertEqual(switched.returncode, 0, switched.stderr)
         self.assertIn("## Subagents and parallelism", agents_path.read_text())
         self.assertNotIn("## 子代理与并行", agents_path.read_text())
+
+        rejected = self.run_installer("--check", "zh")
+        self.assertEqual(rejected.returncode, 2)
+        self.assertIn("invalid choice", rejected.stderr)
 
     def test_current_two_bullet_policies_can_migrate_without_state(self):
         predecessors = {
@@ -202,21 +203,19 @@ raise SystemExit(module.main())
 - 委派后遵循该 skill 当前的路由、所有权、交接、等待和门禁规则；高风险最终状态必须接受 fresh、独立、只读审阅。主代理始终保留授权、范围、冲突处理、整合和最终验收；子代理不得扩权或递归委派，所有必需子任务在主代理结束前必须到达终态。
 """,
         }
-        for language, predecessor in predecessors.items():
-            with self.subTest(language=language):
+        for source_language, predecessor in predecessors.items():
+            with self.subTest(source_language=source_language):
                 with tempfile.TemporaryDirectory() as temporary:
                     original_home = self.codex_home
                     self.codex_home = Path(temporary) / "codex-home"
                     try:
                         self.codex_home.mkdir()
                         (self.codex_home / "AGENTS.md").write_text(predecessor)
-                        result = self.run_installer("--apply", language)
+                        result = self.run_installer("--apply", None)
                         self.assertEqual(result.returncode, 0, result.stderr)
                         installed = (self.codex_home / "AGENTS.md").read_text()
-                        self.assertIn(
-                            "expansion checkpoint" if language == "en" else "编排扩张检查点",
-                            installed,
-                        )
+                        self.assertIn("expansion checkpoints", installed)
+                        self.assertNotIn("## 子代理与并行", installed)
                     finally:
                         self.codex_home = original_home
 

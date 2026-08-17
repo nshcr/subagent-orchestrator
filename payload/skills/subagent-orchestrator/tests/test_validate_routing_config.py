@@ -105,63 +105,71 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_spawn_time_model_or_effort_override(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Spawn children only with installed model/effort",
+            "Spawn children only with installed model and effort settings",
             "Override each child's model and effort per task",
         )
-        self.assertTrue(any("installed model/effort" in error for error in self.errors()))
+        self.assertTrue(any("installed model and effort" in error for error in self.errors()))
 
     def test_rejects_monkey_first_rule_removal(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Prove the monkey before building",
-            "Build the pedestal before proving",
+            "hardest user-relevant behavior",
+            "easiest surrounding scaffold",
         )
-        self.assertTrue(any("monkey" in error.lower() for error in self.errors()))
+        self.assertTrue(any("hardest user-relevant behavior" in error for error in self.errors()))
 
     def test_rejects_expansion_checkpoint_removal(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "that exact expansion; otherwise use the primary or close without another child",
-            "any expansion; start another child automatically",
+            "primary may clear the checkpoint without asking",
+            "primary automatically fills every available child slot",
         )
-        self.assertTrue(any("exact expansion" in error for error in self.errors()))
+        self.assertTrue(any("clear the checkpoint" in error for error in self.errors()))
+
+    def test_rejects_expansion_as_automatic_user_question(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/routing-policy.md",
+            "itself is not a question",
+            "always triggers a user question",
+        )
+        self.assertTrue(any("Expansion itself is not a question" in error for error in self.errors()))
 
     def test_rejects_writer_overlap(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "writer and never overlap write scopes",
-            "writer and allow overlapping write scopes",
+            "absolute ordinary cap at two children and one active writer",
+            "ordinary cap at four children and two active writers",
         )
         self.assertTrue(any("active writer" in error for error in self.errors()))
 
     def test_rejects_unintegrated_later_wave(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Before a later wave, collect every current required child to terminal state",
+            "Freeze new spawns, collect and integrate",
             "Start a later wave while current children are running",
         )
-        self.assertTrue(any("later wave" in error for error in self.errors()))
+        self.assertTrue(any("collect and integrate" in error for error in self.errors()))
 
-    def test_rejects_missing_output_audience_contract(self):
+    def test_rejects_non_english_child_receipt(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "Output audience: <user-facing or model-facing>",
-            "Audience is inferred by each child",
+            "Return: <English receipt or artifact and observable done condition>",
+            "Return: <receipt in any language>",
         )
-        self.assertTrue(any("Output audience" in error for error in self.errors()))
+        self.assertTrue(any("English receipt" in error for error in self.errors()))
 
     def test_rejects_moving_review_state(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "state change invalidates prior gate results",
-            "state change preserves prior gate results",
+            "Any relevant change invalidates prior gate results",
+            "Any relevant change preserves prior gate results",
         )
-        self.assertTrue(any("state change" in error for error in self.errors()))
+        self.assertTrue(any("relevant change" in error for error in self.errors()))
 
     def test_rejects_operational_blocker_as_preference(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "do not pose them as preferences",
+            "do not disguise them as preferences",
             "ask the user to choose how to fix every blocker",
         )
         self.assertTrue(any("preferences" in error for error in self.errors()))
@@ -169,42 +177,50 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_child_terminal_as_task_completion(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "proves neither task completion nor",
-            "proves task completion and",
+            "do not prove task completion",
+            "prove task completion",
         )
         self.assertTrue(any("task completion" in error for error in self.errors()))
 
-    def test_rejects_sub_boundary_as_task_acceptance(self):
+    def test_rejects_primary_finding_adjudication_removal(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "passing an install, load, child, test, or review sub-boundary cannot",
-            "passing any lower-level sub-boundary is sufficient and can",
+            "primary independently adjudicates every finding",
+            "reviewer findings are accepted without question",
         )
-        self.assertTrue(any("sub-boundary" in error for error in self.errors()))
+        self.assertTrue(any("independently adjudicates" in error for error in self.errors()))
 
     def test_rejects_reviewer_designer_drift(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "reviewer is a terminal gate, not a",
+            "terminal evidence gate, not a designer",
             "reviewer continuously redesigns the implementation and is a",
         )
-        self.assertTrue(any("terminal gate" in error for error in self.errors()))
+        self.assertTrue(any("terminal evidence gate" in error for error in self.errors()))
+
+    def test_rejects_repeated_review_without_new_evidence(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/routing-policy.md",
+            "changed candidate or new discriminating evidence",
+            "another reviewer request",
+        )
+        self.assertTrue(any("changed candidate" in error for error in self.errors()))
 
     def test_rejects_harness_claim_broadening(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "enforced the policy or that production became faster",
-            "prove host enforcement and production speed",
+            "loading, not production efficiency",
+            "Static tests prove production efficiency",
         )
-        self.assertTrue(any("do not prove" in error for error in self.errors()))
+        self.assertTrue(any("production efficiency" in error for error in self.errors()))
 
-    def test_rejects_global_policy_boundary_removal(self):
+    def test_rejects_global_policy_bloat(self):
         self.mutate(
             "AGENTS.md",
-            "仍有 BLOCK 就停止继续评审" if "## 子代理与并行" in (self.codex_home / "AGENTS.md").read_text() else "another BLOCK stops further review",
-            "continue until every reviewer passes",
+            "evidence-based closure.",
+            "evidence-based closure.\n- Run three reviewers after every change.",
         )
-        self.assertTrue(any("BLOCK" in error for error in self.errors()))
+        self.assertTrue(any("two bullets" in error for error in self.errors()))
 
     def test_rejects_missing_static_validator(self):
         (self.skill_dir / "scripts" / "validate-routing-config.py").unlink()

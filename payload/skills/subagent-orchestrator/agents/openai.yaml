@@ -1,7 +1,7 @@
 interface:
   display_name: "Subagent Orchestrator"
-  short_description: "Efficient delegation with bounded expansion"
-  default_prompt: "Use $subagent-orchestrator to start primary-only, prefer one bounded child for material or noisy work, stop unapproved expansion and reviewer-driven redesign, and keep task closure evidence-based."
+  short_description: "Bounded delegation with primary-owned convergence"
+  default_prompt: "Use $subagent-orchestrator to keep delegation bounded, clear expansion only after re-anchoring and new evidence, and keep reviewer findings advisory to the primary."
 
 policy:
   allow_implicit_invocation: true

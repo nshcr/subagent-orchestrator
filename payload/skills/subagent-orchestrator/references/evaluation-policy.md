@@ -2,74 +2,52 @@
 
 ## Objective
 
-Preserve authorization and correctness, then minimize end-to-end orchestration
-overhead. The decision is whether delegation improves the completed user task, not
-whether an agent, harness, or policy can be made more sophisticated.
+Preserve authorization and correctness, then reduce end-to-end orchestration overhead.
+Judge the completed user outcome, not agent count, activity, or policy sophistication.
 
 ## Monkey before pedestal
 
-Test the core behavior on the smallest representative task before investing in
-supporting infrastructure. Do not create a schema, authority system, lifecycle
-engine, installer feature, or reviewer hierarchy merely to make an unproven workflow
-look rigorous. If the direct task does not show useful delegation, stop there.
+Name the user-relevant core behavior and prove it on the smallest representative task
+before adding infrastructure, broader hardening, benchmarks, or more reviewers. If the
+direct task does not show useful delegation, stop. Routine Skill use needs no benchmark;
+compare paired tasks only when the user requests an optimization study or a routing
+change needs evidence.
 
-Routine skill use does not require a new benchmark campaign. When the user explicitly
-requests an optimization study, compare baseline and candidate on the same task and
-record only evidence needed for that decision.
+## Minimal receipt
 
-## Minimal efficiency receipt
-
-Record, when available:
+Record only available decision evidence:
 
 - delivered outcome and correctness failures;
-- child attempts, failed or interrupted attempts, and delegation waves;
-- primary-only, one-child, and two-child route counts;
-- writer count, reviewer attempts, retries, and primary replay;
-- expansion checkpoints, user questions, and primary-only fallbacks;
-- concurrent or overlapping writers, unintegrated terminal receipts, and moving-state
-  review attempts as correctness failures;
+- child attempts, waves, writers, reviewer attempts, retries, and primary replay;
+- why each second child or later wave displaced work or reduced root-context noise;
+- overlapping writers, unintegrated receipts, or moving-state reviews as failures;
 - wait timeouts as telemetry, not failure;
-- total primary and child tokens or actual credits, keeping cached raw usage distinct
-  from billed credits;
-- whether the candidate was installed, loaded, and observed on the target.
+- total primary/child tokens or actual credits when available, keeping cached raw usage
+  distinct from billed credits;
+- source, install, client-readback, and target observations at their actual evidence tier.
 
-Treat a second first-wave child as an efficiency claim: record the independent work it
-overlapped and the wall-time or root-context benefit it was expected to provide. A
-capacity slot, multiple tool calls, or several related questions is not evidence that
-another agent was needed.
+Do not infer role/tool credits from thread totals or call fixtures production evidence.
 
-Do not infer role-level or tool-level credits when the source exposes only thread or
-run totals. Do not call an offline fixture, local test, or clean archive production
-evidence.
+## Decision boundary
 
-## Decision and stop boundary
+- Keep work with the primary when quality evidence is incomplete or delegation does not
+  replace material work.
+- An expansion checkpoint freezes spawning; it does not automatically ask the user. The
+  primary may clear one bounded next child when current receipts are terminal and
+  integrated, new evidence gives it a discriminating purpose, material scope and risk are
+  unchanged, and expected benefit exceeds coordination cost.
+- Ask when the user requested a checkpoint or evidence leaves a material user-owned
+  outcome, acceptance, external behavior, compatibility, security, privacy, architecture,
+  meaningful cost, migration, or irreversible choice. Report capability/access blockers
+  with the next owner or action.
+- Review is valid only for a frozen integrated candidate. The primary adjudicates findings;
+  reviewer wording is not authority. New requirements and non-blocking hardening are
+  deferred. A further review after one repair and fresh recheck requires a changed
+  candidate or new discriminating evidence and passes through another expansion checkpoint.
+- Prefer a routing change only when quality does not regress and end-to-end overhead is
+  meaningfully lower. Fixed installed child models and effort are not task-time variables.
+- A child, gate line, install, or exhausted budget is not task completion. Close against
+  the original outcome with claim-matched evidence or a genuine user-owned blocker.
 
-- Keep primary when quality evidence is incomplete or delegation does not replace
-  material work.
-- An expansion checkpoint prohibits automatic spawning; it is not an automatic user
-  question. Without exact prior authorization, prefer primary-only work or closure.
-  Ask only when evidence leaves a material user-owned outcome, scope, cost, risk, or
-  acceptance choice. Report operational blockers with the next owner or action.
-- A later wave is not admissible until current required children are terminal and their
-  receipts are integrated. Review evidence is valid only for a state frozen after all
-  writers are terminal; a relevant state change invalidates it.
-- Prefer a candidate only when quality does not regress and end-to-end overhead is
-  meaningfully lower on the decision-relevant task.
-- Spawned-agent model and effort are installed configuration, not task-time
-  orchestration variables. Compare routing, topology, and context at those settings.
-- A mandatory independent safety gate may remain even when it is not an efficiency
-  win; label that as governance retention, not optimization success.
-- Reviewer scope is frozen with the named invariants. New ideas and non-blocking
-  hardening are deferred.
-- After one repair batch and one fresh recheck, stop further review. Ask the user only
-  for a named material acceptance choice; otherwise report the blocker and next owner
-  or action. Reviewer-driven redesign must not continue autonomously.
-- Child completion, a review terminal line, or exhausted delegation budget is not task
-  completion. Measure closure against the original user outcome; success at an install,
-  load, child, test, or review sub-boundary is partial evidence unless it directly
-  proves that acceptance anchor. Closure still requires claim-matched evidence or a
-  genuine user-owned blocker.
-
-Use the repository campaign evaluator only when a real comparison decision requires
-it. Preserve raw observations and state the evidence boundary; do not build another
-measurement framework around the evaluator without explicit user authorization.
+Use the repository campaign evaluator only for a real comparison decision. Preserve raw
+observations and do not build another measurement framework without explicit authorization.

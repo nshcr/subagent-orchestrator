@@ -45,7 +45,6 @@ AGENTS_HEADING = "## Subagents and parallelism"
 LEGACY_AGENTS_HEADING = "## 子代理与并行"
 AGENTS_SECTION_FILES = {
     "en": "AGENTS.section.en.md",
-    "zh": "AGENTS.section.zh.md",
 }
 ACCEPTED_GLOBAL_POLICY_SHA256 = {
     "57ac581a53881ce2152755d425c4e4c9e3608c29fd4257d500e1c7677aca467f",
@@ -1459,9 +1458,9 @@ def main() -> int:
     parser.add_argument("--codex-home", required=True, type=Path, metavar="ABS")
     parser.add_argument(
         "--agents-language",
-        required=True,
+        default="en",
         choices=sorted(AGENTS_SECTION_FILES),
-        help="language for the managed AGENTS.md policy section",
+        help=argparse.SUPPRESS,
     )
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--check", action="store_true", help="preflight without writes")

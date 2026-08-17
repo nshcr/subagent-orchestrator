@@ -47,8 +47,8 @@
     "overlapping_write_scopes_allowed": false,
     "later_wave_requires_expansion_checkpoint": true,
     "later_wave_precondition": "current-required-children-terminal-and-integrated",
-    "unapproved_expansion_route": "primary-or-close",
-    "checkpoint_question_scope": "material-user-owned-choice-only",
+    "checkpoint_clearance": "primary-may-clear-one-bounded-child-after-evidence-benefit-and-material-boundary-tests",
+    "checkpoint_question_scope": "explicit-user-checkpoint-or-material-user-owned-boundary",
     "explicit_final_review_cap": 3
   },
   "roles": [
@@ -101,9 +101,10 @@
     "peer_messages": "none",
     "later_wave_requires_expansion_checkpoint": true,
     "review_freeze_precondition": "all-writers-terminal-and-primary-integration-complete",
+    "post_recheck_block_route": "primary-first-principles-reset-then-expansion-checkpoint-if-independent-gate-remains",
+    "primary_owns_finding_adjudication": true,
     "operational_blocker_route": "report-next-owner-or-action",
-    "user_facing_language": "user-preferred",
-    "model_facing_language": "English"
+    "child_receipt_language": "English"
   },
   "unsupported_work_route": "primary",
   "adapter_requirements": [
@@ -112,7 +113,8 @@
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
     "preserve-terminal-collection",
-    "preserve-output-language-contract",
+    "preserve-English-child-receipts",
+    "preserve-primary-finding-adjudication",
     "map-spawned-agent-model-and-effort-at-install-time-never-override-per-task"
   ]
 }

@@ -34,7 +34,7 @@ ROLE_PROFILE_POLICY = {
             "isolated behind explicit acceptance fields and one requested artifact"
         ),
         "routing_markers": (
-            "Structured multi-file test or bounded log evidence",
+            "Structured test or bounded log evidence",
             "`evidence_tester`",
         ),
     },
@@ -45,7 +45,7 @@ ROLE_PROFILE_POLICY = {
             "a targeted primary check"
         ),
         "routing_markers": (
-            "One unresolved cross-component execution boundary",
+            "One unresolved execution/state/persistence boundary",
             "`boundary_mapper`",
         ),
     },
@@ -56,7 +56,7 @@ ROLE_PROFILE_POLICY = {
             "acceptance invariants"
         ),
         "routing_markers": (
-            "Independent high-risk final decision",
+            "Independent high-risk invariant",
             "fresh `risk_reviewer`",
         ),
     },
@@ -68,7 +68,7 @@ ROLE_PROFILE_POLICY = {
             "authorization, or data-integrity decision"
         ),
         "routing_markers": (
-            "`risk_reviewer_max` is available only",
+            "Evidence-qualified irreversible ambiguity",
         ),
     },
 }
@@ -78,7 +78,8 @@ ADAPTER_REQUIREMENTS = [
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
     "preserve-terminal-collection",
-    "preserve-output-language-contract",
+    "preserve-English-child-receipts",
+    "preserve-primary-finding-adjudication",
     "map-spawned-agent-model-and-effort-at-install-time-never-override-per-task",
 ]
 
@@ -213,8 +214,13 @@ def verify_portability() -> None:
         "overlapping_write_scopes_allowed": False,
         "later_wave_requires_expansion_checkpoint": True,
         "later_wave_precondition": "current-required-children-terminal-and-integrated",
-        "unapproved_expansion_route": "primary-or-close",
-        "checkpoint_question_scope": "material-user-owned-choice-only",
+        "checkpoint_clearance": (
+            "primary-may-clear-one-bounded-child-after-evidence-benefit-and-"
+            "material-boundary-tests"
+        ),
+        "checkpoint_question_scope": (
+            "explicit-user-checkpoint-or-material-user-owned-boundary"
+        ),
         "explicit_final_review_cap": 3,
     }:
         fail("portable profile concurrency drifts from routing/config ownership")
@@ -274,9 +280,13 @@ def verify_portability() -> None:
         "review_freeze_precondition": (
             "all-writers-terminal-and-primary-integration-complete"
         ),
+        "post_recheck_block_route": (
+            "primary-first-principles-reset-then-expansion-checkpoint-if-"
+            "independent-gate-remains"
+        ),
+        "primary_owns_finding_adjudication": True,
         "operational_blocker_route": "report-next-owner-or-action",
-        "user_facing_language": "user-preferred",
-        "model_facing_language": "English",
+        "child_receipt_language": "English",
     }
     if handoff != expected_handoff:
         fail("portable profile handoff contract mismatch")
@@ -321,54 +331,51 @@ def run(command: list[str]) -> str:
 
 def verify_hermetic_install() -> None:
     with tempfile.TemporaryDirectory() as temporary:
-        for language in ("en", "zh"):
-            codex_home = Path(temporary) / f"codex-home-{language}"
-            command = [
+        codex_home = Path(temporary) / "codex-home"
+        command = [
+            sys.executable,
+            "-B",
+            str(ROOT / "install.py"),
+            "--codex-home",
+            str(codex_home),
+        ]
+        check_output = run(command + ["--check"])
+        if "WOULD_TOUCH" not in check_output:
+            fail("empty-home preflight produced no touched-path hashes")
+        run(command + ["--apply"])
+        second_check = run(command + ["--check"])
+        if "0 path(s) would change" not in second_check:
+            fail("installer is not idempotent")
+        validator = (
+            codex_home
+            / "skills"
+            / "subagent-orchestrator"
+            / "scripts"
+            / "validate-routing-config.py"
+        )
+        run(
+            [
                 sys.executable,
                 "-B",
-                str(ROOT / "install.py"),
+                str(validator),
                 "--codex-home",
                 str(codex_home),
-                "--agents-language",
-                language,
             ]
-            check_output = run(command + ["--check"])
-            if "WOULD_TOUCH" not in check_output:
-                fail(f"{language}: empty-home preflight produced no touched-path hashes")
-            run(command + ["--apply"])
-            second_check = run(command + ["--check"])
-            if "0 path(s) would change" not in second_check:
-                fail(f"{language}: installer is not idempotent")
-            validator = (
-                codex_home
-                / "skills"
-                / "subagent-orchestrator"
-                / "scripts"
-                / "validate-routing-config.py"
-            )
-            run(
-                [
-                    sys.executable,
-                    "-B",
-                    str(validator),
-                    "--codex-home",
-                    str(codex_home),
-                ]
-            )
-            tests = codex_home / "skills" / "subagent-orchestrator" / "tests"
-            run(
-                [
-                    sys.executable,
-                    "-B",
-                    "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
-                    str(tests),
-                    "-p",
-                    "test_*.py",
-                ]
-            )
+        )
+        tests = codex_home / "skills" / "subagent-orchestrator" / "tests"
+        run(
+            [
+                sys.executable,
+                "-B",
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                str(tests),
+                "-p",
+                "test_*.py",
+            ]
+        )
 
 
 def verify_package_tests() -> None:

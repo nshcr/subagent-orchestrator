@@ -21,25 +21,27 @@ ROLE_POLICY = {
     "risk_reviewer_max": ("gpt-5.6-sol", "max", "default", "read-only"),
 }
 ROLE_INSTRUCTION_SHA256 = {
-    "evidence_tester": "b04b60ba7ff1600f9739db972552409a3c2c5d616a0e9b352630aa61224f04ae",
-    "boundary_mapper": "ad74a565330b61881ffeb4fd298b246939d6b3d5a4d50818e7d19586bd5b17ae",
-    "risk_reviewer": "d81bcabe897adac65000d9135aab79c88ff7604f44c41ffb5c371affdcb201e3",
-    "risk_reviewer_max": "ab1fd71dcca25bfa1938ff9012af852a5cfefbd36d382b45e87f5e5bffee121a",
+    "evidence_tester": "5dfd3c716c4df919a7995d86d0ec204372d18b76f2592fd2786fe112bb29e672",
+    "boundary_mapper": "472fe261ab920cf69fd69ebe4c9d2bfee3864954514796f873de165e471cdefc",
+    "risk_reviewer": "42adbd3474c96835510c8e456cbf549b9cac15918a866728aff8a2fd58dec477",
+    "risk_reviewer_max": "0020763e68e7836472a30c57ffe0e74c0ddb910d3689daf14809f6b1026fabb4",
 }
 ROLE_MARKERS = {
-    "evidence_tester": ("Acceptance fields", "Artifact contract", "Output audience"),
-    "boundary_mapper": ("Acceptance fields", "Artifact contract", "Output audience"),
+    "evidence_tester": ("Acceptance fields", "Artifact contract", "English receipt"),
+    "boundary_mapper": ("Acceptance fields", "Artifact contract", "Return English prose"),
     "risk_reviewer": (
         "Named invariants",
         "Escalation receipt",
         "`Artifact contract` is `none`",
-        "Output audience",
+        "Try to falsify every invariant",
+        "Return English prose",
     ),
     "risk_reviewer_max": (
         "Named invariants",
         "Escalation receipt",
         "`Artifact contract` is `none`",
-        "Output audience",
+        "Try to falsify each surviving explanation",
+        "Return English prose",
     ),
 }
 LEGACY_ROLE_NAMES = {
@@ -62,49 +64,15 @@ REQUIRED_SKILL_FILES = (
 GLOBAL_POLICY_MARKERS = {
     "## Subagents and parallelism": (
         "Default to a single agent",
-        "prefer direct or batched tool calls for small bounded work",
-        "If the primary would mainly coordinate, poll, or wait",
-        "Start one child by default",
-        "absolute cap remains two leaf children",
+        "Use `$subagent-orchestrator` only",
+        "Prefer direct or batched tools for small work",
+        "primary would mainly coordinate, poll, or wait",
+        "primary retains authorization, scope, integration, finding adjudication, and final acceptance",
+        "Children remain leaves",
+        "start one by default",
         "at most one active writer with no overlapping write scopes",
-        "Keep the primary model and effort user-controlled",
-        "spawned agents use installed settings without per-task model or effort overrides",
-        "opens an expansion checkpoint and cannot spawn automatically",
-        "Proceed only under exact current user authorization",
-        "before a later wave, collect every current required child to terminal state and integrate its receipt",
-        "ask one recommended-default question only for a material user-owned",
-        "one batch of at most three reviewers with disjoint invariants",
-        "report operational blockers instead of posing them as preferences",
-        "Freeze for review only after all writers are terminal",
-        "any relevant state change invalidates prior gate results",
-        "Reviewers inspect only that state and the named invariants",
-        "another BLOCK stops further review",
-        "Child terminal state or a spent delegation budget does not prove task completion",
-        "an install, load, child, test, or review sub-boundary cannot substitute for task acceptance",
-        "Static harness checks never prove host enforcement or production efficiency",
-    ),
-    "## 子代理与并行": (
-        "默认单代理",
-        "小型有界工作优先由主代理直接或批量调用工具完成",
-        "主代理主要只剩编排、轮询或等待",
-        "默认只派生一个子代理",
-        "绝对上限仍为两个叶子子代理",
-        "同时最多一个写入者且写入范围不得重叠",
-        "主代理的模型与 effort 由用户控制",
-        "派生代理使用已安装设置，不得按任务覆盖模型或 effort",
-        "进入编排扩张检查点，禁止自动派生",
-        "当前用户指令已精确授权该次扩张",
-        "开始后续轮次前必须先收齐当前所有必需子代理的终态并整合其收据",
-        "用户拥有的重大取舍",
-        "一批最多三个、invariant 互斥的 reviewer",
-        "不得伪装成用户偏好",
-        "只有所有写入者终态且主代理完成整合后才能冻结评审状态",
-        "任何相关状态变化都会使已有门禁结论失效",
-        "Reviewer 只审该状态和命名 invariant",
-        "仍有 BLOCK 就停止继续评审",
-        "子代理终态或编排预算耗尽都不证明任务完成",
-        "安装、加载、子代理、测试或评审等子边界通过都不能替代任务验收",
-        "静态 harness 检查不得冒充宿主强制或生产效率证明",
+        "use installed model and effort settings",
+        "Follow the Skill for role admission, expansion checkpoints, review convergence, and evidence-based closure",
     ),
 }
 
@@ -220,79 +188,82 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
     require_markers(checks, skill, "SKILL.md", (
         "name: subagent-orchestrator",
         "Prove the monkey before building the pedestal",
+        "hardest user-relevant behavior",
         "Start primary-only",
-        "Prefer direct or batched tool calls for small bounded work",
-        "A single ordered reasoning chain, shared mutable state, or one slow external operation stays with the primary",
+        "Prefer direct or batched tools for small work",
+        "Children return English model-facing receipts",
+        "finding adjudication",
         "Start one child by default",
-        "The absolute cap remains two children and one writer",
-        "Keep the primary user-controlled",
-        "Spawn children only with installed model/effort",
-        "If the primary would mostly coordinate, poll, or wait",
-        "Keep at most one active writer and never overlap write scopes",
-        "Treat a second delegation wave",
-        "Freeze new spawns",
-        "latest explicit user instruction already authorizes that exact expansion",
-        "Before a later wave, collect every current required child to terminal state",
-        "Ask one question only when evidence cannot choose",
-        "do not pose them as preferences",
-        "After two decision-directed agent attempts",
-        "Freeze a candidate only after all writers are terminal",
-        "Any relevant state change invalidates prior gate results",
-        "A reviewer is a terminal gate, not a continuing designer",
-        "Repair original-acceptance blockers once",
-        "stop further review",
-        "Static policy tests prove only local consistency",
-        "do not prove that the host enforced the policy or that production became faster",
-        "A candidate is not active until the target installation and client readback prove it was loaded",
-        "A terminal child or exhausted delegation budget proves neither task completion",
-        "passing an install, load, child, test, or review sub-boundary cannot",
+        "absolute ordinary cap at two children and one active writer",
+        "opens an expansion checkpoint",
+        "Freeze new spawns, collect and integrate",
+        "primary may clear the checkpoint without asking",
+        "Ask before consequential work when the user requested a checkpoint or evidence cannot choose",
+        "Corrections and brake feedback invalidate conflicting plan inertia",
+        "do not disguise them as preferences",
+        "After two decision-directed attempts",
+        "Adversarial review means trying to falsify",
+        "Multi-review is an exceptional explicit batch",
+        "Freeze only after all writers are terminal",
+        "Any relevant change invalidates prior gate results",
+        "A reviewer is a terminal evidence gate, not a designer",
+        "primary independently adjudicates every finding",
+        "stop the automatic review loop and return to first principles",
+        "further fresh review is a new expansion checkpoint",
+        "unchanged BLOCK is an evidence plateau",
+        "Static policy tests prove local consistency only",
+        "loading, not production efficiency",
+        "Spawn children only with installed model and effort settings",
+        "Child terminal state, spent budget, clean logs, or confident prose do not prove task completion",
+        "Do not add a harness, schema, installer feature, authority system, reviewer hierarchy",
     ))
     require_markers(checks, routing, "routing policy", (
         "Every child is a leaf",
-        "Keep custom roles distinct",
-        "Start one child by default",
-        "absolute first-wave cap remains two children",
-        "Never split one ordered reasoning chain",
+        "Roles are not substitutes",
+        "Valid transitions",
+        "only the primary may settle strategy",
+        "primary samples, integrates, and runs direct checks",
+        "A review BLOCK returns findings to the primary for independent adjudication",
+        "Start one child",
+        "ordinary cap at two children and one active writer",
         "Keep the primary model and effort user-controlled",
-        "use the installed matrix without spawn-time overrides",
-        "Keep at most one active writer",
-        "reviewer rerun opens an expansion checkpoint",
-        "latest explicit user instruction authorizes that exact expansion",
-        "Before a later wave, collect every current required child to terminal state",
-        "do not turn it into a preference question",
-        "another BLOCK stops further review",
-        "Child terminal state or a spent delegation budget is not task closure",
-        "Close only against the original user outcome",
-        "Freeze for review only after every writer is terminal",
-        "any relevant change invalidates the result",
-        "A reviewer finding outside the named invariants is a deferred observation",
-        "Do not build a new harness, schema, authority system, installer feature, or policy engine",
+        "Use fresh context and English receipts",
+        "Ask when the user requested a checkpoint or at a material user-owned boundary",
+        "Expansion itself is not a question",
+        "Multi-review exists only for an explicit user request",
+        "no voting, and no follow-on design workshop",
+        "Another independent review is a new expansion checkpoint",
+        "changed candidate or new discriminating evidence",
+        "evidence plateau",
+        "Do not build supporting machinery before the smallest real task proves the core behavior",
     ))
     require_markers(checks, delegation, "delegation contract", (
         "Task: <one bounded outcome>",
         "Scope: <exact paths, artifact, or read-only surface>",
-        "Output audience: <user-facing or model-facing>",
-        "Do not add expected conclusions, full conversation history, repeated policy text",
-        "Use `followup_task` only once",
-        "Never use either tool for status polling, reviewer redesign, or scope expansion",
+        "Return: <English receipt or artifact and observable done condition>",
+        "Add only the selected role's fields",
+        "Do not include expected conclusions, full history, repeated policy",
+        "does not delegate or message peers",
         "Keep one active writer and no overlapping write scopes",
-        "Before a later wave, collect every current required child to terminal state",
-        "authorization must name that exact expansion",
-        "closes only the transferred work, not the user task",
-        "primary-side acceptance anchor",
+        "An existing handoff never authorizes another writer",
+        "Use `followup_task` only for a missing acceptance field or new failure evidence",
+        "never for polling, redesign, or expansion",
+        "closes only its transferred work",
+        "finding adjudication",
     ))
     require_markers(checks, evaluation, "evaluation policy", (
         "Monkey before pedestal",
-        "Routine skill use does not require a new benchmark campaign",
-        "Minimal efficiency receipt",
-        "An expansion checkpoint prohibits automatic spawning",
-        "Report operational blockers with the next owner or action",
-        "A later wave is not admissible until current required children are terminal",
-        "a relevant state change invalidates it",
-        "Reviewer scope is frozen with the named invariants",
-        "Reviewer-driven redesign must not continue autonomously",
+        "prove it on the smallest representative task",
+        "Routine Skill use needs no benchmark",
+        "Minimal receipt",
+        "An expansion checkpoint freezes spawning; it does not automatically ask the user",
+        "primary may clear one bounded next child",
+        "Ask when the user requested a checkpoint or evidence leaves a material user-owned",
+        "Review is valid only for a frozen integrated candidate",
+        "reviewer wording is not authority",
+        "further review after one repair and fresh recheck requires a changed candidate",
         "is not task completion",
-        "Measure closure against the original user outcome",
+        "Close against the original outcome",
         "do not build another measurement framework",
     ))
 
@@ -305,7 +276,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
     if len(sections) == 1:
         heading, body = sections[0]
         require_markers(checks, body, f"AGENTS.md {heading}", GLOBAL_POLICY_MARKERS[heading])
-        checks.require(len(re.findall(r"(?m)^- ", body)) == 3, "AGENTS.md policy must contain three bullets")
+        checks.require(len(re.findall(r"(?m)^- ", body)) == 2, "AGENTS.md policy must contain two bullets")
 
     checks.require(len(skill.splitlines()) <= 100, "SKILL.md exceeds 100-line budget")
     for relative, text in (
@@ -316,7 +287,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         checks.require(len(text.splitlines()) <= 90, f"{relative} exceeds 90-line budget")
     checks.require('display_name: "Subagent Orchestrator"' in yaml_text, "openai.yaml display name mismatch")
     checks.require(
-        'short_description: "Efficient delegation with bounded expansion"' in yaml_text,
+        'short_description: "Bounded delegation with primary-owned convergence"' in yaml_text,
         "openai.yaml short description mismatch",
     )
     checks.require(
@@ -354,10 +325,10 @@ def main() -> int:
     print(f"PASS: {checks.count} static routing configuration checks")
     print("- default: primary; then one child; two only for qualified parallel work")
     print("- runtime: three spawned threads; installed child model/effort matrix; one active writer")
-    print("- expansion checkpoint: no automatic second wave, writer addition, scope growth, or reviewer rerun")
+    print("- expansion checkpoint: re-anchor, integrate, then clear one bounded child or ask at a material boundary")
     print("- wave boundary: current required children terminal and integrated before another wave")
-    print("- user question: one recommended default for a material user-owned choice only")
-    print("- reviewer boundary: integrated frozen state, one repair batch, one fresh recheck")
+    print("- user question: one recommended default for a material user-owned boundary only")
+    print("- reviewer boundary: frozen evidence gate; primary adjudication; no reviewer-owned design loop")
     print("- closure boundary: child terminal state and spent budget are not task completion")
     print("- evidence boundary: static consistency only; no host or production-efficiency claim")
     return 0

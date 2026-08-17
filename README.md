@@ -33,17 +33,16 @@ do not qualify a task for delegation.
 - Start one child by default. A second child in the ordinary first wave requires two
   bounded, mutually independent, ownership-safe assignments expected to reduce wall
   time or root-context pollution; the absolute cap remains two children and one
-  writer. A second wave,
-  another writer, scope expansion, or reviewer rerun opens an expansion checkpoint:
-  no new child starts without exact current user authorization. Otherwise the primary
-  continues or closes, asking one question only for a material user-owned choice.
-  Before a later wave, all current required children must be terminal and integrated;
-  at most one writer may be active and write scopes never overlap.
-- Reviewers inspect one frozen state and named invariants. After one repair and one
-  fresh recheck, another BLOCK stops further review. Operational blockers are reported,
-  out-of-scope ideas are deferred, and only a named material acceptance choice is
-  returned to the user. Freeze follows writer terminal state and integration, and any
-  relevant state change invalidates the previous review result.
+  writer. A later wave, another writer, scope expansion, or reviewer rerun opens an
+  expansion checkpoint. After current receipts are terminal and integrated, the primary
+  may clear one bounded next child when evidence justifies it and material scope and risk
+  are unchanged. Expansion itself is not a user question; ask when the user requested a
+  checkpoint or at a material user-owned boundary.
+- Reviewers inspect a frozen state and named high-risk invariants. The primary—not the
+  reviewer—adjudicates findings and owns the repair. After one repair and fresh recheck,
+  a remaining BLOCK triggers a first-principles reset; another review requires a changed
+  candidate or new discriminating evidence. Explicit multi-review remains an exceptional
+  single batch with disjoint invariants, never a voting or design workshop.
 - If the primary would mainly coordinate, poll, or wait, it should do the work
   directly. Prefer direct or batched tool calls for small bounded work, and keep one
   ordered reasoning chain, shared mutable state, or one slow external operation with
@@ -88,10 +87,10 @@ Run the read-only preflight first, then apply the same plan. Replace the example
 with the absolute path to your Codex home.
 
 ```bash
-python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --check
-python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --apply
-python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --doctor
-python3 -B install.py --codex-home /absolute/path/to/.codex --agents-language en --doctor --format json
+python3 -B install.py --codex-home /absolute/path/to/.codex --check
+python3 -B install.py --codex-home /absolute/path/to/.codex --apply
+python3 -B install.py --codex-home /absolute/path/to/.codex --doctor
+python3 -B install.py --codex-home /absolute/path/to/.codex --doctor --format json
 ```
 
 `--check` does not create the target directory or write files. It reports every
@@ -99,9 +98,8 @@ planned path and content SHA-256. `--apply` uses the same fail-closed checks.
 `--doctor` is read-only and classifies the current installation, active apply
 lock, unfinished transaction, and any quarantined retired artifacts. Add
 `--format json` for a stable machine-readable diagnostic receipt.
-Choose `--agents-language en` for English or `--agents-language zh` for Simplified
-Chinese. The installer writes exactly one policy section and can safely switch a
-managed installation between the two canonical translations.
+The installer writes one compact English policy section. Child handoffs and receipts
+are English model-facing context; the primary remains responsible for user-facing language.
 
 The installer manages only:
 
@@ -136,7 +134,7 @@ same-directory temporary files, `fsync`, atomic replacement, and a durable
 transaction journal. Atomicity is per file, not across the complete plan. If a
 late change or interruption stops an apply, already completed `TOUCHED` receipts
 are flushed and the journal remains for read-only diagnosis and idempotent
-forward recovery with the same package and language. Conflicting partial state
+forward recovery with the same package. Conflicting partial state
 fails closed; the installer never silently rolls it back or overwrites it.
 A crash can leave either the source and quarantine links or the quarantine and
 staging links. `--doctor` reports both recoverable states, and the next matching
@@ -238,7 +236,6 @@ for the evidence boundary and schemas.
 ├── evaluation/
 ├── payload/
 │   ├── AGENTS.section.en.md
-│   ├── AGENTS.section.zh.md
 │   ├── config.agents.toml
 │   ├── agents/
 │   └── skills/subagent-orchestrator/
