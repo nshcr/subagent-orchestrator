@@ -10,7 +10,7 @@ from unittest import mock
 
 
 PACKAGE_ROOT = Path(__file__).parents[1]
-PACKAGE_VERSION = "2026.08.14"
+PACKAGE_VERSION = "2026.08.14.1"
 
 
 def load_module(name: str, path: Path):
@@ -67,6 +67,10 @@ class ManifestBoundaryTest(unittest.TestCase):
 
     def test_schema_rejects_duplicate_paths_and_metadata_drift(self):
         document = BUILD_MANIFEST.build_manifest(PACKAGE_VERSION)
+        self.assertEqual(
+            BUILD_MANIFEST.validate_package_version("2026.08.14"),
+            "2026.08.14",
+        )
         duplicate = copy.deepcopy(document)
         duplicate["files"].append(copy.deepcopy(duplicate["files"][0]))
         with self.assertRaisesRegex(BUILD_MANIFEST.ManifestError, "duplicate manifest path"):
@@ -77,7 +81,14 @@ class ManifestBoundaryTest(unittest.TestCase):
         with self.assertRaisesRegex(BUILD_MANIFEST.ManifestError, "metadata mismatch"):
             BUILD_MANIFEST.validate_manifest_document(drifted)
 
-        for invalid in ("2026-08-14", "2026.8.14", "release"):
+        for invalid in (
+            "2026-08-14",
+            "2026.8.14",
+            "2026.02.30",
+            "2026.08.14.0",
+            "2026.08.14.01",
+            "release",
+        ):
             invalid_version = copy.deepcopy(document)
             invalid_version["package_version"] = invalid
             with self.subTest(version=invalid):

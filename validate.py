@@ -45,7 +45,7 @@ ROLE_PROFILE_POLICY = {
             "a targeted primary check"
         ),
         "routing_markers": (
-            "One unresolved execution/state/persistence boundary",
+            "One unresolved execution, state, or persistence boundary",
             "`boundary_mapper`",
         ),
     },
@@ -56,7 +56,7 @@ ROLE_PROFILE_POLICY = {
             "acceptance invariants"
         ),
         "routing_markers": (
-            "Independent high-risk invariant",
+            "One independent high-risk invariant",
             "fresh `risk_reviewer`",
         ),
     },
@@ -68,7 +68,7 @@ ROLE_PROFILE_POLICY = {
             "authorization, or data-integrity decision"
         ),
         "routing_markers": (
-            "Evidence-qualified irreversible ambiguity",
+            "One evidence-qualified irreversible ambiguity",
         ),
     },
 }
@@ -80,6 +80,7 @@ ADAPTER_REQUIREMENTS = [
     "preserve-terminal-collection",
     "preserve-English-child-receipts",
     "preserve-primary-finding-adjudication",
+    "preserve-no-custom-role-messaging-or-followups",
     "map-spawned-agent-model-and-effort-at-install-time-never-override-per-task",
 ]
 
@@ -204,7 +205,7 @@ def verify_portability() -> None:
         fail("portable profile built-in routes drift from routing ownership")
     if profile.get("concurrency") != {
         "runtime_thread_cap": config["max_concurrent_threads_per_session"],
-        "default_initial_child_count": 1,
+        "admitted_delegation_initial_child_count": 1,
         "ordinary_first_wave_child_cap": 2,
         "second_child_admission": (
             "bounded-independent-ownership-safe-expected-wall-time-or-context-benefit"
@@ -276,6 +277,7 @@ def verify_portability() -> None:
         "context_default": "fresh",
         "children_are_leaves": True,
         "peer_messages": "none",
+        "custom_role_messages_or_followups": "none",
         "later_wave_requires_expansion_checkpoint": True,
         "review_freeze_precondition": (
             "all-writers-terminal-and-primary-integration-complete"

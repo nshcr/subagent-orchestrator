@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import hashlib
 import json
 import re
@@ -45,7 +46,9 @@ MANIFEST_METADATA = {
 }
 TOP_LEVEL_KEYS = {*MANIFEST_METADATA, "package_version", "excluded_derived_paths", "files"}
 FILE_KEYS = {"path", "sha256", "size"}
-PACKAGE_VERSION_PATTERN = re.compile(r"[0-9]{4}\.[0-9]{2}\.[0-9]{2}\Z")
+PACKAGE_VERSION_PATTERN = re.compile(
+    r"(?P<date>[0-9]{4}\.[0-9]{2}\.[0-9]{2})(?:\.(?P<revision>[1-9][0-9]*))?\Z"
+)
 
 
 class ManifestError(ValueError):
@@ -64,11 +67,15 @@ def included(path: Path) -> bool:
 
 
 def validate_package_version(package_version: object) -> str:
-    if (
-        not isinstance(package_version, str)
-        or PACKAGE_VERSION_PATTERN.fullmatch(package_version) is None
-    ):
-        raise ManifestError("package_version must use YYYY.MM.DD")
+    if not isinstance(package_version, str):
+        raise ManifestError("package_version must use YYYY.MM.DD or YYYY.MM.DD.N")
+    match = PACKAGE_VERSION_PATTERN.fullmatch(package_version)
+    if match is None:
+        raise ManifestError("package_version must use YYYY.MM.DD or YYYY.MM.DD.N")
+    try:
+        date.fromisoformat(match.group("date").replace(".", "-"))
+    except ValueError as error:
+        raise ManifestError(f"package_version contains an invalid date: {error}") from error
     return package_version
 
 
@@ -249,7 +256,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--package-version",
-        metavar="YYYY.MM.DD",
+        metavar="YYYY.MM.DD[.N]",
         help="explicit package version; required when writing the manifest",
     )
     parser.add_argument(

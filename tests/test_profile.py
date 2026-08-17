@@ -95,6 +95,13 @@ class PortableProfileContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
             self.validate()
 
+    def test_rejects_custom_role_messaging_or_followup_drift(self):
+        document = self.profile()
+        document["handoff"]["custom_role_messages_or_followups"] = "allowed"
+        self.write_profile(document)
+        with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
+            self.validate()
+
     def test_rejects_leaf_route_or_first_wave_cap_drift(self):
         mutations = (
             ("route", lambda document: document["builtin_routes"][0].update(topology="bounded-peer")),
@@ -105,9 +112,9 @@ class PortableProfileContractTest(unittest.TestCase):
                 ),
             ),
             (
-                "default-child-count",
+                "admitted-delegation-child-count",
                 lambda document: document["concurrency"].update(
-                    default_initial_child_count=2
+                    admitted_delegation_initial_child_count=2
                 ),
             ),
             (
