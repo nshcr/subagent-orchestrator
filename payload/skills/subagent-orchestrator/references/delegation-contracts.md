@@ -8,6 +8,7 @@ Scope: <exact paths, artifact, or read-only surface>
 Context: <only essential task-local facts>
 Return: <receipt or artifact and observable done condition>
 Boundaries: <writes, external actions, recursion, overlap, stale state, or scope expansion>
+Output audience: <user-facing or model-facing>
 ```
 
 Add `State` only for mutable work or a frozen review. Add role-specific fields only
@@ -15,8 +16,8 @@ when the role requires them:
 
 - `evidence_tester`: `Acceptance fields` and one `Artifact contract`.
 - `boundary_mapper`: `Acceptance fields`; artifact only when requested.
-- `risk_reviewer`: `Named invariants`, `Escalation receipt: not-applicable`,
-  `Artifact contract: none`, and `Output audience`.
+- `risk_reviewer`: `Named invariants`, `Escalation receipt: not-applicable`, and
+  `Artifact contract: none`.
 - `risk_reviewer_max`: the same fields plus the prior indeterminate terminal line,
   competing evidence, and irreversible decision.
 

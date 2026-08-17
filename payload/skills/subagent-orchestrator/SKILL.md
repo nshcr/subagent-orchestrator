@@ -1,6 +1,6 @@
 ---
 name: subagent-orchestrator
-description: Route and supervise explicit subagent requests, one bounded specialist that replaces material primary work or isolates a substantial noisy evidence stream, or one required independent final gate. Use only when delegation has a concrete efficiency, context-isolation, or independence benefit; otherwise keep the primary agent. Stop unapproved expansion without turning every budget boundary into a user question.
+description: Route and supervise bounded Codex subagents while the primary retains authorization, integration, and acceptance. Use when the user explicitly requests delegation, one leaf can replace material work or isolate noisy evidence, or one independent high-risk final gate is required. Keep small, sequential, ambiguous, or coordination-heavy work with the primary.
 ---
 
 # Subagent Orchestrator

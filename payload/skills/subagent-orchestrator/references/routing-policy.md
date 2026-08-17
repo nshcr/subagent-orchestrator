@@ -14,6 +14,11 @@ the primary remains the only coordinator.
 | Independent high-risk final decision | fresh `risk_reviewer` | Frozen state and exact named invariants exist |
 | Everything simple, ambiguous, open-ended, or still strategic | primary | Delegation would add coordination rather than remove work |
 
+Keep custom roles distinct: `evidence_tester` collects bounded test or log evidence
+without source edits; `boundary_mapper` traces one unresolved boundary without making
+the defect or design decision; reviewers judge named frozen-state invariants without
+exploration, implementation, or new requirements.
+
 The primary must be able to name the raw work it will not repeat or the substantial
 noisy evidence it will keep out of root context. If it cannot, keep the work in the
 primary. An artifact request, large repository, or idle concurrency slot is not

@@ -76,6 +76,14 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("risk_reviewer: effort mismatch" in error for error in self.errors()))
 
+    def test_rejects_reviewer_artifact_drift(self):
+        self.mutate(
+            "agents/risk_reviewer.toml",
+            "`Artifact contract` is `none`",
+            "`Artifact contract` names a writable review file",
+        )
+        self.assertTrue(any("Artifact contract" in error for error in self.errors()))
+
     def test_rejects_runtime_cap_or_routine_effort_drift(self):
         for old, new, expected in (
             ("max_concurrent_threads_per_session = 3", "max_concurrent_threads_per_session = 16", "max_concurrent"),
@@ -133,6 +141,14 @@ class RoutingContractTest(unittest.TestCase):
             "Start a later wave while current children are running",
         )
         self.assertTrue(any("later wave" in error for error in self.errors()))
+
+    def test_rejects_missing_output_audience_contract(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "Output audience: <user-facing or model-facing>",
+            "Audience is inferred by each child",
+        )
+        self.assertTrue(any("Output audience" in error for error in self.errors()))
 
     def test_rejects_moving_review_state(self):
         self.mutate(

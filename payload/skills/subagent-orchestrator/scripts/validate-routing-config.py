@@ -21,16 +21,26 @@ ROLE_POLICY = {
     "risk_reviewer_max": ("gpt-5.6-sol", "max", "default", "read-only"),
 }
 ROLE_INSTRUCTION_SHA256 = {
-    "evidence_tester": "e8cfc06d58025b75a15b2075cbdac7fd3918ab40ea972f3cda08d18e8ec16aec",
-    "boundary_mapper": "73ff8065f8832480bb29fe64c302982680709b37a6514abd207dfda982a86507",
-    "risk_reviewer": "8367775e01048b9aead6deb1451b4d15d7ffe54a888da124f18253ec5969ada0",
-    "risk_reviewer_max": "c0b8897de75314993270c6ae4f4a41cff7c42ccc4b057bd9d417c47b7233b90f",
+    "evidence_tester": "b04b60ba7ff1600f9739db972552409a3c2c5d616a0e9b352630aa61224f04ae",
+    "boundary_mapper": "ad74a565330b61881ffeb4fd298b246939d6b3d5a4d50818e7d19586bd5b17ae",
+    "risk_reviewer": "d81bcabe897adac65000d9135aab79c88ff7604f44c41ffb5c371affdcb201e3",
+    "risk_reviewer_max": "ab1fd71dcca25bfa1938ff9012af852a5cfefbd36d382b45e87f5e5bffee121a",
 }
 ROLE_MARKERS = {
-    "evidence_tester": ("Acceptance fields", "Artifact contract"),
-    "boundary_mapper": ("Acceptance fields", "Artifact contract"),
-    "risk_reviewer": ("Named invariants", "Escalation receipt"),
-    "risk_reviewer_max": ("Named invariants", "Escalation receipt"),
+    "evidence_tester": ("Acceptance fields", "Artifact contract", "Output audience"),
+    "boundary_mapper": ("Acceptance fields", "Artifact contract", "Output audience"),
+    "risk_reviewer": (
+        "Named invariants",
+        "Escalation receipt",
+        "`Artifact contract` is `none`",
+        "Output audience",
+    ),
+    "risk_reviewer_max": (
+        "Named invariants",
+        "Escalation receipt",
+        "`Artifact contract` is `none`",
+        "Output audience",
+    ),
 }
 LEGACY_ROLE_NAMES = {
     "luna_builder",
@@ -239,6 +249,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
     ))
     require_markers(checks, routing, "routing policy", (
         "Every child is a leaf",
+        "Keep custom roles distinct",
         "Start one child by default",
         "absolute first-wave cap remains two children",
         "Never split one ordered reasoning chain",
@@ -260,6 +271,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
     require_markers(checks, delegation, "delegation contract", (
         "Task: <one bounded outcome>",
         "Scope: <exact paths, artifact, or read-only surface>",
+        "Output audience: <user-facing or model-facing>",
         "Do not add expected conclusions, full conversation history, repeated policy text",
         "Use `followup_task` only once",
         "Never use either tool for status polling, reviewer redesign, or scope expansion",
