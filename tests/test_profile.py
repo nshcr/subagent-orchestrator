@@ -89,6 +89,43 @@ class PortableProfileContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "model_hint mismatch"):
             self.validate()
 
+    def test_rejects_spawn_defaults_or_host_fallback_drift(self):
+        document = self.profile()
+        mutations = (
+            (
+                "spawn-defaults",
+                lambda item: item["spawn_model_defaults"].update(
+                    model_hint="gpt-5.6-luna"
+                ),
+            ),
+            (
+                "host-fallback",
+                lambda item: item["host_fallback"].update(route="spawn-default"),
+            ),
+            (
+                "implicit-agent-type",
+                lambda item: item["host_fallback"].update(
+                    explicit_agent_type_required=False
+                ),
+            ),
+            (
+                "fallback-result",
+                lambda item: item["host_fallback"].update(
+                    fallback_result_route="accept"
+                ),
+            ),
+        )
+        for label, mutate in mutations:
+            with self.subTest(label=label):
+                candidate = copy.deepcopy(document)
+                mutate(candidate)
+                self.write_profile(candidate)
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "spawn model defaults|default host fallback",
+                ):
+                    self.validate()
+
     def test_rejects_expansion_checkpoint_drift(self):
         document = self.profile()
         document["handoff"]["later_wave_requires_expansion_checkpoint"] = False

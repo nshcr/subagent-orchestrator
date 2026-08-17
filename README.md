@@ -29,6 +29,10 @@ concurrency do not qualify a task for delegation.
 
 - `explorer` and `worker` are built-in leaf routes for material read-only scans
   and scoped, ownership-safe implementation.
+- Every spawn names an explicit non-`default` `agent_type`. The built-in
+  general-purpose `default` is never routed by this package; unmatched work
+  remains with the primary. An omitted or resolved `default` result cannot
+  satisfy acceptance or authorize an automatic replacement spawn.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
 - The primary may send at most one same-scope update to an operational leaf
@@ -78,7 +82,7 @@ routing signal. Routine built-in leaves default to GPT-5.6 Sol at high effort;
 the bounded tester uses Luna/max, the boundary mapper Sol/high, the reviewer
 Sol/xhigh, and only the qualified irreversible-risk escalation uses Sol/max. The
 four custom-role values are fixed by their installed agent files; built-in
-children use the Sol/high package default. Spawned-agent routing does not
+children use the Sol/high package model defaults. Spawned-agent routing does not
 override these values per task, so Terra/max and Sol/medium are not active
 package routes. The primary remains user-controlled. Effective behavior still
 requires client readback.
@@ -192,7 +196,7 @@ state, host enforcement, production efficiency, or current role quality.
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py --package-version 2026.08.17.2
+python3 -B build_manifest.py --package-version 2026.08.17.3
 python3 -B build_manifest.py --check
 python3 -B validate.py
 ```

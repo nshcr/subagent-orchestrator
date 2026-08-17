@@ -224,6 +224,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Prefer direct or batched tools for small work",
         "Require English model-facing receipts",
         "finding adjudication",
+        "Set an explicit non-`default` `agent_type` on every spawn",
+        "Never omit it or spawn the built-in `default`",
         "When delegation is admitted, start one child",
         "ordinary cap at two children and one active writer",
         "Never allow child delegation or peer messaging",
@@ -249,11 +251,17 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Treat static policy tests as local consistency evidence only",
         "loading, not production efficiency",
         "Use installed child model and effort settings without per-task retuning",
+        "reject an omitted or resolved `default` result",
+        "without automatically respawning",
         "Close only with claim-matched evidence for the original outcome",
         "Do not add a harness, schema, installer feature, authority system, reviewer hierarchy",
     ))
     require_markers(checks, routing, "routing policy", (
         "Keep every child a leaf",
+        "Set an explicit non-`default` `agent_type` on every spawn",
+        "Never route to the built-in `default`",
+        "General-purpose or unmatched fallback",
+        "primary, no spawn",
         "Do not substitute roles",
         "Follow valid transitions",
         "only the primary settle strategy",
@@ -278,10 +286,13 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Do not build supporting machinery before the smallest real task proves the core behavior",
     ))
     require_markers(checks, delegation, "delegation contract", (
+        "Agent type: <explicit non-default role>",
         "Task: <one bounded outcome>",
         "Scope: <exact paths, artifact, or read-only surface>",
         "Return: <English receipt or artifact and observable done condition>",
         "Add only the selected role's fields",
+        "Bind every spawn to the declared non-`default` `agent_type`",
+        "If no specialized role fits, do not spawn",
         "Artifact contract` naming its path, format, and receipt rule",
         "Do not include expected conclusions, full history, repeated policy",
         "prohibit delegation or peer messaging",
@@ -366,7 +377,8 @@ def main() -> int:
             print(f"- {error}")
         return 1
     print(f"PASS: {checks.count} static routing configuration checks")
-    print("- default: primary; then one child; two only for qualified parallel work")
+    print("- fallback: built-in default is never spawned; unmatched work remains primary")
+    print("- admission: explicit non-default agent_type; then one child; two only for qualified parallel work")
     print("- runtime: three spawned threads; installed child model/effort matrix; one active writer")
     print("- expansion checkpoint: re-anchor, integrate, then clear one bounded child or ask at a material boundary")
     print("- wave boundary: current required children terminal and integrated before another wave")

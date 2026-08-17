@@ -74,6 +74,7 @@ ROLE_PROFILE_POLICY = {
 }
 ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
+    "preserve-explicit-non-default-agent-type",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
@@ -178,12 +179,19 @@ def verify_portability() -> None:
     config = tomllib.loads(
         (ROOT / "payload" / "config.agents.toml").read_text(encoding="utf-8")
     )["agents"]
-    default_child = profile.get("default_child")
-    if default_child != {
+    spawn_model_defaults = profile.get("spawn_model_defaults")
+    if spawn_model_defaults != {
         "model_hint": config["default_subagent_model"],
         "reasoning_effort_hint": config["default_subagent_reasoning_effort"],
     }:
-        fail("portable profile default child drifts from package config")
+        fail("portable profile spawn model defaults drift from package config")
+    if profile.get("host_fallback") != {
+        "id": "default",
+        "route": "primary-no-spawn",
+        "explicit_agent_type_required": True,
+        "fallback_result_route": "reject-and-primary-no-respawn",
+    }:
+        fail("portable profile default host fallback must remain primary-no-spawn")
     expected_builtin_routes = [
         {
             "id": "explorer",

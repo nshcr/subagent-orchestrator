@@ -20,10 +20,11 @@ smallest real proof, and postpone supporting machinery until that proof exists.
    receipt, or supplies a required independent gate. Complexity, file count,
    spare capacity, and confidence seeking do not qualify.
 3. Read the [routing policy](references/routing-policy.md) before selecting a
-   role, then send the lean
-   [delegation contract](references/delegation-contracts.md). Use fresh context
-   by default. Require English model-facing receipts and synthesize the
-   user-facing result in the primary.
+   role. Set an explicit non-`default` `agent_type` on every spawn. Never omit
+   it or spawn the built-in `default`; keep unmatched work in the primary. Then
+   send the lean [delegation contract](references/delegation-contracts.md). Use
+   fresh context by default. Require English model-facing receipts and
+   synthesize the user-facing result in the primary.
 4. Keep the primary doing material work. Retain authorization, scope, one-writer
    integration, finding adjudication, and final acceptance. If the primary would
    mainly coordinate, poll, or wait, reduce delegation and work directly.
@@ -94,8 +95,10 @@ smallest real proof, and postpone supporting machinery until that proof exists.
 ## Close with evidence
 
 - Sample each child's cited evidence and owned artifact; do not replay the
-  transferred scan. Use installed child model and effort settings without
-  per-task retuning.
+  transferred scan. Verify that its spawn named an admitted non-`default`
+  `agent_type`; reject an omitted or resolved `default` result and continue in
+  the primary without automatically respawning. Use installed child model and
+  effort settings without per-task retuning.
 - Continue safe authorized primary work while it is likely to reduce
   task-relevant risk proportionately. Close only with claim-matched evidence for
   the original outcome, explicit abandonment or supersession, or a genuine

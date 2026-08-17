@@ -3,12 +3,16 @@
 Send one lean English handoff per child. State each instruction once:
 
 ```text
+Agent type: <explicit non-default role>
 Task: <one bounded outcome>
 Scope: <exact paths, artifact, or read-only surface>
 Context: <only essential task-local facts>
 Return: <English receipt or artifact and observable done condition>
 Boundaries: <writes, external actions, recursion, overlap, stale state, or scope expansion>
 ```
+
+Bind every spawn to the declared non-`default` `agent_type`. If no specialized
+role fits, do not spawn; keep the work in the primary.
 
 Add `State` only for mutable work or a frozen review. Add only the selected
 role's fields:

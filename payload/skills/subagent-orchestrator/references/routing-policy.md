@@ -3,6 +3,9 @@
 Use the smallest route that can finish the acceptance anchor. Keep every child a
 leaf and the primary as the only coordinator and decision owner.
 
+Set an explicit non-`default` `agent_type` on every spawn. Never route to the
+built-in `default`; keep unmatched work in the primary.
+
 ## Admit a role
 
 | Need                                                        | Route                 | Admit only when                                                                    |
@@ -14,6 +17,7 @@ leaf and the primary as the only coordinator and decision owner.
 | One independent high-risk invariant                         | fresh `risk_reviewer` | Writers are terminal, the candidate is frozen, and the invariant is exact          |
 | One evidence-qualified irreversible ambiguity               | `risk_reviewer_max`   | A valid reviewer escalation names competing explanations and the affected decision |
 | Simple, strategic, ambiguous, ordered, or shared-state work | primary               | Delegation would add coordination or split reasoning prematurely                   |
+| General-purpose or unmatched fallback                       | primary, no spawn     | Never invoke built-in `default`; choose a specialized role or work directly        |
 
 Do not substitute roles. An `evidence_tester` collects evidence without source
 edits or unsupported diagnosis. A `boundary_mapper` traces one boundary without

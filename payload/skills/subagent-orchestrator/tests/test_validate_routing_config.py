@@ -107,6 +107,50 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("start one child" in error for error in self.errors()))
 
+    def test_rejects_implicit_or_default_agent_type(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "Set an explicit non-`default` `agent_type` on every spawn",
+            "Let the host select any omitted agent type",
+        )
+        self.assertTrue(any("explicit non-`default`" in error for error in self.errors()))
+
+    def test_rejects_default_fallback_routing(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/routing-policy.md",
+            "Never route to the built-in `default`",
+            "Route unmatched work to the built-in `default`",
+        )
+        self.assertTrue(
+            any(
+                "Never route to the built-in `default`" in error
+                for error in self.errors()
+            )
+        )
+
+    def test_rejects_handoff_without_explicit_agent_type(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "Agent type: <explicit non-default role>",
+            "Agent type: <optional>",
+        )
+        self.assertTrue(
+            any(
+                "Agent type: <explicit non-default role>" in error
+                for error in self.errors()
+            )
+        )
+
+    def test_rejects_default_result_acceptance(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/SKILL.md",
+            "reject an omitted or resolved `default` result",
+            "accept any fallback result",
+        )
+        self.assertTrue(
+            any("resolved `default` result" in error for error in self.errors())
+        )
+
     def test_rejects_spawn_time_model_or_effort_override(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
