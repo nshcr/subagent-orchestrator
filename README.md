@@ -67,9 +67,10 @@ requested three-reviewer gate remains possible without making spare capacity a r
 signal. Routine built-in leaves default to GPT-5.6 Sol at high effort; the bounded
 tester uses Luna/max, the boundary mapper Sol/high, the reviewer Sol/xhigh, and only
 the qualified irreversible-risk escalation uses Sol/max. The four custom-role values
-are fixed by their installed agent files and are not per-task routing controls.
-Efficiency comes from route, topology, and context; effective behavior still requires
-client readback.
+are fixed by their installed agent files; built-in children use the Sol/high package
+default. Spawned-agent routing does not override these values per task, so Terra/max
+and Sol/medium are not active package routes. The primary remains user-controlled.
+Effective behavior still requires client readback.
 
 See the current official documentation for [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents),
 [skills](https://learn.chatgpt.com/docs/build-skills), and the

@@ -31,8 +31,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "b5872aa59d82b243aa4e19d5f9219616929b165bf5086c48e57ad0ceb248dd9c",
-      "size": 12198
+      "sha256": "8ac9dcaa177ac5cb189d0241f67ddcaf01d002b9a46bd72c8972cd8c91e76120",
+      "size": 12319
     },
     {
       "path": "build_manifest.py",
@@ -91,13 +91,13 @@
     },
     {
       "path": "payload/AGENTS.section.en.md",
-      "sha256": "56d45f9c7b909bbf2a4e400aa3a02064934724a7d9c06bd8a825de3edb86f4f3",
-      "size": 2407
+      "sha256": "fcaa3b22a87a6e0af38c648cbb905b7ff32ef5458c77447d48d4367eaffd6002",
+      "size": 2396
     },
     {
       "path": "payload/AGENTS.section.zh.md",
-      "sha256": "e3a64f3d65ce9575d8cd0c3ba35a95118642c97abb8ff031beba885a4217f88e",
-      "size": 2273
+      "sha256": "5ec125eafe8e08adfb599ab4b665e135a66259ba22610b1eec6b302dca799c73",
+      "size": 2266
     },
     {
       "path": "payload/agents/boundary_mapper.toml",
@@ -126,8 +126,8 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/SKILL.md",
-      "sha256": "78426e2a1c8e9c3bda5a67dd8c7f8b052e09c6846785aa6786af554cd1c9437d",
-      "size": 6590
+      "sha256": "e5b95e8722054220dd384eebb7d3f570f85fa6a83b602b7e00c14773507ac42a",
+      "size": 6603
     },
     {
       "path": "payload/skills/subagent-orchestrator/agents/openai.yaml",
@@ -141,28 +141,28 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/evaluation-policy.md",
-      "sha256": "f71e2ca884a47e4b6bef93e539508a70d08b2d7319c823cfdb54a7e0f888a28f",
-      "size": 4127
+      "sha256": "74e49550b212a39823fb836f41a4859da19511b3075afa8f1854cbc04a7dea4e",
+      "size": 4137
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/routing-policy.md",
-      "sha256": "659ecb1181c6953ad75e47c07fc06e6e66819fffe85e02b44e5e2eb5382ad1eb",
-      "size": 4919
+      "sha256": "545c3aac6cdf15c447dc58c89073f675b1af963b5410ba83cea22a7199547e59",
+      "size": 5054
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "b036b30bdddf5c0ddc0dfb9013f06696a7a493dff2409749e76cf292bbd24515",
-      "size": 16856
+      "sha256": "25e553e84b9c7bf0c5fa14907709d86625c044cf23cdff7355d141141ff703cb",
+      "size": 17104
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
-      "sha256": "c7ac851117f1d642a5447b3aae719be193820e35bb43194fd8a74900e5395fa2",
-      "size": 8625
+      "sha256": "cbb3f23479f7e65ca711cbacb550cc0912116e7d07897bea57ecbdfdefec3280",
+      "size": 8605
     },
     {
       "path": "portable-profile.json",
-      "sha256": "d055020b5ddeac7da797ac3f31af2e2b1d6153142a9c89f5c93f499ca26b6e17",
-      "size": 4473
+      "sha256": "158a401a2b39aa240c83a02d79f4f498d2f6768e2b3c1385a83ff3ef8e984355",
+      "size": 4474
     },
     {
       "path": "tests/test_evaluation.py",
@@ -186,8 +186,8 @@
     },
     {
       "path": "validate.py",
-      "sha256": "1241afd9f4c1120746de31625f2feba0f40c34835f2a512e68c4084eafdf5f36",
-      "size": 14426
+      "sha256": "c8a4df9ef9d27e8c0b7f1f168326d0508a9d49a09bfa246a6fb20e268a56c362",
+      "size": 14427
     }
   ],
   "format_version": 1,

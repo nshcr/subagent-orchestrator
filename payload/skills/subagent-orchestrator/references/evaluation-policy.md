@@ -55,8 +55,8 @@ evidence.
   writers are terminal; a relevant state change invalidates it.
 - Prefer a candidate only when quality does not regress and end-to-end overhead is
   meaningfully lower on the decision-relevant task.
-- Custom-role model and effort are fixed configuration, not orchestration variables.
-  Compare routing, topology, and context at those fixed settings.
+- Spawned-agent model and effort are installed configuration, not task-time
+  orchestration variables. Compare routing, topology, and context at those settings.
 - A mandatory independent safety gate may remain even when it is not an efficiency
   win; label that as governance retention, not optimization success.
 - Reviewer scope is frozen with the named invariants. New ideas and non-blocking

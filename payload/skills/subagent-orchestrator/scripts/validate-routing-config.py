@@ -57,7 +57,8 @@ GLOBAL_POLICY_MARKERS = {
         "Start one child by default",
         "absolute cap remains two leaf children",
         "at most one active writer with no overlapping write scopes",
-        "four custom roles use the fixed model and effort",
+        "Keep the primary model and effort user-controlled",
+        "spawned agents use installed settings without per-task model or effort overrides",
         "opens an expansion checkpoint and cannot spawn automatically",
         "Proceed only under exact current user authorization",
         "before a later wave, collect every current required child to terminal state and integrate its receipt",
@@ -79,7 +80,8 @@ GLOBAL_POLICY_MARKERS = {
         "默认只派生一个子代理",
         "绝对上限仍为两个叶子子代理",
         "同时最多一个写入者且写入范围不得重叠",
-        "四个自定义角色使用已安装代理文件中固定的模型与 effort",
+        "主代理的模型与 effort 由用户控制",
+        "派生代理使用已安装设置，不得按任务覆盖模型或 effort",
         "进入编排扩张检查点，禁止自动派生",
         "当前用户指令已精确授权该次扩张",
         "开始后续轮次前必须先收齐当前所有必需子代理的终态并整合其收据",
@@ -213,7 +215,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "A single ordered reasoning chain, shared mutable state, or one slow external operation stays with the primary",
         "Start one child by default",
         "The absolute cap remains two children and one writer",
-        "Treat each custom role's installed model and effort as fixed",
+        "Keep the primary user-controlled",
+        "Spawn children only with installed model/effort",
         "If the primary would mostly coordinate, poll, or wait",
         "Keep at most one active writer and never overlap write scopes",
         "Treat a second delegation wave",
@@ -239,7 +242,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Start one child by default",
         "absolute first-wave cap remains two children",
         "Never split one ordered reasoning chain",
-        "four custom roles use the fixed model and effort",
+        "Keep the primary model and effort user-controlled",
+        "use the installed matrix without spawn-time overrides",
         "Keep at most one active writer",
         "reviewer rerun opens an expansion checkpoint",
         "latest explicit user instruction authorizes that exact expansion",
@@ -337,7 +341,7 @@ def main() -> int:
         return 1
     print(f"PASS: {checks.count} static routing configuration checks")
     print("- default: primary; then one child; two only for qualified parallel work")
-    print("- runtime: three spawned threads; fixed custom-role model/effort; one active writer")
+    print("- runtime: three spawned threads; installed child model/effort matrix; one active writer")
     print("- expansion checkpoint: no automatic second wave, writer addition, scope growth, or reviewer rerun")
     print("- wave boundary: current required children terminal and integrated before another wave")
     print("- user question: one recommended default for a material user-owned choice only")

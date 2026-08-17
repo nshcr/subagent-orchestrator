@@ -80,8 +80,8 @@ harnesses, schemas, policy engines, installers, or more reviewers.
 - Prefer direct task evidence: delivered result, quality failures, child attempts,
   failed attempts, waves, reviewer attempts, retries, primary replay, and actual
   tokens or credits when available. Do not treat cached raw usage as billed credits.
-- Treat each custom role's installed model and effort as fixed, not runtime routing
-  controls. If overhead approaches transferred work, stop delegating instead.
+- Keep the primary user-controlled. Spawn children only with installed model/effort;
+  never override them per task. If overhead approaches transferred work, stop delegating.
 - Static policy tests prove only local consistency. They do not prove that the host
   enforced the policy or that production became faster.
 - A candidate is not active until the target installation and client readback prove

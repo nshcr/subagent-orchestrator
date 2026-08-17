@@ -79,7 +79,7 @@ ADAPTER_REQUIREMENTS = [
     "preserve-expansion-checkpoints",
     "preserve-terminal-collection",
     "preserve-output-language-contract",
-    "map-model-and-effort-at-install-time-never-retune-custom-roles-at-runtime",
+    "map-spawned-agent-model-and-effort-at-install-time-never-override-per-task",
 ]
 
 

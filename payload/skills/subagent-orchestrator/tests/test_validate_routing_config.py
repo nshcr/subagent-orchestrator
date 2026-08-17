@@ -94,13 +94,13 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("Start one child" in error for error in self.errors()))
 
-    def test_rejects_runtime_effort_retuning_claim(self):
+    def test_rejects_spawn_time_model_or_effort_override(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Treat each custom role's installed model and effort as fixed",
-            "Retune each custom role's effort for every task",
+            "Spawn children only with installed model/effort",
+            "Override each child's model and effort per task",
         )
-        self.assertTrue(any("installed model and effort as fixed" in error for error in self.errors()))
+        self.assertTrue(any("installed model/effort" in error for error in self.errors()))
 
     def test_rejects_monkey_first_rule_removal(self):
         self.mutate(
