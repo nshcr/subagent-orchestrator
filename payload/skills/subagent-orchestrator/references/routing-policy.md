@@ -60,10 +60,11 @@ or own the repair.
   external behavior, compatibility, security, privacy, architecture, meaningful
   cost, migration, or an irreversible effect, ask early with one recommended
   default. Report operational blockers instead of offering them as choices.
-- Use fresh context and English receipts. Keep the primary model and effort
-  user-controlled. Use fixed installed child settings: Sol/high for built-ins
-  and `boundary_mapper`, Luna/max for `evidence_tester`, Sol/xhigh for
-  `risk_reviewer`, and Sol/max for `risk_reviewer_max`.
+- Set `fork_turns` to `"none"`; never inherit full history. Use English receipts
+  and keep the primary model and effort user-controlled. Use fixed installed
+  child settings: Sol/high for built-ins and `boundary_mapper`, Luna/max for
+  `evidence_tester`, Sol/xhigh for `risk_reviewer`, and Sol/max for
+  `risk_reviewer_max`.
 
 ## Route review
 

@@ -103,6 +103,8 @@
     "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
     "state_bound": true,
     "context_default": "fresh",
+    "spawn_fork_turns": "none",
+    "full_history_forks_allowed": false,
     "children_are_leaves": true,
     "peer_messages": "none",
     "primary_to_operational_leaf_updates": "at-most-one-new-evidence-missing-acceptance-or-new-failure-inside-original-scope",
@@ -118,6 +120,7 @@
   "adapter_requirements": [
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
+    "preserve-no-full-history-forks",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",

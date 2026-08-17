@@ -138,6 +138,8 @@ class PortableProfileContractTest(unittest.TestCase):
         mutations = (
             ("primary_to_operational_leaf_updates", "unlimited"),
             ("review_role_messages_or_followups", "allowed"),
+            ("spawn_fork_turns", "all"),
+            ("full_history_forks_allowed", True),
         )
         for key, value in mutations:
             with self.subTest(key=key):

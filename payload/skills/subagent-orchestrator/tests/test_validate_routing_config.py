@@ -131,24 +131,32 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_handoff_without_explicit_agent_type(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "Agent type: <explicit non-default role>",
-            "Agent type: <optional>",
+            "Spawn: agent_type=<explicit non-default role>; fork_turns=none",
+            "Spawn: agent_type=<optional>",
         )
         self.assertTrue(
             any(
-                "Agent type: <explicit non-default role>" in error
+                "Spawn: agent_type=<explicit non-default role>" in error
                 for error in self.errors()
             )
         )
 
+    def test_rejects_full_history_fork(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "fork_turns=none",
+            "fork_turns=all",
+        )
+        self.assertTrue(any("fork_turns" in error for error in self.errors()))
+
     def test_rejects_default_result_acceptance(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "reject an omitted or resolved `default` result",
+            "reject an omitted, resolved `default`, or full-history result",
             "accept any fallback result",
         )
         self.assertTrue(
-            any("resolved `default` result" in error for error in self.errors())
+            any("resolved `default`" in error for error in self.errors())
         )
 
     def test_rejects_spawn_time_model_or_effort_override(self):

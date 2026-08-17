@@ -75,6 +75,7 @@ ROLE_PROFILE_POLICY = {
 ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
+    "preserve-no-full-history-forks",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
@@ -284,6 +285,8 @@ def verify_portability() -> None:
         ),
         "state_bound": True,
         "context_default": "fresh",
+        "spawn_fork_turns": "none",
+        "full_history_forks_allowed": False,
         "children_are_leaves": True,
         "peer_messages": "none",
         "primary_to_operational_leaf_updates": (

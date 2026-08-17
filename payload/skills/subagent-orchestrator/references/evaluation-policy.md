@@ -24,6 +24,7 @@ Record only available decision evidence:
 - work or root-context noise displaced by each second child or later wave;
 - overlapping writers, unintegrated receipts, or moving-state reviews as
   failures;
+- omitted or non-`none` `fork_turns` as a routing failure;
 - wait timeouts as telemetry, not failure;
 - total primary and child tokens or actual credits when available, keeping
   cached raw usage distinct from billed credits;

@@ -225,6 +225,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Require English model-facing receipts",
         "finding adjudication",
         "Set an explicit non-`default` `agent_type` on every spawn",
+        "`fork_turns: \"none\"`",
+        "never omit it or inherit full history",
         "Never omit it or spawn the built-in `default`",
         "When delegation is admitted, start one child",
         "ordinary cap at two children and one active writer",
@@ -251,7 +253,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Treat static policy tests as local consistency evidence only",
         "loading, not production efficiency",
         "Use installed child model and effort settings without per-task retuning",
-        "reject an omitted or resolved `default` result",
+        "reject an omitted, resolved `default`, or full-history result",
         "without automatically respawning",
         "Close only with claim-matched evidence for the original outcome",
         "Do not add a harness, schema, installer feature, authority system, reviewer hierarchy",
@@ -274,8 +276,10 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "expansion checkpoint never relaxes leaf topology",
         "Permit at most one primary update to an operational leaf",
         "Keep review roles isolated from messages and follow-ups",
-        "Keep the primary model and effort user-controlled",
-        "Use fresh context and English receipts",
+        "keep the primary model and effort user-controlled",
+        "Set `fork_turns` to `\"none\"`",
+        "never inherit full history",
+        "Use English receipts",
         "Ask when the user requested a checkpoint or at a material user-owned boundary",
         "Expansion alone is not a question",
         "Use multi-review only for an explicit user request",
@@ -286,12 +290,14 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Do not build supporting machinery before the smallest real task proves the core behavior",
     ))
     require_markers(checks, delegation, "delegation contract", (
-        "Agent type: <explicit non-default role>",
+        "Spawn: agent_type=<explicit non-default role>; fork_turns=none",
         "Task: <one bounded outcome>",
         "Scope: <exact paths, artifact, or read-only surface>",
         "Return: <English receipt or artifact and observable done condition>",
         "Add only the selected role's fields",
         "Bind every spawn to the declared non-`default` `agent_type`",
+        "`fork_turns: \"none\"`",
+        "Never inherit full history",
         "If no specialized role fits, do not spawn",
         "Artifact contract` naming its path, format, and receipt rule",
         "Do not include expected conclusions, full history, repeated policy",
@@ -309,6 +315,7 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "prove it on the smallest representative task",
         "Do not benchmark routine Skill use",
         "Record the minimum evidence",
+        "omitted or non-`none` `fork_turns` as a routing failure",
         "Freeze spawning at an expansion checkpoint",
         "Clear one bounded next child only after",
         "Never relax leaf, ownership, write-scope, or freshness rules",
@@ -379,6 +386,7 @@ def main() -> int:
     print(f"PASS: {checks.count} static routing configuration checks")
     print("- fallback: built-in default is never spawned; unmatched work remains primary")
     print("- admission: explicit non-default agent_type; then one child; two only for qualified parallel work")
+    print("- context: fork_turns none; full parent history is never inherited")
     print("- runtime: three spawned threads; installed child model/effort matrix; one active writer")
     print("- expansion checkpoint: re-anchor, integrate, then clear one bounded child or ask at a material boundary")
     print("- wave boundary: current required children terminal and integrated before another wave")
