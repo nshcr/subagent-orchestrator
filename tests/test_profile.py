@@ -1,3 +1,4 @@
+import copy
 from importlib.util import module_from_spec, spec_from_file_location
 import json
 from pathlib import Path
@@ -95,12 +96,19 @@ class PortableProfileContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
             self.validate()
 
-    def test_rejects_custom_role_messaging_or_followup_drift(self):
+    def test_rejects_operational_or_review_role_update_drift(self):
         document = self.profile()
-        document["handoff"]["custom_role_messages_or_followups"] = "allowed"
-        self.write_profile(document)
-        with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
-            self.validate()
+        mutations = (
+            ("primary_to_operational_leaf_updates", "unlimited"),
+            ("review_role_messages_or_followups", "allowed"),
+        )
+        for key, value in mutations:
+            with self.subTest(key=key):
+                candidate = copy.deepcopy(document)
+                candidate["handoff"][key] = value
+                self.write_profile(candidate)
+                with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
+                    self.validate()
 
     def test_rejects_leaf_route_or_first_wave_cap_drift(self):
         mutations = (

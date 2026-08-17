@@ -80,7 +80,8 @@ ADAPTER_REQUIREMENTS = [
     "preserve-terminal-collection",
     "preserve-English-child-receipts",
     "preserve-primary-finding-adjudication",
-    "preserve-no-custom-role-messaging-or-followups",
+    "preserve-one-bounded-primary-update-for-operational-leaves",
+    "preserve-no-review-role-messaging-or-followups",
     "map-spawned-agent-model-and-effort-at-install-time-never-override-per-task",
 ]
 
@@ -277,7 +278,11 @@ def verify_portability() -> None:
         "context_default": "fresh",
         "children_are_leaves": True,
         "peer_messages": "none",
-        "custom_role_messages_or_followups": "none",
+        "primary_to_operational_leaf_updates": (
+            "at-most-one-new-evidence-missing-acceptance-or-new-failure-"
+            "inside-original-scope"
+        ),
+        "review_role_messages_or_followups": "none",
         "later_wave_requires_expansion_checkpoint": True,
         "review_freeze_precondition": (
             "all-writers-terminal-and-primary-integration-complete"

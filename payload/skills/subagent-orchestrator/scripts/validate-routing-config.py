@@ -21,19 +21,25 @@ ROLE_POLICY = {
     "risk_reviewer_max": ("gpt-5.6-sol", "max", "default", "read-only"),
 }
 ROLE_INSTRUCTION_SHA256 = {
-    "evidence_tester": "ca001232aef75acec5c82ee3bbe732d2f19b7a15f3131c5dc28c67c130ca8239",
-    "boundary_mapper": "3873ef71a569f5886c08ed0b8d1ca675b6bcab2581f0082d491ec2cdc9366f2c",
-    "risk_reviewer": "6c66ae372359bbf4860dbad1d16bb9765153d9298583c837731f955a0f1c0a25",
-    "risk_reviewer_max": "73015d3c2af21c03e749aa308e5851c0d701ac4da56c2a2521eb67d0930a1f3b",
+    "evidence_tester": "e8ff40f7d9370bb0ac1f3de441e9408a6c449e1954eec4c6cedae02a0dac1148",
+    "boundary_mapper": "8a99a6ef48dac961f11854ce1951ccb0bbdcaee2bf2cf98189b4bfe377b0e96d",
+    "risk_reviewer": "2aea5e623cc7d1897852c38cf443fcfaff9c5f4ae4749e3bf7bb5f45c8ea191b",
+    "risk_reviewer_max": "1b98b4aa01a69daf251f59396d76daa707b9e8681bf80df7a75ddfca854a97a6",
 }
 ROLE_MARKERS = {
     "evidence_tester": (
         "Acceptance fields",
         "Artifact contract",
         "only write scope",
+        "Accept at most one primary",
         "English receipt",
     ),
-    "boundary_mapper": ("Acceptance fields", "Artifact contract", "Return English prose"),
+    "boundary_mapper": (
+        "Acceptance fields",
+        "Artifact contract",
+        "Accept at most one primary",
+        "Return English prose",
+    ),
     "risk_reviewer": (
         "Named invariants",
         "Escalation receipt",
@@ -154,11 +160,25 @@ def validate_roles(checks: Checks, codex_home: Path, configured_skill_path: Path
         checks.require(data.get("service_tier") == tier, f"{role}: service tier mismatch")
         checks.require(data.get("sandbox_mode") == sandbox, f"{role}: sandbox mismatch")
         require_markers(checks, instructions, role, ROLE_MARKERS[role])
-        checks.require(
-            "Do not spawn or message agents, accept follow-up work, or widen scope."
-            in instructions,
-            f"{role}: recursion, messaging, follow-up, and scope expansion must be disabled",
-        )
+        if role in {"evidence_tester", "boundary_mapper"}:
+            checks.require(
+                "Do not spawn agents, initiate agent messages, or widen scope."
+                in instructions,
+                f"{role}: recursion, outgoing messaging, and scope expansion must be disabled",
+            )
+            checks.require(
+                "Accept at most one primary `send_message` or `followup_task`" in instructions,
+                f"{role}: bounded primary update contract is missing",
+            )
+        else:
+            checks.require(
+                "Do not spawn or message agents." in instructions,
+                f"{role}: recursion and messaging must be disabled",
+            )
+            checks.require(
+                "Do not accept follow-up work" in instructions,
+                f"{role}: review input must reject follow-up work",
+            )
         checks.require(
             hashlib.sha256(instructions.encode()).hexdigest() == ROLE_INSTRUCTION_SHA256[role],
             f"{role}: developer_instructions integrity mismatch",
@@ -214,6 +234,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "Ask before consequential work when the user requested a checkpoint or evidence leaves",
         "Treat user corrections and brake feedback as invalidating conflicting plan inertia",
         "do not disguise them as preferences",
+        "Allow at most one primary-to-leaf update",
+        "Never update a review role",
         "After two decision-directed attempts",
         "Treat adversarial review as an attempt to falsify",
         "Limit explicit multi-review to one batch",
@@ -242,6 +264,8 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "ordinary cap at two children and one active writer",
         "Prohibit child delegation and peer messaging",
         "expansion checkpoint never relaxes leaf topology",
+        "Permit at most one primary update to an operational leaf",
+        "Keep review roles isolated from messages and follow-ups",
         "Keep the primary model and effort user-controlled",
         "Use fresh context and English receipts",
         "Ask when the user requested a checkpoint or at a material user-owned boundary",
@@ -263,8 +287,9 @@ def validate_policy(checks: Checks, codex_home: Path) -> None:
         "prohibit delegation or peer messaging",
         "Keep one active writer and no overlapping write scopes",
         "Do not treat an existing handoff or expansion checkpoint as authorization for recursion",
+        "Allow at most one primary-to-leaf update",
         "Use `followup_task` only for a missing acceptance field or new failure evidence",
-        "Never message custom roles",
+        "Never send either update to `risk_reviewer` or `risk_reviewer_max`",
         "closure of transferred work only",
         "finding adjudication",
     ))

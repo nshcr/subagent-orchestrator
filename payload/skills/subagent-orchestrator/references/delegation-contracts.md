@@ -33,10 +33,14 @@ receipts before integration or a later wave. Do not treat an existing handoff or
 expansion checkpoint as authorization for recursion, overlap, another writer,
 scope expansion, reviewer rerun, or a new wave.
 
-Use `send_message` only to deliver new admitted evidence to a running built-in
-leaf. Use `followup_task` only for a missing acceptance field or new failure
-evidence inside that leaf's original scope. Never message custom roles, poll
-status, request redesign, or widen scope through either tool.
+Allow at most one primary-to-leaf update across `send_message` and
+`followup_task` for an operational leaf: `explorer`, `worker`,
+`evidence_tester`, or `boundary_mapper`. Use `send_message` to deliver newly
+admitted evidence to a running leaf. Use `followup_task` only for a missing
+acceptance field or new failure evidence inside the original scope. Never send
+either update to `risk_reviewer` or `risk_reviewer_max`; changed review evidence
+requires a refreeze and fresh reviewer. Never poll status, request redesign, or
+widen scope through either tool.
 
 Require every necessary child to become terminal before final acceptance, but
 treat that state as closure of transferred work only. Keep authorization,

@@ -52,11 +52,14 @@ smallest real proof, and postpone supporting machinery until that proof exists.
   corrections and brake feedback as invalidating conflicting plan inertia.
   Report capability and access blockers with the next owner or action; do not
   disguise them as preferences.
-- Do not poll with follow-ups. Use `followup_task` only for new failure evidence
-  or a missing acceptance field inside the original built-in leaf scope. After
-  two decision-directed attempts leave the same uncertainty unchanged, stop
-  agent variants and obtain the smallest discriminating observation in the
-  primary.
+- Allow at most one primary-to-leaf update across `send_message` and
+  `followup_task` for an operational leaf: `explorer`, `worker`,
+  `evidence_tester`, or `boundary_mapper`. Deliver only newly admitted evidence,
+  a missing acceptance field, or new failure evidence inside the original scope.
+  Never update a review role; changed review evidence requires a refreeze and
+  fresh reviewer. Do not poll. After two decision-directed attempts leave the
+  same uncertainty unchanged, stop agent variants and obtain the smallest
+  discriminating observation in the primary.
 
 ## Review and converge
 

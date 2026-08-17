@@ -219,13 +219,29 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("not-applicable" in error for error in self.errors()))
 
-    def test_rejects_custom_role_followup_or_messaging(self):
+    def test_rejects_operational_role_bounded_update_drift(self):
         self.mutate(
             "agents/evidence_tester.toml",
-            "Do not spawn or message agents, accept follow-up work, or widen scope.",
-            "Accept follow-up work and message peer agents.",
+            "Accept at most one primary `send_message` or `followup_task`",
+            "Accept unlimited primary updates",
         )
-        self.assertTrue(any("messaging" in error for error in self.errors()))
+        self.assertTrue(any("bounded primary update" in error for error in self.errors()))
+
+    def test_rejects_operational_role_peer_messaging(self):
+        self.mutate(
+            "agents/boundary_mapper.toml",
+            "Do not spawn agents, initiate agent messages, or widen scope.",
+            "Message peer agents",
+        )
+        self.assertTrue(any("outgoing messaging" in error for error in self.errors()))
+
+    def test_rejects_reviewer_followup_acceptance(self):
+        self.mutate(
+            "agents/risk_reviewer.toml",
+            "Do not accept follow-up work",
+            "Accept primary follow-up work",
+        )
+        self.assertTrue(any("reject follow-up work" in error for error in self.errors()))
 
     def test_rejects_repeated_review_without_new_evidence(self):
         self.mutate(

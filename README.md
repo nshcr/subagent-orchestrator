@@ -31,6 +31,11 @@ concurrency do not qualify a task for delegation.
   and scoped, ownership-safe implementation.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
+- The primary may send at most one same-scope update to an operational leaf
+  (`explorer`, `worker`, `evidence_tester`, or `boundary_mapper`) for newly
+  admitted evidence, a missing acceptance field, or new failure evidence. Review
+  roles accept no messages or follow-ups; changed evidence requires a refreeze
+  and fresh reviewer. Children never message peers.
 - When delegation is admitted, start one child. A second child in the ordinary
   first wave requires two bounded, mutually independent, ownership-safe
   assignments expected to reduce wall time or root-context pollution; the
@@ -187,7 +192,7 @@ state, host enforcement, production efficiency, or current role quality.
 After changing any published file, rebuild the deterministic manifest:
 
 ```bash
-python3 -B build_manifest.py --package-version 2026.08.17.1
+python3 -B build_manifest.py --package-version 2026.08.17.2
 python3 -B build_manifest.py --check
 python3 -B validate.py
 ```
