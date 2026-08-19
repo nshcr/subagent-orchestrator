@@ -27,6 +27,7 @@ from build_manifest import (
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 PAYLOAD_ROOT = PACKAGE_ROOT / "payload"
+SHARED_PAYLOAD_ROOT = PAYLOAD_ROOT / "shared"
 MANIFEST_PATH = PACKAGE_ROOT / "manifest.json"
 MIGRATION_CATALOG_PATH = PACKAGE_ROOT / "install-migrations.json"
 SKILL_NAME = "subagent-orchestrator"
@@ -50,38 +51,34 @@ STAGING_RELATIVE = Path("skills") / SKILL_NAME / ".retirement-receipts"
 AGENTS_HEADING = "## Subagents and parallelism"
 LEGACY_AGENTS_HEADING = "## 子代理与并行"
 AGENTS_SECTION_FILES = {
-    "en": "AGENTS.section.en.md",
-    "zh": "AGENTS.section.zh.md",
+    "en": "AGENTS.section.md",
+    "zh": "AGENTS.section.md",
 }
 
 
 def localized_payload_source(language: str, relative: str | Path) -> Path:
-    """Return a language override when present, otherwise the shared payload."""
+    """Return a required source from the selected language payload."""
     if language not in AGENTS_SECTION_FILES:
         raise InstallError(f"unsupported AGENTS policy language: {language}")
-    relative_path = Path(relative)
-    if language != "en":
-        localized = PAYLOAD_ROOT / language / relative_path
-        if localized.is_file():
-            return localized
-    return PAYLOAD_ROOT / relative_path
+    source = PAYLOAD_ROOT / language / Path(relative)
+    if not source.is_file():
+        raise InstallError(f"missing {language} payload source: {source}")
+    return source
 
 
 def localized_skill_sources(language: str) -> list[tuple[str, Path]]:
-    """Return the shared skill tree overlaid by language-specific files."""
+    """Return shared skill files overlaid by the selected language payload."""
     if language not in AGENTS_SECTION_FILES:
         raise InstallError(f"unsupported AGENTS policy language: {language}")
     sources: dict[str, Path] = {}
-    shared_root = PAYLOAD_ROOT / "skills" / SKILL_NAME
+    shared_root = SHARED_PAYLOAD_ROOT / "skills" / SKILL_NAME
     for source in sorted(shared_root.rglob("*")):
         if source.is_file() and source.name != ".DS_Store" and source.suffix != ".pyc":
             sources[str(source.relative_to(shared_root))] = source
-    if language != "en":
-        localized_root = PAYLOAD_ROOT / language / "skills" / SKILL_NAME
-        if localized_root.is_dir():
-            for source in sorted(localized_root.rglob("*")):
-                if source.is_file() and source.name != ".DS_Store" and source.suffix != ".pyc":
-                    sources[str(source.relative_to(localized_root))] = source
+    localized_root = PAYLOAD_ROOT / language / "skills" / SKILL_NAME
+    for source in sorted(localized_root.rglob("*")):
+        if source.is_file() and source.name != ".DS_Store" and source.suffix != ".pyc":
+            sources[str(source.relative_to(localized_root))] = source
     return sorted(sources.items())
 
 
@@ -89,7 +86,7 @@ def install_contract_sources() -> dict[str, Path]:
     """Collect every source that can affect an installed language variant."""
     sources: dict[str, Path] = {}
     for language, section_name in AGENTS_SECTION_FILES.items():
-        section = PAYLOAD_ROOT / section_name
+        section = localized_payload_source(language, section_name)
         sources[str(section.relative_to(PACKAGE_ROOT))] = section
         config = localized_payload_source(language, "config.agents.toml")
         sources[str(config.relative_to(PACKAGE_ROOT))] = config
@@ -376,12 +373,9 @@ def expected_managed_domain() -> set[str]:
         "config.toml#agents",
         *(f"agents/{role}.toml" for role in ROLES),
     }
-    skill_source = PAYLOAD_ROOT / "skills" / SKILL_NAME
-    for source in skill_source.rglob("*"):
-        if not source.is_file() or source.name == ".DS_Store" or source.suffix == ".pyc":
-            continue
+    for relative, _source in localized_skill_sources("en"):
         domain.add(
-            str(Path("skills") / SKILL_NAME / source.relative_to(skill_source))
+            str(Path("skills") / SKILL_NAME / relative)
         )
     return domain
 
@@ -696,7 +690,9 @@ def plan_install(
     agents_text = agents_existing.decode() if agents_existing is not None else ""
     agents_merged, agents_hash = merge_agents(
         agents_text,
-        (PAYLOAD_ROOT / AGENTS_SECTION_FILES[agents_language]).read_text(
+        localized_payload_source(
+            agents_language, AGENTS_SECTION_FILES[agents_language]
+        ).read_text(
             encoding="utf-8"
         ),
         state,

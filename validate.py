@@ -15,6 +15,8 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parent
 MANIFEST = ROOT / "manifest.json"
+PAYLOAD_ROOT = ROOT / "payload"
+PAYLOAD_LANGUAGES = ("en", "zh")
 EXCLUDED_PARTS = {
     ".git",
     ".idea",
@@ -107,6 +109,57 @@ def package_files() -> dict[str, Path]:
     return result
 
 
+def verify_payload_layout() -> None:
+    language_files: dict[str, set[str]] = {}
+    for language in PAYLOAD_LANGUAGES:
+        language_root = PAYLOAD_ROOT / language
+        if not language_root.is_dir():
+            fail(f"missing language payload directory: {language}")
+        language_files[language] = {
+            path.relative_to(language_root).as_posix()
+            for path in language_root.rglob("*")
+            if path.is_file()
+            and path.name not in EXCLUDED_NAMES
+            and path.suffix != ".pyc"
+        }
+
+    if language_files["en"] != language_files["zh"]:
+        missing_in_zh = sorted(language_files["en"] - language_files["zh"])
+        missing_in_en = sorted(language_files["zh"] - language_files["en"])
+        fail(
+            "language payload file sets are not parallel; "
+            f"missing_in_zh={missing_in_zh}; missing_in_en={missing_in_en}"
+        )
+
+    legacy_paths = (
+        PAYLOAD_ROOT / "AGENTS.section.en.md",
+        PAYLOAD_ROOT / "AGENTS.section.zh.md",
+        PAYLOAD_ROOT / "agents",
+        PAYLOAD_ROOT / "config.agents.toml",
+        PAYLOAD_ROOT / "skills",
+    )
+    if any(path.exists() for path in legacy_paths):
+        fail("legacy unscoped payload paths remain")
+
+    shared_root = PAYLOAD_ROOT / "shared"
+    required_shared = {
+        "skills/subagent-orchestrator/scripts/validate-routing-config.py",
+        "skills/subagent-orchestrator/tests/test_validate_routing_config.py",
+    }
+    shared_files = {
+        path.relative_to(shared_root).as_posix()
+        for path in shared_root.rglob("*")
+        if path.is_file()
+        and path.name not in EXCLUDED_NAMES
+        and path.suffix != ".pyc"
+    }
+    if not required_shared.issubset(shared_files):
+        fail(
+            "shared payload is incomplete; "
+            f"missing={sorted(required_shared - shared_files)}"
+        )
+
+
 def verify_manifest() -> None:
     try:
         document = json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -176,8 +229,9 @@ def verify_portability() -> None:
     }:
         fail("portable profile constrains or changes primary ownership")
 
+    english_payload = ROOT / "payload" / "en"
     config = tomllib.loads(
-        (ROOT / "payload" / "config.agents.toml").read_text(encoding="utf-8")
+        (english_payload / "config.agents.toml").read_text(encoding="utf-8")
     )["agents"]
     spawn_model_defaults = profile.get("spawn_model_defaults")
     if spawn_model_defaults != {
@@ -237,8 +291,7 @@ def verify_portability() -> None:
         fail("portable profile concurrency drifts from routing/config ownership")
 
     routing_policy = (
-        ROOT
-        / "payload"
+        english_payload
         / "skills"
         / "subagent-orchestrator"
         / "references"
@@ -250,7 +303,7 @@ def verify_portability() -> None:
     }
     for entry in role_entries:
         role = entry["id"]
-        expected_template = f"payload/agents/{role}.toml"
+        expected_template = f"payload/en/agents/{role}.toml"
         if entry.get("template") != expected_template:
             fail(f"portable profile template mismatch: {role}")
         template = ROOT / expected_template
@@ -281,7 +334,7 @@ def verify_portability() -> None:
     handoff = profile.get("handoff")
     expected_handoff = {
         "contract_reference": (
-            "payload/skills/subagent-orchestrator/references/delegation-contracts.md"
+            "payload/en/skills/subagent-orchestrator/references/delegation-contracts.md"
         ),
         "state_bound": True,
         "context_scope": "role-scoped-operational-or-fresh-review",
@@ -426,6 +479,7 @@ def main() -> int:
     try:
         verify_manifest_builder()
         verify_manifest()
+        verify_payload_layout()
         verify_portability()
         verify_package_tests()
         verify_evaluation_smoke()

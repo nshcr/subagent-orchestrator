@@ -205,11 +205,24 @@ def check_manifest(
 
 
 def managed_install_path(source_path: str) -> tuple[str, bool] | None:
-    if source_path.startswith("payload/agents/") and source_path.endswith(".toml"):
-        return source_path.removeprefix("payload/"), True
-    skill_prefix = "payload/skills/subagent-orchestrator/"
-    if source_path.startswith(skill_prefix):
-        return source_path.removeprefix("payload/"), False
+    for prefix in (
+        "payload/agents/",
+        "payload/en/agents/",
+        "payload/zh/agents/",
+    ):
+        if source_path.startswith(prefix) and source_path.endswith(".toml"):
+            return "agents/" + source_path.removeprefix(prefix), True
+    for prefix in (
+        "payload/skills/subagent-orchestrator/",
+        "payload/en/skills/subagent-orchestrator/",
+        "payload/zh/skills/subagent-orchestrator/",
+        "payload/shared/skills/subagent-orchestrator/",
+    ):
+        if source_path.startswith(prefix):
+            return (
+                "skills/subagent-orchestrator/" + source_path.removeprefix(prefix),
+                False,
+            )
     return None
 
 
@@ -219,7 +232,16 @@ def build_migration_candidate(predecessor_path: Path) -> dict:
     validate_manifest_document(predecessor)
     if predecessor["package_id"] != MANIFEST_METADATA["package_id"]:
         raise ManifestError("predecessor package identity mismatch")
-    current_paths = {path.relative_to(ROOT).as_posix() for path in ROOT.rglob("*") if included(path)}
+    current_paths = {
+        path.relative_to(ROOT).as_posix()
+        for path in ROOT.rglob("*")
+        if included(path)
+    }
+    current_managed_paths = set()
+    for path in current_paths:
+        mapped = managed_install_path(path)
+        if mapped is not None:
+            current_managed_paths.add(mapped[0])
     candidates = []
     for item in predecessor["files"]:
         if item["path"] in current_paths:
@@ -228,6 +250,8 @@ def build_migration_candidate(predecessor_path: Path) -> dict:
         if mapped is None:
             continue
         installed_path, rendered = mapped
+        if installed_path in current_managed_paths:
+            continue
         candidates.append(
             {
                 "accepted_sha256": [] if rendered else [item["sha256"]],

@@ -29,15 +29,16 @@ class PortableProfileContractTest(unittest.TestCase):
             self.root / "portable-profile.json",
         )
         shutil.copytree(
-            PACKAGE_ROOT / "payload" / "agents",
-            self.root / "payload" / "agents",
+            PACKAGE_ROOT / "payload" / "en" / "agents",
+            self.root / "payload" / "en" / "agents",
         )
-        config = self.root / "payload" / "config.agents.toml"
+        config = self.root / "payload" / "en" / "config.agents.toml"
         config.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(PACKAGE_ROOT / "payload" / "config.agents.toml", config)
+        shutil.copy2(PACKAGE_ROOT / "payload" / "en" / "config.agents.toml", config)
         contract = (
             self.root
             / "payload"
+            / "en"
             / "skills"
             / "subagent-orchestrator"
             / "references"
@@ -47,6 +48,7 @@ class PortableProfileContractTest(unittest.TestCase):
         shutil.copy2(
             PACKAGE_ROOT
             / "payload"
+            / "en"
             / "skills"
             / "subagent-orchestrator"
             / "references"
@@ -57,6 +59,7 @@ class PortableProfileContractTest(unittest.TestCase):
         shutil.copy2(
             PACKAGE_ROOT
             / "payload"
+            / "en"
             / "skills"
             / "subagent-orchestrator"
             / "references"

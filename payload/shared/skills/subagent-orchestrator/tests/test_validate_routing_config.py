@@ -8,7 +8,6 @@ import unittest
 
 
 SKILL_DIR = Path(__file__).parents[1]
-PACKAGE_PAYLOAD = SKILL_DIR.parents[1]
 SPEC = spec_from_file_location(
     "routing_validator",
     SKILL_DIR / "scripts" / "validate-routing-config.py",
@@ -24,17 +23,45 @@ class RoutingContractTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.codex_home = Path(self.temporary.name) / "codex-home"
         self.codex_home.mkdir()
-        source_agents = PACKAGE_PAYLOAD / "AGENTS.section.en.md"
-        source_config = PACKAGE_PAYLOAD / "config.agents.toml"
-        if not source_agents.is_file():
-            source_agents = PACKAGE_PAYLOAD / "AGENTS.md"
-            source_config = PACKAGE_PAYLOAD / "config.toml"
+        package_payload = SKILL_DIR.parents[2]
+        installed_root = SKILL_DIR.parents[1]
+        source_package = (package_payload / "en").is_dir()
+        if source_package:
+            source_agents = package_payload / "en" / "AGENTS.section.md"
+            source_config = package_payload / "en" / "config.agents.toml"
+            source_agents_dir = package_payload / "en" / "agents"
+        else:
+            source_agents = installed_root / "AGENTS.md"
+            source_config = installed_root / "config.toml"
+            source_agents_dir = installed_root / "agents"
         shutil.copy2(source_agents, self.codex_home / "AGENTS.md")
         shutil.copy2(source_config, self.codex_home / "config.toml")
-        shutil.copytree(PACKAGE_PAYLOAD / "agents", self.codex_home / "agents")
-        (self.codex_home / "skills").mkdir()
-        shutil.copytree(SKILL_DIR, self.codex_home / "skills" / SKILL_DIR.name)
-        self.skill_dir = self.codex_home / "skills" / SKILL_DIR.name
+        ignore_bytecode = shutil.ignore_patterns("__pycache__", "*.pyc")
+        shutil.copytree(
+            source_agents_dir,
+            self.codex_home / "agents",
+            ignore=ignore_bytecode,
+        )
+        if source_package:
+            (self.codex_home / "skills").mkdir()
+            installed_skill = self.codex_home / "skills" / SKILL_DIR.name
+            shutil.copytree(
+                package_payload / "en" / "skills" / SKILL_DIR.name,
+                installed_skill,
+                ignore=ignore_bytecode,
+            )
+            shutil.copytree(
+                SKILL_DIR,
+                installed_skill,
+                dirs_exist_ok=True,
+                ignore=ignore_bytecode,
+            )
+            self.skill_dir = installed_skill
+        else:
+            (self.codex_home / "skills").mkdir()
+            installed_skill = self.codex_home / "skills" / SKILL_DIR.name
+            shutil.copytree(SKILL_DIR, installed_skill, ignore=ignore_bytecode)
+            self.skill_dir = installed_skill
         self.configured_skill_path = self.skill_dir / "SKILL.md"
         for role_path in (self.codex_home / "agents").glob("*.toml"):
             role_path.write_text(

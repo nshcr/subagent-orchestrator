@@ -1,5 +1,6 @@
 from importlib.util import module_from_spec, spec_from_file_location
 import copy
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -193,6 +194,51 @@ class ManifestBoundaryTest(unittest.TestCase):
             self.assertEqual(role["accepted_sha256"], [])
             self.assertFalse(skill["requires_rendered_hash"])
             self.assertEqual(skill["accepted_sha256"], ["3" * 64])
+
+    def test_migration_candidate_ignores_language_payload_moves(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "payload" / "en" / "agents").mkdir(parents=True)
+            (root / "payload" / "shared" / "skills" / "subagent-orchestrator").mkdir(
+                parents=True
+            )
+            (root / "payload" / "en" / "agents" / "current.toml").write_text(
+                "name = current\n"
+            )
+            (
+                root
+                / "payload"
+                / "shared"
+                / "skills"
+                / "subagent-orchestrator"
+                / "old.txt"
+            ).write_text("shared\n")
+            predecessor_path = root / "predecessor.json"
+            predecessor = {
+                **BUILD_MANIFEST.MANIFEST_METADATA,
+                "package_version": "2026.08.13",
+                "excluded_derived_paths": BUILD_MANIFEST.EXCLUDED_DERIVED_PATHS,
+                "files": [
+                    {
+                        "path": "payload/agents/current.toml",
+                        "sha256": hashlib.sha256(b"name = current\n").hexdigest(),
+                        "size": len(b"name = current\n"),
+                    },
+                    {
+                        "path": "payload/skills/subagent-orchestrator/old.txt",
+                        "sha256": hashlib.sha256(b"shared\n").hexdigest(),
+                        "size": len(b"shared\n"),
+                    },
+                ],
+            }
+            predecessor_path.write_text(
+                json.dumps(predecessor, indent=2, sort_keys=True) + "\n"
+            )
+
+            with mock.patch.object(BUILD_MANIFEST, "ROOT", root):
+                candidate = BUILD_MANIFEST.build_migration_candidate(predecessor_path)
+
+            self.assertEqual(candidate["retired_path_candidates"], [])
 
 
 if __name__ == "__main__":

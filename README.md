@@ -270,14 +270,19 @@ schemas.
 ├── portable-profile.json
 ├── evaluation/
 ├── payload/
-│   ├── AGENTS.section.en.md
-│   ├── AGENTS.section.zh.md
-│   ├── config.agents.toml
-│   ├── agents/
-│   ├── zh/config.agents.toml
-│   ├── zh/agents/
-│   ├── zh/skills/subagent-orchestrator/
-│   └── skills/subagent-orchestrator/
+│   ├── en/
+│   │   ├── AGENTS.section.md
+│   │   ├── config.agents.toml
+│   │   ├── agents/
+│   │   └── skills/subagent-orchestrator/
+│   ├── zh/
+│   │   ├── AGENTS.section.md
+│   │   ├── config.agents.toml
+│   │   ├── agents/
+│   │   └── skills/subagent-orchestrator/
+│   └── shared/skills/subagent-orchestrator/
+│       ├── scripts/
+│       └── tests/
 └── tests/
 ```
 

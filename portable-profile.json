@@ -67,7 +67,7 @@
       "reasoning_effort_hint": "max",
       "service_tier_hint": "default",
       "write_scope": "one assigned workspace artifact only",
-      "template": "payload/agents/evidence_tester.toml"
+      "template": "payload/en/agents/evidence_tester.toml"
     },
     {
       "id": "boundary_mapper",
@@ -77,7 +77,7 @@
       "reasoning_effort_hint": "max",
       "service_tier_hint": "default",
       "write_scope": "none",
-      "template": "payload/agents/boundary_mapper.toml"
+      "template": "payload/en/agents/boundary_mapper.toml"
     },
     {
       "id": "risk_reviewer",
@@ -87,7 +87,7 @@
       "reasoning_effort_hint": "xhigh",
       "service_tier_hint": "default",
       "write_scope": "none",
-      "template": "payload/agents/risk_reviewer.toml"
+      "template": "payload/en/agents/risk_reviewer.toml"
     },
     {
       "id": "risk_reviewer_max",
@@ -97,11 +97,11 @@
       "reasoning_effort_hint": "max",
       "service_tier_hint": "default",
       "write_scope": "none",
-      "template": "payload/agents/risk_reviewer_max.toml"
+      "template": "payload/en/agents/risk_reviewer_max.toml"
     }
   ],
   "handoff": {
-    "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
+    "contract_reference": "payload/en/skills/subagent-orchestrator/references/delegation-contracts.md",
     "state_bound": true,
     "context_scope": "role-scoped-operational-or-fresh-review",
     "approval_rejection_route": "leaf-terminal-receipt-primary-completes-no-retry-or-scope-expansion",
