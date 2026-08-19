@@ -91,8 +91,8 @@
     },
     {
       "path": "payload/en/AGENTS.section.md",
-      "sha256": "d13efa70fe9ce635e088f106e4cc3deb18ac3bae3063bac0f657c11899b2edb5",
-      "size": 999
+      "sha256": "db6b7a66a11de23c3a9065f340122d2770ea4f6179629b42673fc884b443a024",
+      "size": 877
     },
     {
       "path": "payload/en/agents/boundary_mapper.toml",
@@ -156,8 +156,8 @@
     },
     {
       "path": "payload/zh/AGENTS.section.md",
-      "sha256": "82a37ad3016a03f981035228ce376aae7b9dd881bb93b687952acc7407a6d468",
-      "size": 982
+      "sha256": "fb08983a8a95e6ea0a5c0b4aac5abd6c72df2d6c42bae9297e161b7086f7fc82",
+      "size": 836
     },
     {
       "path": "payload/zh/agents/boundary_mapper.toml",
@@ -237,5 +237,5 @@
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "package_version": "2026.08.19.5"
+  "package_version": "2026.08.19.6"
 }

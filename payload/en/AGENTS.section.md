@@ -1,10 +1,9 @@
 ## Subagents and parallelism
 
-- Default to a single agent. Use `$subagent-orchestrator` only for an explicit
-  delegation request, one bounded leaf that replaces material primary work or
-  isolates noisy evidence, or a required independent high-risk gate. Prefer
-  direct or batched tools for small work; if the primary would mainly
-  coordinate, poll, or wait, keep the work with the primary.
+- Default to a single agent. Use `$subagent-orchestrator` only under the Skill's
+  delegation criteria. Prefer direct or batched tools for small work; if the
+  primary would mainly coordinate, poll, or wait, keep the work with the
+  primary.
 - The primary retains authorization, scope, integration, finding adjudication,
   and final acceptance. Children remain leaves; when delegation is admitted,
   start one child. Add a second ordinary first-wave child only for bounded,
