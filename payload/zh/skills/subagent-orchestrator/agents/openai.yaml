@@ -1,0 +1,7 @@
+interface:
+  display_name: "子代理编排"
+  short_description: "主代理保留决策权的有界委派"
+  default_prompt: "使用 $subagent-orchestrator 仅委派有界叶子任务，以证据驱动扩展，并将审查裁决保留在主代理。"
+
+policy:
+  allow_implicit_invocation: true

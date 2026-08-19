@@ -127,9 +127,13 @@ planned path and content SHA-256. `--apply` uses the same fail-closed checks.
 `--doctor` is read-only and classifies the current installation, active apply
 lock, unfinished transaction, and any quarantined retired artifacts. Add
 `--format json` for a stable machine-readable diagnostic receipt. The installer
-writes one compact English policy section. Child handoffs and receipts are
-English model-facing context; the primary remains responsible for user-facing
-language.
+writes the English model-facing payload by default. Pass
+`--agents-language zh` to install the complete Chinese translation of the
+policy section, role instructions, routing skill, references, and skill
+metadata. Executable validators and tests remain shared invariant code.
+Protocol identifiers, schemas, literals, terminal gate lines, and child
+handoffs/receipts remain English; the primary remains responsible for
+user-facing language.
 
 The installer manages only:
 
@@ -269,8 +273,12 @@ schemas.
 ├── evaluation/
 ├── payload/
 │   ├── AGENTS.section.en.md
+│   ├── AGENTS.section.zh.md
 │   ├── config.agents.toml
 │   ├── agents/
+│   ├── zh/config.agents.toml
+│   ├── zh/agents/
+│   ├── zh/skills/subagent-orchestrator/
 │   └── skills/subagent-orchestrator/
 └── tests/
 ```

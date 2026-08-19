@@ -233,16 +233,53 @@ raise SystemExit(module.main())
         self.assertEqual(upgraded.returncode, 0, upgraded.stderr)
         self.assertIn("max_concurrent_threads_per_session = 4", config_path.read_text())
 
-    def test_default_english_policy_and_rejects_chinese_selector(self):
+    def test_default_english_policy_and_chinese_variant(self):
         installed = self.run_installer("--apply", None)
         self.assertEqual(installed.returncode, 0, installed.stderr)
         agents_path = self.codex_home / "AGENTS.md"
         self.assertIn("## Subagents and parallelism", agents_path.read_text())
         self.assertNotIn("## 子代理与并行", agents_path.read_text())
 
-        rejected = self.run_installer("--check", "zh")
-        self.assertEqual(rejected.returncode, 2)
-        self.assertIn("invalid choice", rejected.stderr)
+        translated = self.run_installer("--apply", "zh")
+        self.assertEqual(translated.returncode, 0, translated.stderr)
+        self.assertIn("## 子代理与并行", agents_path.read_text())
+        self.assertNotIn("## Subagents and parallelism", agents_path.read_text())
+        self.assertIn(
+            "仅负责一个明确命名、尚未解决的跨组件执行、状态或持久化边界",
+            (self.codex_home / "agents" / "boundary_mapper.toml").read_text(),
+        )
+        self.assertIn(
+            "# 子代理编排",
+            (self.codex_home / "skills" / "subagent-orchestrator" / "SKILL.md").read_text(),
+        )
+        self.assertIn(
+            "display_name: \"子代理编排\"",
+            (
+                self.codex_home
+                / "skills"
+                / "subagent-orchestrator"
+                / "agents"
+                / "openai.yaml"
+            ).read_text(),
+        )
+        check = self.run_installer("--check", "zh")
+        self.assertEqual(check.returncode, 0, check.stderr)
+        self.assertIn("0 path(s) would change", check.stdout)
+
+        validator = (
+            self.codex_home
+            / "skills"
+            / "subagent-orchestrator"
+            / "scripts"
+            / "validate-routing-config.py"
+        )
+        validation = subprocess.run(
+            [sys.executable, "-B", str(validator), "--codex-home", str(self.codex_home)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(validation.returncode, 0, validation.stdout + validation.stderr)
 
     def test_stateless_managed_policy_conflicts_fail_closed(self):
         policies = (

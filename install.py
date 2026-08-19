@@ -51,7 +51,56 @@ AGENTS_HEADING = "## Subagents and parallelism"
 LEGACY_AGENTS_HEADING = "## 子代理与并行"
 AGENTS_SECTION_FILES = {
     "en": "AGENTS.section.en.md",
+    "zh": "AGENTS.section.zh.md",
 }
+
+
+def localized_payload_source(language: str, relative: str | Path) -> Path:
+    """Return a language override when present, otherwise the shared payload."""
+    if language not in AGENTS_SECTION_FILES:
+        raise InstallError(f"unsupported AGENTS policy language: {language}")
+    relative_path = Path(relative)
+    if language != "en":
+        localized = PAYLOAD_ROOT / language / relative_path
+        if localized.is_file():
+            return localized
+    return PAYLOAD_ROOT / relative_path
+
+
+def localized_skill_sources(language: str) -> list[tuple[str, Path]]:
+    """Return the shared skill tree overlaid by language-specific files."""
+    if language not in AGENTS_SECTION_FILES:
+        raise InstallError(f"unsupported AGENTS policy language: {language}")
+    sources: dict[str, Path] = {}
+    shared_root = PAYLOAD_ROOT / "skills" / SKILL_NAME
+    for source in sorted(shared_root.rglob("*")):
+        if source.is_file() and source.name != ".DS_Store" and source.suffix != ".pyc":
+            sources[str(source.relative_to(shared_root))] = source
+    if language != "en":
+        localized_root = PAYLOAD_ROOT / language / "skills" / SKILL_NAME
+        if localized_root.is_dir():
+            for source in sorted(localized_root.rglob("*")):
+                if source.is_file() and source.name != ".DS_Store" and source.suffix != ".pyc":
+                    sources[str(source.relative_to(localized_root))] = source
+    return sorted(sources.items())
+
+
+def install_contract_sources() -> dict[str, Path]:
+    """Collect every source that can affect an installed language variant."""
+    sources: dict[str, Path] = {}
+    for language, section_name in AGENTS_SECTION_FILES.items():
+        section = PAYLOAD_ROOT / section_name
+        sources[str(section.relative_to(PACKAGE_ROOT))] = section
+        config = localized_payload_source(language, "config.agents.toml")
+        sources[str(config.relative_to(PACKAGE_ROOT))] = config
+        for role in ROLES:
+            role_source = localized_payload_source(language, Path("agents") / f"{role}.toml")
+            sources[str(role_source.relative_to(PACKAGE_ROOT))] = role_source
+        for relative, source in localized_skill_sources(language):
+            sources[str(source.relative_to(PACKAGE_ROOT))] = source
+    return sources
+
+
 class InstallError(RuntimeError):
     """A fail-closed preflight or installation error."""
 
@@ -224,19 +273,10 @@ def retired_path_hashes(catalog: dict) -> dict[str, set[str]]:
 def install_contract_sha256(catalog: dict | None = None) -> str:
     """Hash only install-relevant inputs, not release docs/tests/CI metadata."""
     catalog = catalog or load_migration_catalog()
-    sources = {}
-    for relative in [
-        *(f"payload/{name}" for name in AGENTS_SECTION_FILES.values()),
-        "payload/config.agents.toml",
-        *(f"payload/agents/{role}.toml" for role in ROLES),
-    ]:
-        sources[relative] = sha256_bytes((PACKAGE_ROOT / relative).read_bytes())
-    skill_source = PAYLOAD_ROOT / "skills" / SKILL_NAME
-    for source in sorted(skill_source.rglob("*")):
-        if not source.is_file() or source.name == ".DS_Store" or source.suffix == ".pyc":
-            continue
-        relative = str(source.relative_to(PACKAGE_ROOT))
-        sources[relative] = sha256_bytes(source.read_bytes())
+    sources = {
+        relative: sha256_bytes(source.read_bytes())
+        for relative, source in install_contract_sources().items()
+    }
     contract = {
         "format_version": 2,
         "package_id": SKILL_NAME,
@@ -680,7 +720,9 @@ def plan_install(
     config_text = config_existing.decode() if config_existing is not None else ""
     config_merged, config_hash = merge_config(
         config_text,
-        (PAYLOAD_ROOT / "config.agents.toml").read_text(encoding="utf-8"),
+        localized_payload_source(agents_language, "config.agents.toml").read_text(
+            encoding="utf-8"
+        ),
         state,
     )
     managed_hashes["config.toml#agents"] = config_hash
@@ -700,7 +742,9 @@ def plan_install(
     skill_path = codex_home / "skills" / SKILL_NAME / "SKILL.md"
     for role in ROLES:
         relative = f"agents/{role}.toml"
-        desired = render_role(PAYLOAD_ROOT / relative, skill_path)
+        desired = render_role(
+            localized_payload_source(agents_language, relative), skill_path
+        )
         target = codex_home / relative
         current = safe_existing_bytes(target, codex_home)
         if current is not None:
@@ -713,11 +757,8 @@ def plan_install(
                     relative, target, desired, managed_hash, current, relative
                 )
             )
-    skill_source = PAYLOAD_ROOT / "skills" / SKILL_NAME
-    for source in sorted(skill_source.rglob("*")):
-        if not source.is_file() or source.name == ".DS_Store" or source.suffix == ".pyc":
-            continue
-        relative = str(Path("skills") / SKILL_NAME / source.relative_to(skill_source))
+    for skill_relative, source in localized_skill_sources(agents_language):
+        relative = str(Path("skills") / SKILL_NAME / skill_relative)
         desired = source.read_bytes()
         target = codex_home / relative
         current = safe_existing_bytes(target, codex_home)
