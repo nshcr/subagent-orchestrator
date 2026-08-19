@@ -22,14 +22,14 @@ ROLE_POLICY = {
 }
 ROLE_INSTRUCTION_SHA256 = {
     "en": {
-        "evidence_tester": "d8573dfb999a4ae126b1ba93f1fc219658050e0d8d74be724896fd5c5c16a382",
-        "boundary_mapper": "d10f7f93056478c94948e76092bd346caa0e593017c07a33b9ac20b6d015f5c3",
+        "evidence_tester": "d35f57dbb2282d67e83eb6aa8d3ea2fc80930ae730c497146298e64554efada1",
+        "boundary_mapper": "b391f9bdffd454d8d77906ba60f27177c4fcdcd7981a0e4ad4ab94befcd0cf7b",
         "risk_reviewer": "9df2ef68f78ff86bd7569981540860264d006059d529fa721c4234726b2f50c8",
         "risk_reviewer_max": "f859264f44c68a8653ad906407db71a08f961a5413cc7e157da0a3ff6bf6b09c",
     },
     "zh": {
-        "evidence_tester": "31c1bd146724c78e3f3884ca56fa47047b5ddc73832d0b4f53f90f5202338cc4",
-        "boundary_mapper": "a168b18f7193baee497fa9e197220aed248df70b67d791473a371242dec31694",
+        "evidence_tester": "85a30c6a11c6797f92372753d2e15ee9316c6b90bce4d52fba560dbcff3f0e03",
+        "boundary_mapper": "00ce57666948d2311732743921474f7eebf1541ad61533d57132d1d8c6f1f30f",
         "risk_reviewer": "7046b5b6e2c1dec09c00509f6d179df5f6d4c992c29d4d64640cf7bf8fa4b0bd",
         "risk_reviewer_max": "c017b77938ef3352f44a01037820c6429117092cd8735d32fcd3d10391ab7853",
     },
@@ -40,13 +40,11 @@ ROLE_MARKERS = {
             "Acceptance fields",
             "Artifact contract",
             "only write scope",
-            "Accept at most one scoped primary update",
             "English receipt",
         ),
         "boundary_mapper": (
             "Acceptance fields",
             "Artifact contract",
-            "Accept at most one scoped primary update",
             "Return English prose",
         ),
         "risk_reviewer": (
@@ -73,13 +71,11 @@ ROLE_MARKERS = {
             "Acceptance fields",
             "Artifact contract",
             "唯一写入范围",
-            "最多接受一次",
             "英文收据",
         ),
         "boundary_mapper": (
             "Acceptance fields",
             "Artifact contract",
-            "最多接受一次",
             "返回英文正文",
         ),
         "risk_reviewer": (
@@ -173,8 +169,6 @@ POLICY_MARKERS = {
             "Clear the checkpoint without asking only when",
             "Ask before consequential work when the user requested a checkpoint or evidence leaves",
             "do not disguise them as preferences",
-            "Allow at most one scoped primary update",
-            "Never update a review role",
             "After two decision-directed attempts",
             "Treat adversarial review as an attempt to falsify",
             "Limit explicit multi-review to one batch",
@@ -214,8 +208,6 @@ POLICY_MARKERS = {
             "ordinary cap at two children and one active writer",
             "Prohibit child delegation and cross-child coordination",
             "expansion checkpoint never relaxes leaf topology",
-            "Permit at most one primary update to an operational leaf",
-            "Keep review roles isolated from direct updates and later work",
             "Keep the primary model and effort user-controlled",
             "Operational leaves and fresh reviews use their declared role boundaries",
             "On rejection or older authorization",
@@ -246,9 +238,6 @@ POLICY_MARKERS = {
             "prohibit delegation or cross-child coordination",
             "Keep one active writer and no overlapping write scopes",
             "Do not treat an existing handoff or expansion checkpoint as authorization for recursion",
-            "Allow at most one scoped primary update for an operational leaf",
-            "Use it only to deliver newly admitted evidence",
-            "Never update `risk_reviewer` or `risk_reviewer_max`",
             "If host approval still rejects an operational leaf",
             "one terminal `approval-blocked` receipt",
             "permission class, exact action, and owner scope",
@@ -305,8 +294,6 @@ POLICY_MARKERS = {
             "只有当新证据为下一个子代理提供一个有界且不重叠的目的",
             "当用户要求检查点",
             "不要把它伪装成偏好",
-            "最多进行一次有界更新",
-            "不得更新审查角色",
             "停止尝试其他角色变体",
             "用具体证据证伪",
             "最多三个新审查者",
@@ -346,8 +333,6 @@ POLICY_MARKERS = {
             "普通上限为两个子代理和一个活动写入者",
             "禁止子代理继续委派和跨子代理协作",
             "扩展检查点不得放宽叶子拓扑",
-            "主代理对操作叶子最多更新一次",
-            "审查角色不得接受直接更新或额外工作",
             "主代理的模型与推理设置由用户控制",
             "操作叶子和新鲜审查均使用各自声明的角色边界",
             "遭到拒绝或授权已过时",
@@ -378,9 +363,6 @@ POLICY_MARKERS = {
             "禁止继续委派或与其他子代理协作",
             "保持一个活动写入者，且写入范围不得重叠",
             "现有交接或扩展检查点都不构成递归",
-            "主代理在原范围内最多进行一次有界更新",
-            "仅补充新纳入的证据、缺失的验收字段或新的失败证据",
-            "不得更新 `risk_reviewer` 或 `risk_reviewer_max`",
             "如果宿主仍拒绝批准操作叶子的动作",
             "终态 `approval-blocked` 收据",
             "权限类别、准确动作和所有者范围",
@@ -505,10 +487,6 @@ def validate_roles(
                     in instructions,
                     f"{role}: recursion, cross-child coordination, and scope expansion must be disabled",
                 )
-                checks.require(
-                    "Accept at most one scoped primary update" in instructions,
-                    f"{role}: bounded primary update contract is missing",
-                )
             else:
                 checks.require(
                     "Do not spawn agents or accept additional work." in instructions,
@@ -522,10 +500,6 @@ def validate_roles(
             checks.require(
                 "不要创建更多子代理、与同级协作或扩大范围。" in instructions,
                 f"{role}: recursion, cross-child coordination, and scope expansion must be disabled",
-            )
-            checks.require(
-                "最多接受一次有界的主代理更新" in instructions,
-                f"{role}: bounded primary update contract is missing",
             )
         else:
             checks.require(

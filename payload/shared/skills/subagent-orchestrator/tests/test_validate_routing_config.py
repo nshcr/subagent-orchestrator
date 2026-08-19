@@ -338,14 +338,6 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("not-applicable" in error for error in self.errors()))
 
-    def test_rejects_operational_role_bounded_update_drift(self):
-        self.mutate(
-            "agents/evidence_tester.toml",
-            "Accept at most one scoped primary update",
-            "Accept unlimited primary updates",
-        )
-        self.assertTrue(any("bounded primary update" in error for error in self.errors()))
-
     def test_rejects_operational_role_cross_coordination(self):
         self.mutate(
             "agents/boundary_mapper.toml",

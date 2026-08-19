@@ -136,10 +136,9 @@ class PortableProfileContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "handoff contract mismatch"):
             self.validate()
 
-    def test_rejects_operational_or_review_role_update_drift(self):
+    def test_rejects_review_role_update_drift(self):
         document = self.profile()
         mutations = (
-            ("primary_to_operational_leaf_updates", "unlimited"),
             ("review_role_additional_work", "allowed"),
             ("context_scope", "unbounded"),
             ("cross_child_coordination", "allowed"),

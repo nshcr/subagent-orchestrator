@@ -38,14 +38,6 @@ receipts before integration or a later wave. Do not treat an existing handoff or
 expansion checkpoint as authorization for recursion, overlap, another writer,
 scope expansion, reviewer rerun, or a new wave.
 
-Allow at most one scoped primary update for an operational leaf: `explorer`,
-`worker`, `evidence_tester`, or `boundary_mapper`. Use it only to deliver
-newly admitted evidence, a missing acceptance field, or new failure evidence
-inside the original scope. Never update `risk_reviewer` or
-`risk_reviewer_max`; changed review evidence requires a refreeze and fresh
-reviewer. Do not repeatedly query child status, request redesign, or widen
-scope.
-
 If host approval still rejects an operational leaf, return one terminal
 `approval-blocked` receipt naming the permission class, exact action, and owner
 scope, then stop. The primary records that task-scoped permission circuit and

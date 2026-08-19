@@ -41,11 +41,6 @@ concurrency do not qualify a task for delegation.
   boundary unless host evidence proves a reusable grant applies to them.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
-- The primary may issue at most one same-scope update to an operational leaf
-  (`explorer`, `worker`, `evidence_tester`, or `boundary_mapper`) for newly
-  admitted evidence, a missing acceptance field, or new failure evidence. Review
-  roles accept no additional work; changed evidence requires a refreeze and
-  fresh reviewer. Children do not coordinate with peers.
 - When delegation is admitted, start one child. A second child in the ordinary
   first wave requires two bounded, mutually independent, ownership-safe
   assignments expected to reduce wall time or root-context pollution; the

@@ -44,9 +44,6 @@ broadly, implements, invents requirements, or owns the repair.
   active writer with no overlapping write scope.
 - Prohibit child delegation and cross-child coordination. An expansion checkpoint never
   relaxes leaf topology, ownership, write-scope, or freshness rules.
-- Permit at most one primary update to an operational leaf inside its original
-  scope. Keep review roles isolated from direct updates and later work so any
-  changed evidence is reviewed only after refreezing by a fresh reviewer.
 - Open an expansion checkpoint for a later wave, another writer, scope
   expansion, or a reviewer rerun. First collect and integrate current required
   receipts. Let the primary clear one bounded next child only when new evidence,

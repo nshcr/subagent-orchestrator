@@ -54,18 +54,13 @@ smallest real proof, and postpone supporting machinery until that proof exists.
   corrections and brake feedback as invalidating conflicting plan inertia.
   Report capability and access blockers with the next owner or action; do not
   disguise them as preferences.
-- Allow at most one scoped primary update for an operational leaf: `explorer`,
-  `worker`, `evidence_tester`, or `boundary_mapper`. Deliver only newly
-  admitted evidence, a missing acceptance field, or new failure evidence inside
-  the original scope. Never update a review role; changed review evidence
-  requires a refreeze and fresh reviewer. Do not repeatedly query child status.
-  After two decision-directed attempts leave the same uncertainty unchanged,
+- If an operational child cannot obtain approval, its terminal receipt names
+  permission class, action, and owner scope, forming a task-scoped circuit. Do
+  not repeat the blocked action or assign the same blocked boundary to a later
+  child until host proves a shared grant; the primary finishes directly.
+- After two decision-directed attempts leave the same uncertainty unchanged,
   stop agent variants and obtain the smallest discriminating observation in the
-  primary. If an operational child cannot obtain approval, its terminal receipt
-  names permission class, action, and owner scope, forming a task-scoped
-  circuit. Do not repeat the blocked action or assign the same blocked boundary
-  to a later child until host proves a shared grant; the primary finishes
-  directly.
+  primary.
 
 ## Review and converge
 
