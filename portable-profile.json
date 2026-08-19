@@ -29,7 +29,7 @@
     "id": "default",
     "route": "primary-no-spawn",
     "explicit_agent_type_required": true,
-    "fallback_result_route": "reject-and-primary-no-respawn"
+    "fallback_result_route": "reject-and-primary-no-retry"
   },
   "builtin_routes": [
     {
@@ -73,8 +73,8 @@
       "id": "boundary_mapper",
       "class": "read-only-cross-component-boundary-analyst",
       "eligibility": "one named unresolved execution, state, or persistence boundary after a targeted primary check",
-      "model_hint": "gpt-5.6-sol",
-      "reasoning_effort_hint": "high",
+      "model_hint": "gpt-5.6-terra",
+      "reasoning_effort_hint": "max",
       "service_tier_hint": "default",
       "write_scope": "none",
       "template": "payload/agents/boundary_mapper.toml"
@@ -103,18 +103,15 @@
   "handoff": {
     "contract_reference": "payload/skills/subagent-orchestrator/references/delegation-contracts.md",
     "state_bound": true,
-    "context_default": "current-user-turn-operational-fresh-review",
-    "operational_leaf_fork_turns": "1",
-    "review_leaf_fork_turns": "none",
-    "approval_rejection_route": "leaf-terminal-receipt-primary-completes-no-resume-respawn-or-history-expansion",
+    "context_scope": "role-scoped-operational-or-fresh-review",
+    "approval_rejection_route": "leaf-terminal-receipt-primary-completes-no-retry-or-scope-expansion",
     "approval_block_receipt": "permission-class-exact-action-owner-scope",
     "repeated_approval_route": "same-permission-class-and-owner-scope-primary-only",
     "approval_circuit_clearance": "host-evidence-reusable-grant-applies-to-child-threads",
-    "full_history_forks_allowed": false,
     "children_are_leaves": true,
-    "peer_messages": "none",
+    "cross_child_coordination": "none",
     "primary_to_operational_leaf_updates": "at-most-one-new-evidence-missing-acceptance-or-new-failure-inside-original-scope",
-    "review_role_messages_or_followups": "none",
+    "review_role_additional_work": "none",
     "later_wave_requires_expansion_checkpoint": true,
     "review_freeze_precondition": "all-writers-terminal-and-primary-integration-complete",
     "post_recheck_block_route": "primary-first-principles-reset-then-expansion-checkpoint-if-independent-gate-remains",
@@ -126,8 +123,6 @@
   "adapter_requirements": [
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
-    "preserve-no-full-history-forks",
-    "preserve-bounded-role-specific-turn-forks",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
@@ -135,7 +130,7 @@
     "preserve-English-child-receipts",
     "preserve-primary-finding-adjudication",
     "preserve-one-bounded-primary-update-for-operational-leaves",
-    "preserve-no-review-role-messaging-or-followups",
+    "preserve-review-role-isolation",
     "map-spawned-agent-model-and-effort-at-install-time-never-override-per-task"
   ]
 }

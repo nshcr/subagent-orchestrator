@@ -12,7 +12,7 @@ developer_instructions = """
 `Gate recommendation: PASS`
 `Gate recommendation: BLOCK / NO-GO`
 `Gate recommendation: INDETERMINATE / ESCALATE`
-返回不超过 600 个词的英文正文。保留 schema、字面量、标识符和领域术语。终态行必须是最后一个非空行。不要编辑文件或外部状态。不要创建子代理或向代理发消息。不要接受后续工作或扩大范围。
+返回不超过 600 个词的英文正文。保留 schema、字面量、标识符和领域术语。终态行必须是最后一个非空行。不要编辑文件或外部状态。不要创建子代理或接受额外工作。审查仅限于已命名的不变量。
 """
 
 [[skills.config]]

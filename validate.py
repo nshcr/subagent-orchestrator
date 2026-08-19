@@ -75,8 +75,6 @@ ROLE_PROFILE_POLICY = {
 ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
-    "preserve-no-full-history-forks",
-    "preserve-bounded-role-specific-turn-forks",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
@@ -84,7 +82,7 @@ ADAPTER_REQUIREMENTS = [
     "preserve-English-child-receipts",
     "preserve-primary-finding-adjudication",
     "preserve-one-bounded-primary-update-for-operational-leaves",
-    "preserve-no-review-role-messaging-or-followups",
+    "preserve-review-role-isolation",
     "map-spawned-agent-model-and-effort-at-install-time-never-override-per-task",
 ]
 
@@ -191,7 +189,7 @@ def verify_portability() -> None:
         "id": "default",
         "route": "primary-no-spawn",
         "explicit_agent_type_required": True,
-        "fallback_result_route": "reject-and-primary-no-respawn",
+        "fallback_result_route": "reject-and-primary-no-retry",
     }:
         fail("portable profile default host fallback must remain primary-no-spawn")
     expected_builtin_routes = [
@@ -286,13 +284,8 @@ def verify_portability() -> None:
             "payload/skills/subagent-orchestrator/references/delegation-contracts.md"
         ),
         "state_bound": True,
-        "context_default": "current-user-turn-operational-fresh-review",
-        "operational_leaf_fork_turns": "1",
-        "review_leaf_fork_turns": "none",
-        "approval_rejection_route": (
-            "leaf-terminal-receipt-primary-completes-no-resume-respawn-or-"
-            "history-expansion"
-        ),
+        "context_scope": "role-scoped-operational-or-fresh-review",
+        "approval_rejection_route": "leaf-terminal-receipt-primary-completes-no-retry-or-scope-expansion",
         "approval_block_receipt": "permission-class-exact-action-owner-scope",
         "repeated_approval_route": (
             "same-permission-class-and-owner-scope-primary-only"
@@ -300,14 +293,13 @@ def verify_portability() -> None:
         "approval_circuit_clearance": (
             "host-evidence-reusable-grant-applies-to-child-threads"
         ),
-        "full_history_forks_allowed": False,
         "children_are_leaves": True,
-        "peer_messages": "none",
+        "cross_child_coordination": "none",
         "primary_to_operational_leaf_updates": (
             "at-most-one-new-evidence-missing-acceptance-or-new-failure-"
             "inside-original-scope"
         ),
-        "review_role_messages_or_followups": "none",
+        "review_role_additional_work": "none",
         "later_wave_requires_expansion_checkpoint": True,
         "review_freeze_precondition": (
             "all-writers-terminal-and-primary-integration-complete"

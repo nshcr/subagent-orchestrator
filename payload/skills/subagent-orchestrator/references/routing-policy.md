@@ -42,11 +42,11 @@ broadly, implements, invents requirements, or owns the repair.
   child only for bounded, independent, ownership-safe work with an expected
   wall-time or context benefit. Keep the ordinary cap at two children and one
   active writer with no overlapping write scope.
-- Prohibit child delegation and peer messaging. An expansion checkpoint never
+- Prohibit child delegation and cross-child coordination. An expansion checkpoint never
   relaxes leaf topology, ownership, write-scope, or freshness rules.
 - Permit at most one primary update to an operational leaf inside its original
-  scope. Keep review roles isolated from messages and follow-ups so any changed
-  evidence is reviewed only after refreezing by a fresh reviewer.
+  scope. Keep review roles isolated from direct updates and later work so any
+  changed evidence is reviewed only after refreezing by a fresh reviewer.
 - Open an expansion checkpoint for a later wave, another writer, scope
   expansion, or a reviewer rerun. First collect and integrate current required
   receipts. Let the primary clear one bounded next child only when new evidence,
@@ -57,14 +57,13 @@ broadly, implements, invents requirements, or owns the repair.
   external behavior, compatibility, security, privacy, architecture, meaningful
   cost, migration, or an irreversible effect, ask early with one recommended
   default. Report operational blockers instead of offering them as choices.
-- Operational leaves use `fork_turns: "1"` for runtime approval context; fresh
-  reviews use `"none"`. Never use larger or full-history forks. On rejection or
-  older authorization, end the leaf after one blocked-action receipt and apply
-  the delegation contract's task-scoped permission circuit. Keep the primary
-  model and effort user-controlled. Use English receipts and fixed child
-  settings: Sol/high for built-ins and `boundary_mapper`, Luna/max for
-  `evidence_tester`, Sol/xhigh for `risk_reviewer`, and Sol/max for
-  `risk_reviewer_max`.
+- Operational leaves and fresh reviews use their declared role boundaries and
+  isolated execution contexts. On rejection or older authorization, end the
+  leaf after one blocked-action receipt and apply the delegation contract's
+  task-scoped permission circuit. Keep the primary model and effort
+  user-controlled. Use English receipts and fixed child settings: Sol/high for
+  built-ins, Terra/max for `boundary_mapper`, Luna/max for `evidence_tester`,
+  Sol/xhigh for `risk_reviewer`, and Sol/max for `risk_reviewer_max`.
 - Treat `sandbox_mode` as requested configuration, not hard authority; parent
   overrides may change it. Match parent permission to role and retain its
   bounds.

@@ -11,7 +11,7 @@ Try to falsify each surviving explanation before adjudicating. Fail closed for m
 State the evidence threshold, precise reason, or smallest bounded recheck before exactly one standalone terminal line:
 `Gate recommendation: PASS`
 `Gate recommendation: BLOCK / NO-GO`
-Return English prose in at most 700 words. Preserve schemas, literals, identifiers, and domain terms. The terminal line is the final non-empty line. Do not edit files or external state. Do not spawn or message agents. Do not accept follow-up work or widen scope.
+Return English prose in at most 700 words. Preserve schemas, literals, identifiers, and domain terms. The terminal line is the final non-empty line. Do not edit files or external state. Do not spawn agents or accept additional work. Keep the review bounded to the named invariants.
 """
 
 [[skills.config]]

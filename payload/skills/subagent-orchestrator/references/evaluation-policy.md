@@ -24,9 +24,8 @@ Record only available decision evidence:
 - work or root-context noise displaced by each second child or later wave;
 - overlapping writers, unintegrated receipts, or moving-state reviews as
   failures;
-- omitted, larger-than-one, or full-history `fork_turns` as a routing failure;
-- operational leaves without `fork_turns: "1"`, or review roles with inherited
-  turns, as a routing failure;
+- missing or over-broad handoff context, or review roles inheriting mutable
+  execution state, as a routing failure;
 - repeated child blocks for the same permission class and owner scope after the
   first terminal receipt as a routing failure;
 - wait timeouts as telemetry, not failure;

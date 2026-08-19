@@ -29,25 +29,23 @@ concurrency do not qualify a task for delegation.
 
 - `explorer` and `worker` are built-in leaf routes for material read-only scans
   and scoped, ownership-safe implementation.
-- Every spawn names an explicit non-`default` `agent_type`. Operational leaves
-  (`explorer`, `worker`, `evidence_tester`, and `boundary_mapper`) use
-  `fork_turns: "1"` so the current user request and authorization remain visible
-  when a tool later requires approval. Fresh review roles use `"none"`. Larger
-  and full-history forks remain prohibited. The built-in general-purpose
+- Every delegated child names an explicit non-`default` `agent_type`. Operational
+  leaves and fresh review roles use their declared role boundaries and isolated
+  execution contexts; over-broad inherited context remains prohibited. The built-in general-purpose
   `default` is never routed by this package, and unmatched work remains with the
   primary. An invalid spawn result cannot satisfy acceptance or authorize an
   automatic replacement spawn. An approval-blocked operational leaf returns one
-  terminal receipt; the primary completes the remaining work without resuming or
-  messaging that child again. Its permission class and owner scope become a
+  terminal receipt; the primary completes the remaining work without repeating
+  that blocked boundary. Its permission class and owner scope become a
   task-scoped circuit breaker: later children cannot receive the same blocked
   boundary unless host evidence proves a reusable grant applies to them.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
-- The primary may send at most one same-scope update to an operational leaf
+- The primary may issue at most one same-scope update to an operational leaf
   (`explorer`, `worker`, `evidence_tester`, or `boundary_mapper`) for newly
   admitted evidence, a missing acceptance field, or new failure evidence. Review
-  roles accept no messages or follow-ups; changed evidence requires a refreeze
-  and fresh reviewer. Children never message peers.
+  roles accept no additional work; changed evidence requires a refreeze and
+  fresh reviewer. Children do not coordinate with peers.
 - When delegation is admitted, start one child. A second child in the ordinary
   first wave requires two bounded, mutually independent, ownership-safe
   assignments expected to reduce wall time or root-context pollution; the
@@ -89,11 +87,11 @@ primary as defined by Codex. This leaves one host-level spare slot when three
 children are open without making capacity a routing signal; the Skill still
 admits at most two ordinary first-wave children and one active writer. Routine
 built-in leaves default to GPT-5.6 Sol at high effort; the bounded tester uses
-Luna/max, the boundary mapper Sol/high, the reviewer Sol/xhigh, and only the
+Luna/max, the boundary mapper Terra/max, the reviewer Sol/xhigh, and only the
 qualified irreversible-risk escalation uses Sol/max. The four custom-role values
 are fixed by their installed agent files; built-in children use the Sol/high
 package model defaults. Spawned-agent routing does not override these values per
-task, so Terra/max and Sol/medium are not active package routes. The primary
+task, so Sol/medium is not an active package route. The primary
 remains user-controlled. A role file's sandbox is a requested default, not proof
 of effective isolation: parent runtime permission overrides may take precedence.
 Match the parent permission mode to the role and retain its action bounds.

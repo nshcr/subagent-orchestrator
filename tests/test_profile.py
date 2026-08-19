@@ -137,13 +137,12 @@ class PortableProfileContractTest(unittest.TestCase):
         document = self.profile()
         mutations = (
             ("primary_to_operational_leaf_updates", "unlimited"),
-            ("review_role_messages_or_followups", "allowed"),
-            ("operational_leaf_fork_turns", "none"),
-            ("review_leaf_fork_turns", "1"),
-            ("approval_rejection_route", "resume-child-after-primary-action"),
+            ("review_role_additional_work", "allowed"),
+            ("context_scope", "unbounded"),
+            ("cross_child_coordination", "allowed"),
+            ("approval_rejection_route", "retry-after-primary-action"),
             ("repeated_approval_route", "retry-same-boundary"),
             ("approval_circuit_clearance", "parent-assertion"),
-            ("full_history_forks_allowed", True),
         )
         for key, value in mutations:
             with self.subTest(key=key):

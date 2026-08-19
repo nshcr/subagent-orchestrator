@@ -21,11 +21,10 @@ smallest real proof, and postpone supporting machinery until that proof exists.
    spare capacity, and confidence seeking do not qualify.
 3. Use host role descriptions for a first ordinary leaf; keep unmatched work in
    the primary. Read the [routing policy](references/routing-policy.md) before a
-   custom role, second child, or review. Name a non-`default` `agent_type`; use
-   `fork_turns: "1"` for operational leaves and `"none"` for fresh reviews.
-   Never omit the type or use a larger or full-history fork. Use the lean
-   [delegation contract](references/delegation-contracts.md), require English
-   model-facing receipts, and synthesize the user result in the primary.
+   custom role, second child, or review. Name a non-`default` `agent_type` and
+   never omit it. Use the lean [delegation contract](references/delegation-contracts.md),
+   require English model-facing receipts, and synthesize the user result in the
+   primary.
 4. Keep the primary doing material work. Retain authorization, scope, one-writer
    integration, finding adjudication, and final acceptance. If the primary would
    mainly coordinate, poll, or wait, reduce delegation and work directly.
@@ -36,7 +35,8 @@ smallest real proof, and postpone supporting machinery until that proof exists.
   child only for bounded, independent, ownership-safe work with an expected
   wall-time or root-context benefit. Keep the ordinary cap at two children and
   one active writer; never overlap write scopes.
-- Keep every child a leaf. Never allow child delegation or peer messaging. An
+- Keep every child a leaf. Never allow child delegation or cross-child
+  coordination. An
   expansion checkpoint cannot relax recursion, ownership, write-scope, or
   freshness rules.
 - Treat a later wave, another writer, scope expansion, or reviewer rerun as an
@@ -54,17 +54,17 @@ smallest real proof, and postpone supporting machinery until that proof exists.
   corrections and brake feedback as invalidating conflicting plan inertia.
   Report capability and access blockers with the next owner or action; do not
   disguise them as preferences.
-- Allow at most one primary-to-leaf update across `send_message` and
-  `followup_task` for an operational leaf: `explorer`, `worker`,
-  `evidence_tester`, or `boundary_mapper`. Deliver only newly admitted evidence,
-  a missing acceptance field, or new failure evidence inside the original scope.
-  Never update a review role; changed review evidence requires a refreeze and
-  fresh reviewer. Do not poll. After two decision-directed attempts leave the
-  same uncertainty unchanged, stop agent variants and obtain the smallest
-  discriminating observation in the primary. If an operational child cannot
-  obtain approval, its terminal receipt names permission class, action, and
-  owner scope, forming a task-scoped circuit. No retry, resume, or later child
-  on that boundary until host proves a shared grant; the primary finishes
+- Allow at most one scoped primary update for an operational leaf: `explorer`,
+  `worker`, `evidence_tester`, or `boundary_mapper`. Deliver only newly
+  admitted evidence, a missing acceptance field, or new failure evidence inside
+  the original scope. Never update a review role; changed review evidence
+  requires a refreeze and fresh reviewer. Do not repeatedly query child status.
+  After two decision-directed attempts leave the same uncertainty unchanged,
+  stop agent variants and obtain the smallest discriminating observation in the
+  primary. If an operational child cannot obtain approval, its terminal receipt
+  names permission class, action, and owner scope, forming a task-scoped
+  circuit. Do not repeat the blocked action or assign the same blocked boundary
+  to a later child until host proves a shared grant; the primary finishes
   directly.
 
 ## Review and converge
@@ -100,10 +100,10 @@ smallest real proof, and postpone supporting machinery until that proof exists.
 ## Close with evidence
 
 - Sample child evidence and owned artifacts without replaying the scan. Verify a
-  non-`default` `agent_type`, `fork_turns: "1"` for operational leaves, and
-  `"none"` for review roles. Reject omitted, larger, resolved `default`, or
-  full-history results; continue in the primary without respawning. Use
-  installed child model and effort settings without per-task retuning.
+  non-`default` `agent_type` and the role's declared execution boundaries.
+  Reject omitted or otherwise invalid role results; continue in the primary
+  without repeating that blocked boundary. Use installed child model and effort settings without
+  per-task retuning.
 - Continue safe authorized primary work while it is likely to reduce
   task-relevant risk proportionately. Close only with claim-matched evidence for
   the original outcome, explicit abandonment or supersession, or a genuine

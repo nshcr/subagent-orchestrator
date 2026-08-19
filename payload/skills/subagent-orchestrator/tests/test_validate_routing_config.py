@@ -139,7 +139,7 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_handoff_without_explicit_agent_type(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "Spawn: agent_type=<explicit non-default role>; fork_turns=<1 operational, none review>",
+            "Spawn: agent_type=<explicit non-default role>",
             "Spawn: agent_type=<optional>",
         )
         self.assertTrue(
@@ -149,47 +149,31 @@ class RoutingContractTest(unittest.TestCase):
             )
         )
 
-    def test_rejects_full_history_fork(self):
+    def test_rejects_unbounded_handoff_context(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "fork_turns=<1 operational, none review>",
-            "fork_turns=all",
+            "inherited context does not widen authorization",
+            "inherited context can widen authorization",
         )
-        self.assertTrue(any("fork_turns" in error for error in self.errors()))
+        self.assertTrue(any("inherited context does not widen authorization" in error for error in self.errors()))
 
     def test_rejects_default_result_acceptance(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Reject omitted, larger, resolved `default`, or full-history results",
+            "Reject omitted or otherwise invalid role results",
             "accept any fallback result",
         )
         self.assertTrue(
-            any("resolved `default`" in error for error in self.errors())
+            any("Reject omitted or otherwise invalid role results" in error for error in self.errors())
         )
 
-    def test_rejects_operational_leaf_without_current_turn(self):
+    def test_rejects_approval_boundary_repeat(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            'Use `fork_turns="1"` for `explorer`, `worker`, `evidence_tester`, and `boundary_mapper`',
-            'Use `fork_turns="none"` for every operational leaf',
+            "Do not repeat the blocked action, widen authorization",
+            "Allow the blocked action to repeat",
         )
-        self.assertTrue(any("fork_turns" in error for error in self.errors()))
-
-    def test_rejects_review_role_history_inheritance(self):
-        self.mutate(
-            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            'Use `fork_turns="none"` for fresh review roles',
-            'Use `fork_turns="1"` for fresh review roles',
-        )
-        self.assertTrue(any("fresh review" in error for error in self.errors()))
-
-    def test_rejects_approval_retry_or_history_expansion(self):
-        self.mutate(
-            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "Do not retry, respawn, inherit more history, resume, await a reply",
-            "resume the child after the primary executes the command",
-        )
-        self.assertTrue(any("await a reply" in error for error in self.errors()))
+        self.assertTrue(any("Do not repeat the blocked action" in error for error in self.errors()))
 
     def test_rejects_repeated_child_approval_boundary(self):
         self.mutate(
@@ -330,26 +314,26 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_operational_role_bounded_update_drift(self):
         self.mutate(
             "agents/evidence_tester.toml",
-            "Accept at most one primary `send_message` or `followup_task`",
+            "Accept at most one scoped primary update",
             "Accept unlimited primary updates",
         )
         self.assertTrue(any("bounded primary update" in error for error in self.errors()))
 
-    def test_rejects_operational_role_peer_messaging(self):
+    def test_rejects_operational_role_cross_coordination(self):
         self.mutate(
             "agents/boundary_mapper.toml",
-            "Do not spawn agents, initiate agent messages, or widen scope.",
-            "Message peer agents",
+            "Do not spawn further agents, coordinate with peers, or widen scope.",
+            "Coordinate with peers",
         )
-        self.assertTrue(any("outgoing messaging" in error for error in self.errors()))
+        self.assertTrue(any("cross-child coordination" in error for error in self.errors()))
 
-    def test_rejects_reviewer_followup_acceptance(self):
+    def test_rejects_reviewer_additional_work_acceptance(self):
         self.mutate(
             "agents/risk_reviewer.toml",
-            "Do not accept follow-up work",
-            "Accept primary follow-up work",
+            "Keep the review bounded to the named invariants.",
+            "Accept additional review work.",
         )
-        self.assertTrue(any("reject follow-up work" in error for error in self.errors()))
+        self.assertTrue(any("review input must remain bounded" in error for error in self.errors()))
 
     def test_rejects_repeated_review_without_new_evidence(self):
         self.mutate(
