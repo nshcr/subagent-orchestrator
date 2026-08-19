@@ -32,9 +32,9 @@ class PortableProfileContractTest(unittest.TestCase):
             PACKAGE_ROOT / "payload" / "en" / "agents",
             self.root / "payload" / "en" / "agents",
         )
-        config = self.root / "payload" / "en" / "config.agents.toml"
+        config = self.root / "payload" / "shared" / "config.agents.toml"
         config.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(PACKAGE_ROOT / "payload" / "en" / "config.agents.toml", config)
+        shutil.copy2(PACKAGE_ROOT / "payload" / "shared" / "config.agents.toml", config)
         contract = (
             self.root
             / "payload"

@@ -272,17 +272,17 @@ schemas.
 ├── payload/
 │   ├── en/
 │   │   ├── AGENTS.section.md
-│   │   ├── config.agents.toml
 │   │   ├── agents/
 │   │   └── skills/subagent-orchestrator/
 │   ├── zh/
 │   │   ├── AGENTS.section.md
-│   │   ├── config.agents.toml
 │   │   ├── agents/
 │   │   └── skills/subagent-orchestrator/
-│   └── shared/skills/subagent-orchestrator/
-│       ├── scripts/
-│       └── tests/
+│   └── shared/
+│       ├── config.agents.toml
+│       └── skills/subagent-orchestrator/
+│           ├── scripts/
+│           └── tests/
 └── tests/
 ```
 

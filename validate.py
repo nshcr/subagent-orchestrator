@@ -136,6 +136,8 @@ def verify_payload_layout() -> None:
         PAYLOAD_ROOT / "AGENTS.section.zh.md",
         PAYLOAD_ROOT / "agents",
         PAYLOAD_ROOT / "config.agents.toml",
+        PAYLOAD_ROOT / "en" / "config.agents.toml",
+        PAYLOAD_ROOT / "zh" / "config.agents.toml",
         PAYLOAD_ROOT / "skills",
     )
     if any(path.exists() for path in legacy_paths):
@@ -143,6 +145,7 @@ def verify_payload_layout() -> None:
 
     shared_root = PAYLOAD_ROOT / "shared"
     required_shared = {
+        "config.agents.toml",
         "skills/subagent-orchestrator/scripts/validate-routing-config.py",
         "skills/subagent-orchestrator/tests/test_validate_routing_config.py",
     }
@@ -230,8 +233,9 @@ def verify_portability() -> None:
         fail("portable profile constrains or changes primary ownership")
 
     english_payload = ROOT / "payload" / "en"
+    shared_payload = ROOT / "payload" / "shared"
     config = tomllib.loads(
-        (english_payload / "config.agents.toml").read_text(encoding="utf-8")
+        (shared_payload / "config.agents.toml").read_text(encoding="utf-8")
     )["agents"]
     spawn_model_defaults = profile.get("spawn_model_defaults")
     if spawn_model_defaults != {

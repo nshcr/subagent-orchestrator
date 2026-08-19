@@ -66,6 +66,14 @@ def localized_payload_source(language: str, relative: str | Path) -> Path:
     return source
 
 
+def shared_payload_source(relative: str | Path) -> Path:
+    """Return a required source shared by all language payloads."""
+    source = SHARED_PAYLOAD_ROOT / Path(relative)
+    if not source.is_file():
+        raise InstallError(f"missing shared payload source: {source}")
+    return source
+
+
 def localized_skill_sources(language: str) -> list[tuple[str, Path]]:
     """Return shared skill files overlaid by the selected language payload."""
     if language not in AGENTS_SECTION_FILES:
@@ -85,11 +93,11 @@ def localized_skill_sources(language: str) -> list[tuple[str, Path]]:
 def install_contract_sources() -> dict[str, Path]:
     """Collect every source that can affect an installed language variant."""
     sources: dict[str, Path] = {}
+    config = shared_payload_source("config.agents.toml")
+    sources[str(config.relative_to(PACKAGE_ROOT))] = config
     for language, section_name in AGENTS_SECTION_FILES.items():
         section = localized_payload_source(language, section_name)
         sources[str(section.relative_to(PACKAGE_ROOT))] = section
-        config = localized_payload_source(language, "config.agents.toml")
-        sources[str(config.relative_to(PACKAGE_ROOT))] = config
         for role in ROLES:
             role_source = localized_payload_source(language, Path("agents") / f"{role}.toml")
             sources[str(role_source.relative_to(PACKAGE_ROOT))] = role_source
@@ -716,9 +724,7 @@ def plan_install(
     config_text = config_existing.decode() if config_existing is not None else ""
     config_merged, config_hash = merge_config(
         config_text,
-        localized_payload_source(agents_language, "config.agents.toml").read_text(
-            encoding="utf-8"
-        ),
+        shared_payload_source("config.agents.toml").read_text(encoding="utf-8"),
         state,
     )
     managed_hashes["config.toml#agents"] = config_hash

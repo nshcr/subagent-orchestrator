@@ -28,7 +28,7 @@ class RoutingContractTest(unittest.TestCase):
         source_package = (package_payload / "en").is_dir()
         if source_package:
             source_agents = package_payload / "en" / "AGENTS.section.md"
-            source_config = package_payload / "en" / "config.agents.toml"
+            source_config = package_payload / "shared" / "config.agents.toml"
             source_agents_dir = package_payload / "en" / "agents"
         else:
             source_agents = installed_root / "AGENTS.md"
