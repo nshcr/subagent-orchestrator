@@ -31,8 +31,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "818eb5ea629313181d3b218b846c284048b402cfdba00bd297bef0794bd65378",
-      "size": 14724
+      "sha256": "5627c0b69cd21669459134a5ba109bcb6ac46652a54a015d6dd86e07bb175eb2",
+      "size": 14725
     },
     {
       "path": "build_manifest.py",
@@ -101,8 +101,8 @@
     },
     {
       "path": "payload/agents/boundary_mapper.toml",
-      "sha256": "324550f6ad38fc0c1fb803e194e8c7a87ca6977dcbaef424a04bf11b95d53aed",
-      "size": 1791
+      "sha256": "49c3a15d6a48f5c0c02b0183750c1812191f4d6d52dc665ee9a2f5880594e0ed",
+      "size": 1792
     },
     {
       "path": "payload/agents/evidence_tester.toml",
@@ -146,13 +146,13 @@
     },
     {
       "path": "payload/skills/subagent-orchestrator/references/routing-policy.md",
-      "sha256": "c02e9fb87981ab0c9ff1143359386218c2a813b351bdb120efa5c1888d5fdd2f",
-      "size": 6217
+      "sha256": "eeb188a0c594618695c7ccfbe88de0a44ba7b0b9580f297119a85900d20fe31d",
+      "size": 6228
     },
     {
       "path": "payload/skills/subagent-orchestrator/scripts/validate-routing-config.py",
-      "sha256": "9b50fb36597e673d3abdce464fc7f58c1770e30d1806da84854cc6351f4f401b",
-      "size": 31284
+      "sha256": "3f35f77cef1c9de229ffd86524d94dd2815f861d26c8e485eee5191ce72d7c1e",
+      "size": 31285
     },
     {
       "path": "payload/skills/subagent-orchestrator/tests/test_validate_routing_config.py",
@@ -161,8 +161,8 @@
     },
     {
       "path": "payload/zh/agents/boundary_mapper.toml",
-      "sha256": "ff0e15bd5b4ce872f62bb345679ad82eda6893769ac0481faedf2acda809eb0e",
-      "size": 1824
+      "sha256": "9c5c6a1c2cebfb36b773f464313e1ce94792cb2701a2d29222dcc789ebcba692",
+      "size": 1825
     },
     {
       "path": "payload/zh/agents/evidence_tester.toml",
@@ -206,13 +206,13 @@
     },
     {
       "path": "payload/zh/skills/subagent-orchestrator/references/routing-policy.md",
-      "sha256": "700f8e36811acdb1f4910ecd046cc6ba6dec27d6f3103cfdb975f4d7f4de159c",
-      "size": 5295
+      "sha256": "0a843d3d6be3afc88287858f9c04672d3d3cbc3ae5cb9a58fc5fa641ea084bf5",
+      "size": 5307
     },
     {
       "path": "portable-profile.json",
-      "sha256": "04a0bc0727bc806eee7d103ac873a8fcf52ce9d266069e1ffee2ba81d65fa5ab",
-      "size": 5697
+      "sha256": "771b019aae523380e2c8572f17043adec6ad5da2a9ea485da343b9b5b6ed2ec4",
+      "size": 5698
     },
     {
       "path": "tests/test_evaluation.py",

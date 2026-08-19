@@ -62,8 +62,8 @@ broadly, implements, invents requirements, or owns the repair.
   leaf after one blocked-action receipt and apply the delegation contract's
   task-scoped permission circuit. Keep the primary model and effort
   user-controlled. Use English receipts and fixed child settings: Terra/max for
-  built-ins, Luna/max for `evidence_tester` and `boundary_mapper`, Sol/xhigh for
-  `risk_reviewer`, and Sol/max for `risk_reviewer_max`.
+  built-ins, Luna/max for `evidence_tester`, Terra/max for `boundary_mapper`,
+  Sol/xhigh for `risk_reviewer`, and Sol/max for `risk_reviewer_max`.
 - Treat `sandbox_mode` as requested configuration, not hard authority; parent
   overrides may change it. Match parent permission to role and retain its
   bounds.

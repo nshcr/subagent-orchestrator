@@ -87,7 +87,7 @@ primary as defined by Codex. This leaves one host-level spare slot when three
 children are open without making capacity a routing signal; the Skill still
 admits at most two ordinary first-wave children and one active writer. Routine
 built-in leaves default to GPT-5.6 Terra at max effort; the bounded tester uses
-Luna/max, the boundary mapper Luna/max, the reviewer Sol/xhigh, and only the
+Luna/max, the boundary mapper Terra/max, the reviewer Sol/xhigh, and only the
 qualified irreversible-risk escalation uses Sol/max. The four custom-role values
 are fixed by their installed agent files; built-in children use the Terra/max
 package model defaults. Spawned-agent routing does not override these values per
