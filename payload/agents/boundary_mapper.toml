@@ -1,6 +1,6 @@
 name = "boundary_mapper"
 description = "Read-only analyst for one named unresolved cross-component execution, state, or persistence boundary."
-model = "gpt-5.6-terra"
+model = "gpt-5.6-luna"
 model_reasoning_effort = "max"
 service_tier = "default"
 sandbox_mode = "read-only"

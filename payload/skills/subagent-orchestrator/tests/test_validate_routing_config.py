@@ -89,8 +89,8 @@ class RoutingContractTest(unittest.TestCase):
         for old, new, expected in (
             ("max_concurrent_threads_per_session = 4", "max_concurrent_threads_per_session = 16", "max_concurrent"),
             (
+                'default_subagent_reasoning_effort = "max"',
                 'default_subagent_reasoning_effort = "high"',
-                'default_subagent_reasoning_effort = "medium"',
                 "reasoning_effort",
             ),
         ):

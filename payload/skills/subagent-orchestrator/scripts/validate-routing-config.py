@@ -16,7 +16,7 @@ SKILL_NAME = "subagent-orchestrator"
 DEFAULT_SKILL_PATH = Path(__file__).resolve().parents[1] / "SKILL.md"
 ROLE_POLICY = {
     "evidence_tester": ("gpt-5.6-luna", "max", "default", "workspace-write"),
-    "boundary_mapper": ("gpt-5.6-terra", "max", "default", "read-only"),
+    "boundary_mapper": ("gpt-5.6-luna", "max", "default", "read-only"),
     "risk_reviewer": ("gpt-5.6-sol", "xhigh", "default", "read-only"),
     "risk_reviewer_max": ("gpt-5.6-sol", "max", "default", "read-only"),
 }
@@ -469,8 +469,8 @@ def validate_config(checks: Checks, codex_home: Path) -> None:
         "enabled": True,
         "max_concurrent_threads_per_session": 4,
         "interrupt_message": True,
-        "default_subagent_model": "gpt-5.6-sol",
-        "default_subagent_reasoning_effort": "high",
+        "default_subagent_model": "gpt-5.6-terra",
+        "default_subagent_reasoning_effort": "max",
     }
     for key, value in expected.items():
         checks.require(agents.get(key) == value, f"agents.{key} must be {value}")

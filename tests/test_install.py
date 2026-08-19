@@ -221,8 +221,8 @@ raise SystemExit(module.main())
                     "enabled": True,
                     "max_concurrent_threads_per_session": 3,
                     "interrupt_message": True,
-                    "default_subagent_model": "gpt-5.6-sol",
-                    "default_subagent_reasoning_effort": "high",
+                    "default_subagent_model": "gpt-5.6-terra",
+                    "default_subagent_reasoning_effort": "max",
                 }
             )
         )

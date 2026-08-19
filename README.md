@@ -86,12 +86,12 @@ The installed runtime cap is four concurrent spawned threads, excluding the
 primary as defined by Codex. This leaves one host-level spare slot when three
 children are open without making capacity a routing signal; the Skill still
 admits at most two ordinary first-wave children and one active writer. Routine
-built-in leaves default to GPT-5.6 Sol at high effort; the bounded tester uses
-Luna/max, the boundary mapper Terra/max, the reviewer Sol/xhigh, and only the
+built-in leaves default to GPT-5.6 Terra at max effort; the bounded tester uses
+Luna/max, the boundary mapper Luna/max, the reviewer Sol/xhigh, and only the
 qualified irreversible-risk escalation uses Sol/max. The four custom-role values
-are fixed by their installed agent files; built-in children use the Sol/high
+are fixed by their installed agent files; built-in children use the Terra/max
 package model defaults. Spawned-agent routing does not override these values per
-task, so Sol/medium is not an active package route. The primary
+task, so Sol/high and Sol/medium are not active package routes. The primary
 remains user-controlled. A role file's sandbox is a requested default, not proof
 of effective isolation: parent runtime permission overrides may take precedence.
 Match the parent permission mode to the role and retain its action bounds.
