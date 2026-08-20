@@ -137,28 +137,28 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_implicit_or_default_agent_type(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Name a non-`default` `agent_type`",
+            "Select a named `agent_type` from the host's available role descriptions",
             "Let the host select any omitted agent type",
         )
-        self.assertTrue(any("Name a non-`default`" in error for error in self.errors()))
+        self.assertTrue(any("Select a named `agent_type`" in error for error in self.errors()))
 
     def test_rejects_eager_routing_reference_load(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "before a custom role, second child, or review",
+            "only for a second child, later wave, custom-role transition, or review",
             "before every routing decision",
         )
-        self.assertTrue(any("before a custom role" in error for error in self.errors()))
+        self.assertTrue(any("only for a second child" in error for error in self.errors()))
 
     def test_rejects_default_fallback_routing(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/routing-policy.md",
-            "Never route to the built-in `default`",
+            "Do not substitute roles or route unmatched work to built-in `default`",
             "Route unmatched work to the built-in `default`",
         )
         self.assertTrue(
             any(
-                "Never route to the built-in `default`" in error
+                "route unmatched work to built-in `default`" in error
                 for error in self.errors()
             )
         )
@@ -166,12 +166,12 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_handoff_without_explicit_agent_type(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "Spawn: agent_type=<explicit non-default role>",
-            "Spawn: agent_type=<optional>",
+            "Set `agent_type` in the orchestration call; do not repeat it as a handoff field",
+            "Let the handoff omit role selection",
         )
         self.assertTrue(
             any(
-                "Spawn: agent_type=<explicit non-default role>" in error
+                "Set `agent_type` in the orchestration call" in error
                 for error in self.errors()
             )
         )
@@ -179,28 +179,36 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_unbounded_handoff_context(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "inherited context does not widen authorization",
+            "Inherited context does not widen authorization",
             "inherited context can widen authorization",
         )
-        self.assertTrue(any("inherited context does not widen authorization" in error for error in self.errors()))
+        self.assertTrue(any("Inherited context does not widen authorization" in error for error in self.errors()))
 
-    def test_rejects_default_result_acceptance(self):
+    def test_rejects_label_only_result_rejection(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Reject omitted or otherwise invalid role results",
-            "accept any fallback result",
+            "do not discard it solely because its role metadata is omitted or `default`",
+            "discard every result whose role metadata is omitted or default",
         )
         self.assertTrue(
-            any("Reject omitted or otherwise invalid role results" in error for error in self.errors())
+            any("do not discard it solely" in error for error in self.errors())
         )
 
     def test_rejects_approval_boundary_repeat(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
-            "Do not repeat the blocked action, widen authorization",
+            "Do not repeat that action, widen authorization",
             "Allow the blocked action to repeat",
         )
-        self.assertTrue(any("Do not repeat the blocked action" in error for error in self.errors()))
+        self.assertTrue(any("Do not repeat that action" in error for error in self.errors()))
+
+    def test_rejects_optional_approval_as_terminal(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "If authorization blocks only an optional action",
+            "If authorization blocks any action, end the leaf immediately",
+        )
+        self.assertTrue(any("blocks only an optional action" in error for error in self.errors()))
 
     def test_rejects_repeated_child_approval_boundary(self):
         self.mutate(
@@ -245,34 +253,34 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_expansion_checkpoint_removal(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Clear the checkpoint without asking only when",
+            "Clear at most one next child without asking only when",
             "primary automatically fills every available child slot",
         )
-        self.assertTrue(any("Clear the checkpoint" in error for error in self.errors()))
+        self.assertTrue(any("Clear at most one next child" in error for error in self.errors()))
 
     def test_rejects_expansion_as_automatic_user_question(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/references/routing-policy.md",
-            "Expansion alone is not a question",
+            "Expansion alone is not a user question",
             "always triggers a user question",
         )
-        self.assertTrue(any("Expansion alone is not a question" in error for error in self.errors()))
+        self.assertTrue(any("Expansion alone is not a user question" in error for error in self.errors()))
 
     def test_rejects_writer_overlap(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "ordinary cap at two children",
+            "ordinary cap is two children",
             "ordinary cap at four children",
         )
-        self.assertTrue(any("ordinary cap at two children" in error for error in self.errors()))
+        self.assertTrue(any("ordinary cap is two children" in error for error in self.errors()))
 
     def test_rejects_unintegrated_later_wave(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Freeze new spawns, collect and integrate",
+            "Collect and integrate current required receipts first",
             "Start a later wave while current children are running",
         )
-        self.assertTrue(any("collect and integrate" in error for error in self.errors()))
+        self.assertTrue(any("Collect and integrate" in error for error in self.errors()))
 
     def test_rejects_non_english_child_receipt(self):
         self.mutate(
@@ -285,7 +293,7 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_moving_review_state(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Invalidate all prior gate results after any relevant change",
+            "Any relevant change invalidates prior gate results",
             "Any relevant change preserves prior gate results",
         )
         self.assertTrue(any("relevant change" in error for error in self.errors()))
@@ -309,10 +317,10 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_primary_finding_adjudication_removal(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "Adjudicate every finding in the primary",
+            "The primary adjudicates every finding",
             "reviewer findings are accepted without question",
         )
-        self.assertTrue(any("Adjudicate every finding" in error for error in self.errors()))
+        self.assertTrue(any("primary adjudicates every finding" in error for error in self.errors()))
 
     def test_rejects_reviewer_designer_drift(self):
         self.mutate(
@@ -325,10 +333,10 @@ class RoutingContractTest(unittest.TestCase):
     def test_rejects_expansion_checkpoint_as_recursion_authority(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
-            "expansion checkpoint cannot relax recursion",
+            "A checkpoint never relaxes leaf, ownership, write-scope, or freshness rules",
             "expansion checkpoint may authorize recursion",
         )
-        self.assertTrue(any("cannot relax recursion" in error for error in self.errors()))
+        self.assertTrue(any("checkpoint never relaxes" in error for error in self.errors()))
 
     def test_rejects_reviewer_not_applicable_escape(self):
         self.mutate(

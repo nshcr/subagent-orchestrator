@@ -1,86 +1,29 @@
-# Routing Policy
+# Advanced Routing Policy
 
-Use the smallest route that can finish the acceptance anchor. Keep every child a
-leaf and the primary as the only coordinator and decision owner. Set an explicit
-non-`default` `agent_type` on every spawn. Never route to the built-in
-`default`; keep unmatched work in the primary.
+This reference supplements the Skill and never widens its admission, authorization, ownership, or leaf boundaries. Read it only for a second child, later wave, custom-role transition, or review.
 
-## Admit a role
+## Select and transition
 
-| Need                                                        | Route                 | Admit only when                                                                    |
-| ----------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------- |
-| One narrow read-only codebase question                      | built-in `explorer`   | Its focused scan replaces material primary exploration                             |
-| One settled implementation slice                            | built-in `worker`     | Strategy, exact ownership, and acceptance are already known                        |
-| Structured test or bounded log evidence                     | `evidence_tester`     | One noisy surface can be isolated behind exact acceptance fields and one artifact  |
-| One unresolved execution, state, or persistence boundary    | `boundary_mapper`     | A targeted primary check was insufficient and no design verdict is requested       |
-| One independent high-risk invariant                         | fresh `risk_reviewer` | Writers are terminal, the candidate is frozen, and the invariant is exact          |
-| One evidence-qualified irreversible ambiguity               | `risk_reviewer_max`   | A valid reviewer escalation names competing explanations and the affected decision |
-| Simple, strategic, ambiguous, ordered, or shared-state work | primary               | Delegation would add coordination or split reasoning prematurely                   |
-| General-purpose or unmatched fallback                       | primary, no spawn     | Never invoke built-in `default`; choose a specialized role or work directly        |
+| Need | Route | Required transition |
+| --- | --- | --- |
+| Material narrow read-only codebase question | built-in `explorer` | Return evidence to the primary; only the primary settles strategy |
+| Settled implementation slice | built-in `worker` | Exact ownership and acceptance are known; sample and integrate before review |
+| Noisy structured test or bounded logs | `evidence_tester` | Use only when one artifact meaningfully isolates raw evidence from primary context |
+| Unresolved execution, state, or persistence boundary | `boundary_mapper` | A targeted primary check was insufficient; return evidence, not a design verdict |
+| Exact high-risk invariant | fresh `risk_reviewer` | Writers are terminal and the integrated candidate is frozen |
+| Evidence-qualified irreversible ambiguity | `risk_reviewer_max` | A valid reviewer escalation supplies every field in the delegation contract |
 
-Do not substitute roles. An `evidence_tester` collects evidence without source
-edits or unsupported diagnosis; a `boundary_mapper` traces one boundary without
-a design verdict; a reviewer only falsifies named invariants and never explores
-broadly, implements, invents requirements, or owns the repair.
+Do not substitute roles or route unmatched work to built-in `default`. Review BLOCK returns to the primary for adjudication and never authorizes a worker automatically. PASS, BLOCK, missing evidence, or ordinary uncertainty never routes to `risk_reviewer_max`.
 
-## Follow valid transitions
+## Expand and review
 
-- Return `explorer` and `boundary_mapper` evidence to the primary. Let only the
-  primary settle strategy before assigning a `worker`.
-- Use `evidence_tester` only when raw test or log volume would pollute the
-  primary context; keep ordinary targeted checks in the primary.
-- Require a `worker` terminal receipt, primary sampling, integration, and direct
-  checks before review. Never review a moving candidate.
-- Return a review BLOCK to the primary for independent adjudication. Do not
-  transfer design ownership to the reviewer or authorize a worker automatically.
-- Route to `risk_reviewer_max` only from a valid indeterminate reviewer result.
-  Never route PASS, BLOCK, missing evidence, or ordinary uncertainty to it.
+- A second ordinary first-wave child must be bounded, independent, ownership-safe, and expected to reduce wall time or root-context noise. Preserve the ordinary cap of two children, one active writer, and non-overlapping write scopes.
+- Before a later wave, another writer, scope expansion, or reviewer rerun, collect and integrate current required receipts. New evidence must identify one bounded next purpose while material result and risk remain unchanged. Expansion alone is not a user question.
+- Multi-review requires an explicit user request: one batch, at most three fresh reviewers, disjoint invariants, and one frozen candidate; no voting or design workshop.
+- After one repair and fresh recheck still BLOCK, return to primary first-principles adjudication. Another review requires a changed candidate or new discriminating evidence. After two attempts leave the same uncertainty unchanged, treat it as an evidence plateau and obtain the smallest distinguishing observation directly.
 
-## Bound topology and expansion
+## Runtime boundaries
 
-- When delegation is admitted, start one child. Add a second ordinary first-wave
-  child only for bounded, independent, ownership-safe work with an expected
-  wall-time or context benefit. Keep the ordinary cap at two children and one
-  active writer with no overlapping write scope.
-- Prohibit child delegation and cross-child coordination. An expansion checkpoint never
-  relaxes leaf topology, ownership, write-scope, or freshness rules.
-- Open an expansion checkpoint for a later wave, another writer, scope
-  expansion, or a reviewer rerun. First collect and integrate current required
-  receipts. Let the primary clear one bounded next child only when new evidence,
-  unchanged material scope and risk, and displaced work justify it; otherwise
-  continue directly.
-- Ask when the user requested a checkpoint or at a material user-owned boundary.
-  Expansion alone is not a question. If the choice changes outcome, acceptance,
-  external behavior, compatibility, security, privacy, architecture, meaningful
-  cost, migration, or an irreversible effect, ask early with one recommended
-  default. Report operational blockers instead of offering them as choices.
-- Operational leaves and fresh reviews use their declared role boundaries and
-  isolated execution contexts. On rejection or older authorization, end the
-  leaf after one blocked-action receipt and apply the delegation contract's
-  task-scoped permission circuit. Keep the primary model and effort
-  user-controlled. Use English receipts and fixed child settings: Terra/max for
-  built-ins, Luna/max for `evidence_tester`, Terra/max for `boundary_mapper`,
-  Sol/xhigh for `risk_reviewer`, and Sol/max for `risk_reviewer_max`.
-- Treat `sandbox_mode` as requested configuration, not hard authority; parent
-  overrides may change it. Match parent permission to role and retain its
-  bounds.
+Operational leaves and fresh reviews use their declared role boundaries and isolated execution contexts. Use English receipts and installed settings: Terra/max for built-in roles, Luna/max for `evidence_tester`, Terra/max for `boundary_mapper`, Sol/xhigh for `risk_reviewer`, and Sol/max for `risk_reviewer_max`. The primary model and effort remain user-controlled.
 
-## Route review
-
-- Use one fresh `risk_reviewer` when independent review is admitted.
-  Multi-review requires an explicit user request: at most three fresh reviewers,
-  disjoint invariants, one frozen candidate, no voting or design workshop.
-- After a repair and fresh recheck still BLOCK, return to primary
-  first-principles adjudication. Reject an unsupported finding, repair directly,
-  or identify a genuine blocker. Require a changed candidate or new
-  discriminating evidence before opening an expansion checkpoint for another
-  independent review.
-- Treat unchanged uncertainty after two decision-directed attempts as an
-  evidence plateau. Stop variants and obtain the smallest discriminating
-  observation; never add a child merely to seek confidence.
-
-## Close the task
-
-Child terminal state, a gate, or exhausted budget closes transferred work only.
-Close the original outcome with claim-matched evidence; do not build supporting
-machinery before the smallest real task proves core behavior.
+Treat `sandbox_mode` as requested configuration, not hard authority; parent overrides may change actual access. Whatever the host grants, retain each role's narrower action and write boundaries.

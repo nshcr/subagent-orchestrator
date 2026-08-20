@@ -5,111 +5,43 @@ description: Route and supervise bounded Codex subagents while the primary retai
 
 # Subagent Orchestrator
 
-Optimize the completed user outcome, not agent activity. Prove the monkey before
-building the pedestal: identify the hardest user-relevant behavior, secure its
-smallest real proof, and postpone supporting machinery until that proof exists.
+Optimize the user's requested result, not agent activity. Define that result as the final deliverable, its acceptance conditions, and its important constraints. Prove the hardest user-relevant behavior on the smallest real task before adding supporting machinery.
 
-## Anchor and route
+## Decide and route
 
-1. Start primary-only. Record the requested outcome, confirmed constraints,
-   shortest direct proof, and the material work a child would replace. Keep them
-   as the acceptance anchor; an install, child, test, or review is not a
-   substitute.
-2. Prefer direct or batched tools for small work. Delegate only a bounded leaf
-   that replaces material primary work, isolates noisy evidence behind a compact
-   receipt, or supplies a required independent gate. Complexity, file count,
-   spare capacity, and confidence seeking do not qualify.
-3. Use host role descriptions for a first ordinary leaf; keep unmatched work in
-   the primary. Read the [routing policy](references/routing-policy.md) before a
-   custom role, second child, or review. Name a non-`default` `agent_type` and
-   never omit it. Use the lean [delegation contract](references/delegation-contracts.md),
-   require English model-facing receipts, and synthesize the user result in the
-   primary.
-4. Keep the primary doing material work. Retain authorization, scope, one-writer
-   integration, finding adjudication, and final acceptance. If the primary would
-   mainly coordinate, poll, or wait, reduce delegation and work directly.
+1. Start with the primary. Record the requested result, confirmed constraints, shortest direct proof, and the material work a child would replace. Use this as the acceptance anchor; intermediate signals such as an install, child receipt, test, or review count only as evidence toward it.
+2. Prefer direct or batched tools for small work. Delegate only a bounded leaf that replaces material primary work, isolates a noisy evidence stream behind a compact receipt, or supplies a required independent gate. Complexity, file count, spare capacity, and confidence seeking alone do not qualify.
+3. Select a named `agent_type` from the host's available role descriptions. Use `explorer` for a material narrow read-only codebase question and `worker` for an implementation slice whose strategy, ownership, and acceptance are settled. Do not deliberately route unmatched work to `default`; keep it in the primary.
+4. Use the custom roles only for their exact purpose:
 
-## Bound topology and expansion
+   - `evidence_tester`: one structured test or bounded runbook/log evidence set plus one requested artifact; no source edits.
+   - `boundary_mapper`: one unresolved cross-component execution, state, or persistence boundary; no design verdict.
+   - `risk_reviewer`: one independent gate for exact high-risk invariants on a frozen candidate.
+   - `risk_reviewer_max`: one terminal escalation after a valid reviewer leaves evidence-qualified ambiguity that can change an irreversible P0/P1, security, authorization, or data-integrity decision.
 
-- When delegation is admitted, start one child. Add a second ordinary first-wave
-  child only for bounded, independent, ownership-safe work with an expected
-  wall-time or root-context benefit. Keep the ordinary cap at two children and
-  one active writer; never overlap write scopes.
-- Keep every child a leaf. Never allow child delegation or cross-child
-  coordination. An
-  expansion checkpoint cannot relax recursion, ownership, write-scope, or
-  freshness rules.
-- Treat a later wave, another writer, scope expansion, or reviewer rerun as an
-  expansion checkpoint. Freeze new spawns, collect and integrate current
-  required receipts, and re-anchor to the original outcome.
-- Clear the checkpoint without asking only when new evidence gives the next
-  child one bounded, non-overlapping purpose, material outcome and risk remain
-  unchanged, and delegation is cheaper than direct work. Clear at most one new
-  child; an explicitly requested multi-review batch is the only exception.
-- Ask before consequential work when the user requested a checkpoint or evidence
-  leaves a material user-owned choice about outcome, acceptance, external
-  behavior, compatibility, security, privacy, architecture, meaningful cost,
-  migration, or an irreversible effect. State the evidence, recommend one
-  default with its tradeoff, and ask one action-selecting question. Treat user
-  corrections and brake feedback as invalidating conflicting plan inertia.
-  Report capability and access blockers with the next owner or action; do not
-  disguise them as preferences.
-- If an operational child cannot obtain approval, its terminal receipt names
-  permission class, action, and owner scope, forming a task-scoped circuit. Do
-  not repeat the blocked action or assign the same blocked boundary to a later
-  child until host proves a shared grant; the primary finishes directly.
-- After two decision-directed attempts leave the same uncertainty unchanged,
-  stop agent variants and obtain the smallest discriminating observation in the
-  primary.
+5. Read the [delegation contract](references/delegation-contracts.md) only when spawning. Set the selected role in the orchestration call, require an English model-facing receipt, and keep the handoff bounded to task-local facts. Evaluate an already returned child result by its scope, evidence, freshness, and role boundaries; do not discard it solely because its role metadata is omitted or `default`, and do not spawn a replacement merely to correct the label.
+6. Keep the primary doing material work. It retains authorization, scope, one-writer integration, conflict resolution, finding adjudication, and final acceptance. If the primary would mainly coordinate, poll, or wait, reduce delegation and work directly.
+
+## Bound execution
+
+- When delegation is admitted, start one child. Add a second ordinary first-wave child only for bounded, independent, ownership-safe work expected to reduce wall time or root-context noise. The ordinary cap is two children and one active writer; write scopes never overlap.
+- Every child remains a leaf. Prohibit child delegation and cross-child coordination. Use installed child model and effort settings without per-task retuning.
+- A later wave, another writer, scope expansion, or reviewer rerun opens an expansion checkpoint. Collect and integrate current required receipts first. Clear at most one next child without asking only when new evidence gives it one bounded non-overlapping purpose, material result and risk are unchanged, and delegation is cheaper than direct work. A checkpoint never relaxes leaf, ownership, write-scope, or freshness rules.
+- Ask only when the user requested a checkpoint or evidence leaves a material user-owned choice about the result, acceptance, external behavior, compatibility, security, privacy, architecture, meaningful cost, migration, or an irreversible effect. Report capability or access blockers with the next owner or action; do not disguise them as preferences.
+- If a denied or stale authorization affects only a nonessential action, the child continues other safe in-scope work and reports the blocked item in its terminal receipt. If the action is required for the assigned outcome, it returns one terminal `approval-blocked` receipt. Do not repeat the exact blocked action or assign the same permission-class and owner-scope boundary to another child until host evidence proves a reusable grant applies.
+- After two decision-directed attempts leave the same uncertainty unchanged, stop trying role variants and obtain the smallest discriminating observation in the primary.
 
 ## Review and converge
 
-1. Admit independent review only for a named high-risk invariant or an explicit
-   user request. Treat adversarial review as an attempt to falsify that
-   invariant with concrete evidence, not as a separate role, a redesign
-   invitation, or a default final ceremony. Limit explicit multi-review to one
-   batch of at most three fresh reviewers with disjoint invariants on one frozen
-   state.
-2. Freeze only after all writers are terminal and primary integration and direct
-   checks are complete. Invalidate all prior gate results after any relevant
-   change. Treat a reviewer as an evidence gate, not a designer or source of
-   requirements.
-3. Adjudicate every finding in the primary against the acceptance anchor and
-   evidence: accept a demonstrated blocker, reject an unsupported or
-   out-of-scope claim with reasons, and defer non-blocking improvement. Never
-   implement a proposal merely because a reviewer made it.
-4. Repair accepted blockers, verify directly, refreeze, and run one fresh
-   recheck. If it still blocks, stop the automatic review loop and return to
-   first principles. Determine whether the invariant fails, the finding is stale
-   or invalid, or the smallest evidence or repair that changes the decision.
-5. Continue bounded direct repair without another reviewer when appropriate. If
-   the same claim still requires independent proof, treat another fresh review
-   as a new expansion checkpoint. Require a changed candidate or new
-   discriminating evidence; an unchanged BLOCK is an evidence plateau, not
-   permission for reviewer-driven iteration.
-6. Use `risk_reviewer_max` only after one valid `risk_reviewer` returns
-   evidence-qualified indeterminacy that can change an irreversible P0/P1,
-   security, authorization, or data-integrity decision. Never use it as a
-   routine second opinion.
+1. Admit review only for an exact high-risk invariant or an explicit user request. Freeze only after writers are terminal and primary integration and direct checks are complete. Any relevant change invalidates prior gate results.
+2. Treat a reviewer as an evidence gate, not a designer or requirements source. The primary adjudicates every finding against the acceptance anchor: accept demonstrated blockers, reject unsupported or out-of-scope claims with reasons, and defer non-blocking improvements.
+3. Repair accepted blockers, verify directly, refreeze, and run one fresh recheck. If it still blocks, stop the automatic review loop and return to first principles. Another independent review requires a changed candidate or new discriminating evidence and a new expansion checkpoint.
+4. Explicit multi-review is one batch of at most three fresh reviewers with disjoint invariants on one frozen state; no voting or design workshop. Use `risk_reviewer_max` only through the escalation route defined above, never as a routine second opinion.
 
 ## Close with evidence
 
-- Sample child evidence and owned artifacts without replaying the scan. Verify a
-  non-`default` `agent_type` and the role's declared execution boundaries.
-  Reject omitted or otherwise invalid role results; continue in the primary
-  without repeating that blocked boundary. Use installed child model and effort settings without
-  per-task retuning.
-- Continue safe authorized primary work while it is likely to reduce
-  task-relevant risk proportionately. Close only with claim-matched evidence for
-  the original outcome, explicit abandonment or supersession, or a genuine
-  user-owned blocker.
-- Treat static policy tests as local consistency evidence only. Installation and
-  client readback prove loading, not production efficiency. Label source-only
-  evidence `verified-local`.
-- Do not add a harness, schema, installer feature, authority system, reviewer
-  hierarchy, or benchmark before the smallest real task demonstrates the core
-  benefit. Stop delegating when orchestration overhead approaches the work it
-  displaces.
+- Sample child evidence and owned artifacts without replaying the scan. Confirm that execution stayed within the selected role and scope. Treat policy tests as local consistency evidence only; installation and client readback prove loading, not production efficiency. Label source-only evidence `verified-local`.
+- Close only with claim-matched evidence for the acceptance anchor, explicit abandonment or supersession, or a genuine user-owned blocker. A child terminal state, gate line, install, test, or exhausted budget closes only its own sub-boundary.
+- Stop delegating when orchestration overhead approaches the work it replaces. Do not add a harness, schema, installer feature, authority system, reviewer hierarchy, or benchmark before a real task demonstrates the need.
 
-Read the [evaluation policy](references/evaluation-policy.md) only for a routing
-change or efficiency claim.
+Read the [advanced routing policy](references/routing-policy.md) only for a second child, later wave, custom-role transition, or review. Read the [evaluation policy](references/evaluation-policy.md) only for an actual routing comparison or efficiency claim; it does not govern routine Skill execution.

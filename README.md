@@ -29,16 +29,15 @@ concurrency do not qualify a task for delegation.
 
 - `explorer` and `worker` are built-in leaf routes for material read-only scans
   and scoped, ownership-safe implementation.
-- Every delegated child names an explicit non-`default` `agent_type`. Operational
-  leaves and fresh review roles use their declared role boundaries and isolated
-  execution contexts; over-broad inherited context remains prohibited. The built-in general-purpose
-  `default` is never routed by this package, and unmatched work remains with the
-  primary. An invalid spawn result cannot satisfy acceptance or authorize an
-  automatic replacement spawn. An approval-blocked operational leaf returns one
-  terminal receipt; the primary completes the remaining work without repeating
-  that blocked boundary. Its permission class and owner scope become a
-  task-scoped circuit breaker: later children cannot receive the same blocked
-  boundary unless host evidence proves a reusable grant applies to them.
+- Every new delegation selects an explicit role in the orchestration call. The
+  package never deliberately routes unmatched work to built-in `default`, but an
+  already returned result is assessed by scope, evidence, freshness, and role
+  boundaries rather than discarded solely for missing or `default` role metadata.
+  A denied optional action does not end the leaf: it continues safe in-scope work
+  and reports the block. A required denied action produces one terminal
+  `approval-blocked` receipt. Later children cannot receive the same permission
+  class and owner-scope boundary unless host evidence proves that a reusable
+  grant applies to them.
 - Every child is a leaf. The primary retains authorization, writer ownership,
   integration, and final acceptance.
 - When delegation is admitted, start one child. A second child in the ordinary

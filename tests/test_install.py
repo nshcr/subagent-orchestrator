@@ -245,7 +245,7 @@ raise SystemExit(module.main())
         self.assertIn("## 子代理与并行", agents_path.read_text())
         self.assertNotIn("## Subagents and parallelism", agents_path.read_text())
         self.assertIn(
-            "仅负责一个明确命名、尚未解决的跨组件执行、状态或持久化边界",
+            "仅负责一个已明确命名但尚未解决的跨组件执行、状态或持久化边界",
             (self.codex_home / "agents" / "boundary_mapper.toml").read_text(),
         )
         self.assertIn(

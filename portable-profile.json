@@ -29,7 +29,7 @@
     "id": "default",
     "route": "primary-no-spawn",
     "explicit_agent_type_required": true,
-    "fallback_result_route": "reject-and-primary-no-retry"
+    "fallback_result_route": "validate-scope-evidence-freshness-no-label-only-retry"
   },
   "builtin_routes": [
     {
@@ -104,7 +104,7 @@
     "contract_reference": "payload/en/skills/subagent-orchestrator/references/delegation-contracts.md",
     "state_bound": true,
     "context_scope": "role-scoped-operational-or-fresh-review",
-    "approval_rejection_route": "leaf-terminal-receipt-primary-completes-no-retry-or-scope-expansion",
+    "approval_rejection_route": "optional-action-continue-required-action-terminal-receipt-no-repeat-or-scope-expansion",
     "approval_block_receipt": "permission-class-exact-action-owner-scope",
     "repeated_approval_route": "same-permission-class-and-owner-scope-primary-only",
     "approval_circuit_clearance": "host-evidence-reusable-grant-applies-to-child-threads",
@@ -122,6 +122,7 @@
   "adapter_requirements": [
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
+    "preserve-evidence-based-returned-result-acceptance",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",

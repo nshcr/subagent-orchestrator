@@ -36,7 +36,7 @@ ROLE_PROFILE_POLICY = {
             "isolated behind explicit acceptance fields and one requested artifact"
         ),
         "routing_markers": (
-            "Structured test or bounded log evidence",
+            "Noisy structured test or bounded logs",
             "`evidence_tester`",
         ),
     },
@@ -47,7 +47,7 @@ ROLE_PROFILE_POLICY = {
             "a targeted primary check"
         ),
         "routing_markers": (
-            "One unresolved execution, state, or persistence boundary",
+            "Unresolved execution, state, or persistence boundary",
             "`boundary_mapper`",
         ),
     },
@@ -58,8 +58,8 @@ ROLE_PROFILE_POLICY = {
             "acceptance invariants"
         ),
         "routing_markers": (
-            "One independent high-risk invariant",
-            "fresh `risk_reviewer`",
+            "Exact high-risk invariant",
+            "`risk_reviewer`",
         ),
     },
     "risk_reviewer_max": {
@@ -70,13 +70,14 @@ ROLE_PROFILE_POLICY = {
             "authorization, or data-integrity decision"
         ),
         "routing_markers": (
-            "One evidence-qualified irreversible ambiguity",
+            "Evidence-qualified irreversible ambiguity",
         ),
     },
 }
 ADAPTER_REQUIREMENTS = [
     "preserve-role-eligibility",
     "preserve-explicit-non-default-agent-type",
+    "preserve-evidence-based-returned-result-acceptance",
     "preserve-permission-boundaries",
     "preserve-leaf-non-recursion",
     "preserve-expansion-checkpoints",
@@ -246,7 +247,7 @@ def verify_portability() -> None:
         "id": "default",
         "route": "primary-no-spawn",
         "explicit_agent_type_required": True,
-        "fallback_result_route": "reject-and-primary-no-retry",
+        "fallback_result_route": "validate-scope-evidence-freshness-no-label-only-retry",
     }:
         fail("portable profile default host fallback must remain primary-no-spawn")
     expected_builtin_routes = [
@@ -341,7 +342,7 @@ def verify_portability() -> None:
         ),
         "state_bound": True,
         "context_scope": "role-scoped-operational-or-fresh-review",
-        "approval_rejection_route": "leaf-terminal-receipt-primary-completes-no-retry-or-scope-expansion",
+        "approval_rejection_route": "optional-action-continue-required-action-terminal-receipt-no-repeat-or-scope-expansion",
         "approval_block_receipt": "permission-class-exact-action-owner-scope",
         "repeated_approval_route": (
             "same-permission-class-and-owner-scope-primary-only"

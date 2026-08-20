@@ -1,68 +1,26 @@
 # Evaluation Policy
 
-## Optimize the outcome
+## Comparison scope only
 
-Preserve authorization and correctness, then reduce end-to-end orchestration
-overhead. Judge the completed user outcome, not agent count, activity, or policy
-sophistication.
+This reference is for an actual routing comparison or an efficiency claim. It does not govern routine Skill execution, change delegation admission, or require a benchmark before ordinary work.
 
-## Prove the monkey first
+Judge the user-requested result: the final deliverable, acceptance conditions, important constraints, and claim-matched evidence. Agent count, activity, policy complexity, installation, or a gate line are not substitute outcomes.
 
-Name the user-relevant core behavior and prove it on the smallest representative
-task before adding infrastructure, broader hardening, benchmarks, or reviewers.
-Stop when the direct task shows no useful delegation. Do not benchmark routine
-Skill use; compare paired tasks only for a requested optimization study or an
-evidence-dependent routing change.
+## Minimum comparison
 
-## Record the minimum evidence
+- Compare primary-only and delegated routes on the smallest representative paired task that can answer the routing question.
+- Preserve authorization and correctness first. Consider a routing change only if quality does not regress and end-to-end overhead is meaningfully lower.
+- Stop the comparison when delegation does not replace material work, reduce root-context noise, or provide a required independent gate.
+- Use the repository campaign evaluator only for a real comparison decision. Do not benchmark routine Skill use or build another measurement framework without explicit authorization.
 
-Record only available decision evidence:
+## Evidence to record
 
-- delivered outcome and correctness failures;
-- child attempts, waves, writers, reviewer attempts, retries, and primary
-  replay;
-- work or root-context noise displaced by each second child or later wave;
-- overlapping writers, unintegrated receipts, or moving-state reviews as
-  failures;
-- missing or over-broad handoff context, or review roles inheriting mutable
-  execution state, as a routing failure;
-- repeated child blocks for the same permission class and owner scope after the
-  first terminal receipt as a routing failure;
+- final result and correctness failures;
+- child attempts, waves, writers, reviewer attempts, retries, and primary replay;
+- work or root-context noise displaced by each additional child or later wave;
+- overlapping writers, unintegrated receipts, moving-state reviews, over-broad handoffs, or repeated children on the same blocked permission boundary as routing failures;
 - wait timeouts as telemetry, not failure;
-- total primary and child tokens or actual credits when available, keeping
-  cached raw usage distinct from billed credits;
-- source, install, client-readback, and target observations at their actual
-  evidence tier.
+- total primary and child tokens or actual credits when available, keeping cached raw usage separate from billed credits;
+- source, install, client-readback, and target observations at their actual evidence tier.
 
-Do not infer role or tool credits from thread totals or describe fixtures as
-production evidence.
-
-## Decide and stop
-
-- Keep work with the primary when quality evidence is incomplete or delegation
-  does not replace material work.
-- Freeze spawning at an expansion checkpoint. Clear one bounded next child only
-  after integrating current terminal receipts, obtaining a discriminating
-  purpose from new evidence, confirming unchanged material scope and risk, and
-  showing benefit above coordination cost. Never relax leaf, ownership,
-  write-scope, or freshness rules.
-- Ask when the user requested a checkpoint or evidence leaves a material
-  user-owned choice about outcome, acceptance, external behavior, compatibility,
-  security, privacy, architecture, meaningful cost, migration, or an
-  irreversible effect. Report capability and access blockers with the next owner
-  or action.
-- Accept review evidence only for a frozen integrated candidate. Keep finding
-  adjudication in the primary; reviewer wording is not authority. Defer new
-  requirements and non-blocking hardening. Require a changed candidate or new
-  discriminating evidence and another expansion checkpoint before reviewing
-  again after one repair and fresh recheck.
-- Prefer a routing change only when quality does not regress and end-to-end
-  overhead is meaningfully lower. Treat fixed installed child models and effort
-  as configuration, not task-time variables.
-- Do not treat a child, gate line, install, or exhausted budget as task
-  completion. Close against the original outcome with claim-matched evidence or
-  a genuine user-owned blocker.
-
-Use the repository campaign evaluator only for a real comparison decision.
-Preserve raw observations and do not build another measurement framework without
-explicit authorization.
+Do not infer per-role or per-tool credits from thread totals, and do not describe fixtures as production evidence. Preserve raw observations and state any unavailable evidence.
