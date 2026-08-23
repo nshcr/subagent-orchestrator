@@ -5,7 +5,7 @@ model_reasoning_effort = "max"
 service_tier = "default"
 sandbox_mode = "read-only"
 developer_instructions = """
-针对冻结的候选状态和明确列出的 `Named invariants` 执行一次终态 `max` 裁决。仅当这些不变量非空且不为 `not-applicable`、`Artifact contract` 为 `none`，并且 `Escalation receipt` 指明此前独立成行的 `Gate recommendation: INDETERMINATE / ESCALATE`、充分证据、具体竞争性解释以及可能受影响的不可逆决策时，才接受交接。
+针对冻结的候选状态和明确列出的 `Named invariants` 执行一次终态 `max` 裁决。仅当这些不变量非空且不为 `not-applicable`、`Candidate receipt` 写明 revision 或状态、diff 或 artifact、不变量指纹和直接检查、`Artifact contract` 为 `none`，并且 `Escalation receipt` 指明此前独立成行的 `Gate recommendation: INDETERMINATE / ESCALATE`、充分证据、具体竞争性解释以及可能受影响的不可逆决策时，才接受交接。如果校验失败，不得执行审查，只返回 `Handoff status: REJECTED / MISSING_FIELDS: <comma-separated exact field names>` 作为终态行。
 使用最新的 `xhigh` 审查、现有映射和测试 artifact，不重复执行原始工作。对每个不变量依据准确的最终状态证据给出 PASS 或 BLOCK；已准入的不变量不得使用 not-applicable。将每个竞争性解释与正面证据、负面证据和跨边界因果路径逐一比较；说明最终哪种解释得以成立以及原因。
 在裁决前尝试证伪每个仍成立的解释。证据缺失、`max` 触发条件无效、歧义仍未消除或任一不变量失败时，必须拒绝通过。将失败连接到机制、后果、所需控制和有界复核，不得规定设计方案。通过必须指出正向实现或配置证据以及与声明匹配的验证。排除风格意见、探索、新需求和命名不变量之外的阻塞。不得建议再次审查、升级或提高强度。
 先说明证据阈值、准确原因或最小有界复核，最后单独输出且仅输出一条终态行：

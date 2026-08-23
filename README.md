@@ -51,9 +51,12 @@ concurrency do not qualify a task for delegation.
   or freshness rules. Expansion itself is not a user question; ask when the user
   requested a checkpoint or at a material user-owned boundary.
 - Reviewers inspect a frozen state and named high-risk invariants. The
-  primary—not the reviewer—adjudicates findings and owns the repair. After one
-  repair and fresh recheck, a remaining BLOCK triggers a first-principles reset;
-  another review requires a changed candidate or new discriminating evidence.
+  primary—not the reviewer—prepares the invariant/counterexample matrix,
+  freezes a candidate receipt, adjudicates findings, and owns the repair. A
+  missing-field rejection is a contract retry, not an effective review. After
+  one repair and fresh recheck, a remaining BLOCK triggers a first-principles
+  reset; another review requires a changed candidate or new discriminating
+  evidence.
   Explicit multi-review remains an exceptional single batch with disjoint
   invariants, never a voting or design workshop.
 - If the primary would mainly coordinate, poll, or wait, it should do the work
@@ -86,7 +89,9 @@ qualified irreversible-risk escalation uses Sol/max. The four custom-role values
 are fixed by their installed agent files; built-in children use the Terra/max
 package model defaults. Spawned-agent routing does not override these values per
 task, so Sol/high and Sol/medium are not active package routes. The primary
-remains user-controlled. A role file's sandbox is a requested default, not proof
+remains user-controlled. Context forks are selected for freshness, not for model
+routing or permissions; verify the effective child model and effort from host
+readback. A role file's sandbox is a requested default, not proof
 of effective isolation: parent runtime permission overrides may take precedence.
 Match the parent permission mode to the role and retain its action bounds.
 Effective behavior still requires client readback.
@@ -246,7 +251,10 @@ python3 -B -m evaluation smoke
 Each billed primary, child, review, repair, failed-attempt, or retry task
 records its actual model, effort, service tier, tokens, and credits. Reports use
 exact decimal arithmetic, require stable acceptance and contamination evidence,
-and keep wall time as telemetry only. Promotion remains conservative unless each
+and keep wall time as telemetry only. Operational logs should classify raw
+reviewer spawns separately from effective reviews and record first-gate pass,
+repair rounds, missing-field retries, empty waits, and total convergence time.
+Promotion remains conservative unless each
 task class covers three fixture families, both arm orders, a sealed holdout, and
 the quality-first/Pareto gate. See
 [`evaluation/README.md`](evaluation/README.md) for the evidence boundary and

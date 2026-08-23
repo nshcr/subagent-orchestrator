@@ -370,6 +370,46 @@ class RoutingContractTest(unittest.TestCase):
         )
         self.assertTrue(any("changed candidate" in error for error in self.errors()))
 
+    def test_rejects_missing_field_terminal_receipt_drift(self):
+        self.mutate(
+            "agents/risk_reviewer.toml",
+            "Handoff status: REJECTED / MISSING_FIELDS",
+            "Continue reviewing with missing fields",
+        )
+        self.assertTrue(any("MISSING_FIELDS" in error for error in self.errors()))
+
+    def test_rejects_unfrozen_reviewer_handoff(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "Candidate receipt",
+            "Optional candidate note",
+        )
+        self.assertTrue(any("Candidate receipt" in error for error in self.errors()))
+
+    def test_rejects_fork_as_model_selector(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/delegation-contracts.md",
+            "Fork selection is not a model selector",
+            "Fork selection chooses the child model",
+        )
+        self.assertTrue(any("model selector" in error for error in self.errors()))
+
+    def test_rejects_raw_spawn_as_effective_review(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/evaluation-policy.md",
+            "raw reviewer spawns separately from effective reviews",
+            "every reviewer spawn is an effective review",
+        )
+        self.assertTrue(any("effective reviews" in error for error in self.errors()))
+
+    def test_rejects_model_causality_without_paired_eval(self):
+        self.mutate(
+            f"skills/{SKILL_DIR.name}/references/evaluation-policy.md",
+            "no model-causal claim without representative paired results",
+            "infer model causality from observed review findings",
+        )
+        self.assertTrue(any("model-causal claim" in error for error in self.errors()))
+
     def test_rejects_harness_claim_broadening(self):
         self.mutate(
             f"skills/{SKILL_DIR.name}/SKILL.md",
