@@ -31,8 +31,8 @@
     },
     {
       "path": "README.md",
-      "sha256": "8200aac1198b73d11f628d7b7f3e40e052308b277a544252ba92d0e8c5aa66b7",
-      "size": 14873
+      "sha256": "339a29c3513f6d829098220483c70479df7b81c26b20623bcd59c121a3145a40",
+      "size": 15467
     },
     {
       "path": "build_manifest.py",
@@ -116,8 +116,8 @@
     },
     {
       "path": "payload/en/skills/subagent-orchestrator/SKILL.md",
-      "sha256": "b4ce395ff5ec6c1e87b201db4c3d3fdc9fb7d091aea1c89143791e092414ad9b",
-      "size": 7845
+      "sha256": "4a2db91150f57695e1b17647891452b9a1ddc4b1b60f3d28463261210e3a7ba4",
+      "size": 8606
     },
     {
       "path": "payload/en/skills/subagent-orchestrator/agents/openai.yaml",
@@ -181,8 +181,8 @@
     },
     {
       "path": "payload/zh/skills/subagent-orchestrator/SKILL.md",
-      "sha256": "a20df0f301f7a4a1bcf2216f2724c8a760e0b8bbd34f4a97322df1365e927991",
-      "size": 7519
+      "sha256": "6f7ce0c3bdcb9b408d97c417cfd2ae05da9830460f5aea70064593498bd5ba16",
+      "size": 8148
     },
     {
       "path": "payload/zh/skills/subagent-orchestrator/agents/openai.yaml",
@@ -237,5 +237,5 @@
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "package_version": "2026.08.23"
+  "package_version": "2026.08.23.1"
 }

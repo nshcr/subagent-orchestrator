@@ -25,6 +25,15 @@ do not coordinate other children.
 The default remains a single agent. Complexity, file count, and spare
 concurrency do not qualify a task for delegation.
 
+For repository work, the primary establishes the smallest useful readiness
+contract before delegating: applicable instructions, authoritative setup and
+validation entry points, a task-relevant direct executable check when available,
+documentation mismatches, and current environment or capability blockers. When
+collecting that evidence would itself create a substantial noisy stream,
+`evidence_tester` may own one bounded repository-readiness receipt. The receipt
+is neither a score nor a certification, and the package never runs external
+scanners or unpinned latest packages to produce it.
+
 ## Delegation budget
 
 - `explorer` and `worker` are built-in leaf routes for material read-only scans

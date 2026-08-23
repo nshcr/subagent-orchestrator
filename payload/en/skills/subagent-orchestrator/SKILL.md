@@ -10,17 +10,18 @@ Optimize the user's requested result, not agent activity. Define that result as 
 ## Decide and route
 
 1. Start with the primary. Record the requested result, confirmed constraints, shortest direct proof, and the material work a child would replace. Use this as the acceptance anchor; intermediate signals such as an install, child receipt, test, or review count only as evidence toward it.
-2. Prefer direct or batched tools for small work. Delegate only a bounded leaf that replaces material primary work, isolates a noisy evidence stream behind a compact receipt, or supplies a required independent gate. Complexity, file count, spare capacity, and confidence seeking alone do not qualify.
-3. Select a named `agent_type` from the host's available role descriptions. Use `explorer` for a material narrow read-only codebase question and `worker` for an implementation slice whose strategy, ownership, and acceptance are settled. Do not deliberately route unmatched work to `default`; keep it in the primary.
-4. Use the custom roles only for their exact purpose:
+2. For repository work, establish only the readiness facts needed by the task before delegating: applicable instructions, authoritative setup and validation entry points, a task-relevant direct executable check when available, documentation mismatches, and current environment or capability blockers. Keep this in the primary when the evidence is cheap. If collection would create a substantial noisy stream, `evidence_tester` may produce one bounded repository-readiness receipt that separates declared documentation, observed execution, and blockers. The receipt is not a score, compatibility certification, or product-quality verdict. Do not run external scanners, unpinned latest packages, or additional setup outside the task's authorization to create it.
+3. Prefer direct or batched tools for small work. Delegate only a bounded leaf that replaces material primary work, isolates a noisy evidence stream behind a compact receipt, or supplies a required independent gate. Complexity, file count, spare capacity, and confidence seeking alone do not qualify.
+4. Select a named `agent_type` from the host's available role descriptions. Use `explorer` for a material narrow read-only codebase question and `worker` for an implementation slice whose strategy, ownership, and acceptance are settled. Do not deliberately route unmatched work to `default`; keep it in the primary.
+5. Use the custom roles only for their exact purpose:
 
    - `evidence_tester`: one structured test or bounded runbook/log evidence set plus one requested artifact; no source edits.
    - `boundary_mapper`: one unresolved cross-component execution, state, or persistence boundary; no design verdict.
    - `risk_reviewer`: one independent gate for exact high-risk invariants on a frozen candidate.
    - `risk_reviewer_max`: one terminal escalation after a valid reviewer leaves evidence-qualified ambiguity that can change an irreversible P0/P1, security, authorization, or data-integrity decision.
 
-5. Read the [delegation contract](references/delegation-contracts.md) only when spawning. Set the selected role in the orchestration call, require an English model-facing receipt, and keep the handoff bounded to task-local facts. Evaluate an already returned child result by its scope, evidence, freshness, and role boundaries; do not discard it solely because its role metadata is omitted or `default`, and do not spawn a replacement merely to correct the label.
-6. Keep the primary doing material work. It retains authorization, scope, one-writer integration, conflict resolution, finding adjudication, and final acceptance. If the primary would mainly coordinate, poll, or wait, reduce delegation and work directly.
+6. Read the [delegation contract](references/delegation-contracts.md) only when spawning. Set the selected role in the orchestration call, require an English model-facing receipt, and keep the handoff bounded to task-local facts. Evaluate an already returned child result by its scope, evidence, freshness, and role boundaries; do not discard it solely because its role metadata is omitted or `default`, and do not spawn a replacement merely to correct the label.
+7. Keep the primary doing material work. It retains authorization, scope, one-writer integration, conflict resolution, finding adjudication, and final acceptance. If the primary would mainly coordinate, poll, or wait, reduce delegation and work directly.
 
 ## Bound execution
 
