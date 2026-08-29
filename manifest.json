@@ -35,6 +35,71 @@
       "size": 15467
     },
     {
+      "path": "agents/README.md",
+      "sha256": "168e5b88a061f617257bd2a5a6066365ce528c2b36e0993195acf0487591bc13",
+      "size": 976
+    },
+    {
+      "path": "agents/en/boundary_mapper.toml",
+      "sha256": "1c6a2caa11f5e585e83ff43bfc3bd980e42e3486701ce658fdd182b11ca12f68",
+      "size": 1347
+    },
+    {
+      "path": "agents/en/change_reviewer.toml",
+      "sha256": "fc5a4fd57c27d8e636b300b3533f1591ef468f2124fbb1bc7b7c70c1edc803cf",
+      "size": 2016
+    },
+    {
+      "path": "agents/en/contract_auditor.toml",
+      "sha256": "6661d1dcd6d454b8d699275b676c2a45e41a5dab60f66f09f517b0e08d5530bc",
+      "size": 1393
+    },
+    {
+      "path": "agents/en/docs_researcher.toml",
+      "sha256": "a7d5f22d096f12394615600f19c8a5c679ab00f51a160edc6f4a511e602da5e0",
+      "size": 1001
+    },
+    {
+      "path": "agents/en/evidence_tester.toml",
+      "sha256": "9e8b10595f034ee836650d2666f0bd42aa356fef8e6c6ffb07eae5940bf2af81",
+      "size": 1930
+    },
+    {
+      "path": "agents/en/runtime_debugger.toml",
+      "sha256": "a51362dcabc8182b2fa2c04bd9c72ea77b2069b2f7ebb508a08fbfaa05c66ea6",
+      "size": 1649
+    },
+    {
+      "path": "agents/zh/boundary_mapper.toml",
+      "sha256": "9f77897141f6cf0aec4fd612ca69a08d72802487091fcbc449e7cc94d50cfadb",
+      "size": 1199
+    },
+    {
+      "path": "agents/zh/change_reviewer.toml",
+      "sha256": "e261ec84345e4ea0167c53d6392bb6488f8ffff12bf615b638a8b3984b48e1cf",
+      "size": 1732
+    },
+    {
+      "path": "agents/zh/contract_auditor.toml",
+      "sha256": "26edca9aee91679e528523f15e6b11f03464bc98643d2278b15912a2d77fcb33",
+      "size": 1245
+    },
+    {
+      "path": "agents/zh/docs_researcher.toml",
+      "sha256": "c89812b562d0a7cb7f7a1e435e8ade54fc16e6c3ee780388fdd606e7f79ee20c",
+      "size": 864
+    },
+    {
+      "path": "agents/zh/evidence_tester.toml",
+      "sha256": "57d4200ab76739e9d4cf0509d960e5ed356aa408fcfa2b982d8654033ce25219",
+      "size": 1647
+    },
+    {
+      "path": "agents/zh/runtime_debugger.toml",
+      "sha256": "59e0172dfae80d600b18c78baa3980c5e2b5220d29a41d1ae81bf793d7ccf432",
+      "size": 1412
+    },
+    {
       "path": "build_manifest.py",
       "sha256": "046c4c731cad63c644f78af533aa44ea464c4acf8d01844e22919d67b780c333",
       "size": 11566
@@ -237,5 +302,5 @@
   ],
   "format_version": 1,
   "package_id": "subagent-orchestrator",
-  "package_version": "2026.08.23.1"
+  "package_version": "2026.08.29"
 }
